@@ -196,9 +196,11 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
         size: 120,
         enableHiding: false,
         cell: ({ row }) => (
-          <Text size="sm" fw={600} lineClamp={1}>
-            {row.original.itemId}
-          </Text>
+          <Box style={{ minWidth: 0, width: '100%' }}>
+            <Text size="sm" fw={600} lineClamp={1} title={String(row.original.itemId)}>
+              {row.original.itemId}
+            </Text>
+          </Box>
         ),
       },
       {
@@ -206,9 +208,11 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
         header: 'Code',
         size: 100,
         cell: ({ row }) => (
-          <Text size="sm" fw={500} lineClamp={1}>
-            {row.original.itemCode}
-          </Text>
+          <Box style={{ minWidth: 0, width: '100%' }}>
+            <Text size="sm" fw={500} lineClamp={1} title={row.original.itemCode}>
+              {row.original.itemCode}
+            </Text>
+          </Box>
         ),
       },
       {
@@ -226,9 +230,11 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
           const altName = row.original.itemNameAlt?.trim();
           const title = altName ? `${primaryName} (${altName})` : primaryName;
           return (
-            <Text size="sm" fw={600} truncate title={title} lineClamp={1}>
-              {primaryName}
-            </Text>
+            <Box style={{ minWidth: 0, width: '100%' }}>
+              <Text size="sm" fw={600} truncate title={title} lineClamp={1}>
+                {primaryName}
+              </Text>
+            </Box>
           );
         },
       },
@@ -239,9 +245,11 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
         cell: ({ row }) => {
             const date = row.original.modifiedDate ? new Date(row.original.modifiedDate).toLocaleString() : '—';
             return (
-                <Text size="sm" truncate title={date} lineClamp={1}>
-                    {date}
-                </Text>
+                <Box style={{ minWidth: 0, width: '100%' }}>
+                  <Text size="sm" truncate title={date} lineClamp={1}>
+                      {date}
+                  </Text>
+                </Box>
             );
         },
       },
@@ -252,9 +260,11 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
         cell: ({ row }) => {
             const by = row.original.modifiedBy?.trim() || 'Unknown';
             return (
-                <Text size="sm" truncate title={by} lineClamp={1}>
-                    {by}
-                </Text>
+                <Box style={{ minWidth: 0, width: '100%' }}>
+                  <Text size="sm" truncate title={by} lineClamp={1}>
+                      {by}
+                  </Text>
+                </Box>
             );
         },
       },

@@ -24,6 +24,10 @@ export const ROUTE_CONFIG: RouteItem[] = [
     label: 'Home',
   },
   {
+    path: '/pos',
+    label: 'POS System',
+  },
+  {
     path: '/menus',
     label: 'Menu Management',
     children: [

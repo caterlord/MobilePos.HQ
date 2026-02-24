@@ -10,6 +10,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { OrganizationManagementPage } from './pages/OrganizationManagementPage'
 import OnboardingWizard from './pages/OnboardingWizard'
 import { MenuPage } from './pages/MenuPage'
+import { PosPage } from './pages/PosPage'
 import { MenuCategoriesPage } from './pages/operations/menu/MenuCategoriesPage'
 import ButtonStylesPage from './pages/operations/menu/ButtonStyles'
 import MenuItemsPage from './pages/operations/menu/MenuItems'
@@ -94,6 +95,7 @@ function AppContent() {
         </ProtectedRoute>
       }>
         <Route index element={<DashboardPage />} />
+        <Route path="pos" element={<PosPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="organization-management" element={<OrganizationManagementPage />} />
         <Route path="menus" element={<MenuPage />} />
