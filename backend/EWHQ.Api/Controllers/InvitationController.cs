@@ -6,25 +6,30 @@ using Microsoft.EntityFrameworkCore;
 using EWHQ.Api.Data;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace EWHQ.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/invitations")]
+[Route("api/invitation")]
 public class InvitationController : ControllerBase
 {
     private readonly ITeamService _teamService;
+    private readonly IAccessAuditService _accessAuditService;
     private readonly AdminDbContext _context;
     private readonly ILogger<InvitationController> _logger;
     private readonly IEmailService _emailService;
 
     public InvitationController(
         ITeamService teamService,
+        IAccessAuditService accessAuditService,
         AdminDbContext context,
         ILogger<InvitationController> logger,
         IEmailService emailService)
     {
         _teamService = teamService;
+        _accessAuditService = accessAuditService;
         _context = context;
         _logger = logger;
         _emailService = emailService;
@@ -59,6 +64,7 @@ public class InvitationController : ControllerBase
         return Ok(new
         {
             email = invitation.Email,
+            organizationName = invitation.Team.Name,
             teamName = invitation.Team.Name,
             teamId = invitation.TeamId,
             role = invitation.Role,
@@ -95,10 +101,16 @@ public class InvitationController : ControllerBase
             return Unauthorized(new { message = "Unable to retrieve user information from authentication token" });
         }
 
+        var invitationToken = request.GetToken();
+        if (string.IsNullOrWhiteSpace(invitationToken))
+        {
+            return BadRequest(new { message = "Invitation token is required" });
+        }
+
         // Find the invitation
         var invitation = await _context.TeamInvitations
             .Include(i => i.Team)
-            .FirstOrDefaultAsync(i => i.InvitationToken == request.Token);
+            .FirstOrDefaultAsync(i => i.InvitationToken == invitationToken);
 
         if (invitation == null)
         {
@@ -127,6 +139,11 @@ public class InvitationController : ControllerBase
             invitation.VerificationAttempts = 0;
 
             await _context.SaveChangesAsync();
+
+            await TryAuditAsync(invitation.TeamId, "InvitationAcceptRequiresEmailVerification", auth0UserId, null, invitation.Email, new
+            {
+                invitationId = invitation.Id
+            });
 
             // Send verification email to the invited email address
             await _emailService.SendEmailVerificationAsync(
@@ -163,6 +180,11 @@ public class InvitationController : ControllerBase
             invitation.AcceptedByUserId = auth0UserId;
 
             await _context.SaveChangesAsync();
+
+            await TryAuditAsync(invitation.TeamId, "InvitationAccepted", auth0UserId, auth0UserId, auth0Email, new
+            {
+                invitationId = invitation.Id
+            });
 
             return Ok(new
             {
@@ -250,6 +272,11 @@ public class InvitationController : ControllerBase
 
         await _context.SaveChangesAsync();
 
+        await TryAuditAsync(invitation.TeamId, "InvitationAcceptedAfterVerification", auth0UserId, auth0UserId, invitation.Email, new
+        {
+            invitationId = invitation.Id
+        });
+
         return Ok(new
         {
             success = true,
@@ -266,6 +293,8 @@ public class InvitationController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResendVerificationCode([FromBody] ResendVerificationRequest request)
     {
+        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+
         var invitation = await _context.TeamInvitations
             .Include(i => i.Team)
             .FirstOrDefaultAsync(i => i.Id == request.InvitationId);
@@ -291,6 +320,11 @@ public class InvitationController : ControllerBase
         invitation.VerificationAttempts = 0;
 
         await _context.SaveChangesAsync();
+
+        await TryAuditAsync(invitation.TeamId, "InvitationVerificationResent", auth0UserId, null, invitation.Email, new
+        {
+            invitationId = invitation.Id
+        });
 
         // Send new verification email
         await _emailService.SendEmailVerificationAsync(
@@ -322,11 +356,53 @@ public class InvitationController : ControllerBase
         // automatically without re-verification
         _logger.LogInformation($"User {userId} verified ownership of email {email}");
     }
+
+    private async Task TryAuditAsync(
+        string teamId,
+        string actionType,
+        string? actorUserId,
+        string? targetUserId,
+        string? targetEmail,
+        object? details)
+    {
+        try
+        {
+            await _accessAuditService.LogAsync(new AccessAuditLog
+            {
+                TeamId = teamId,
+                ActionType = actionType,
+                ActorUserId = actorUserId,
+                TargetUserId = targetUserId,
+                TargetEmail = targetEmail,
+                Details = details == null ? null : JsonSerializer.Serialize(details)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to record access audit entry for invitation action {ActionType} on team {TeamId}", actionType, teamId);
+        }
+    }
 }
 
 public class AcceptInvitationRequest
 {
     public string Token { get; set; } = string.Empty;
+    public string InviteCode { get; set; } = string.Empty;
+
+    public string GetToken()
+    {
+        if (!string.IsNullOrWhiteSpace(Token))
+        {
+            return Token.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(InviteCode))
+        {
+            return InviteCode.Trim();
+        }
+
+        return string.Empty;
+    }
 }
 
 public class VerifyEmailRequest

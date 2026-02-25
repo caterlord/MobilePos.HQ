@@ -9,6 +9,7 @@ This folder contains the execution system for finishing `ewhq-new` from PoC to p
 - [SPRINT_EXECUTION_PLAYBOOK.md](./SPRINT_EXECUTION_PLAYBOOK.md): Execution order for each sprint.
 - [WORK_PACKAGE_CATALOG.md](./WORK_PACKAGE_CATALOG.md): Atomic work packages (`WP-###`) with dependencies and verification.
 - [PROGRESS_TRACKER.md](./PROGRESS_TRACKER.md): Current status by sprint and by work package.
+- [../ENVIRONMENT_SETUP.md](../ENVIRONMENT_SETUP.md): Required backend/frontend environment variables and local start steps.
 
 ## Status Rules
 Use these values everywhere:

@@ -1,64 +1,56 @@
 #!/bin/bash
 
-# Colors for output
+# Auth0-protected API smoke checks
+# Usage:
+#   AUTH0_TOKEN=<bearer-token> ./test-auth.sh
+
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-echo "Testing EWHQ API Authentication"
-echo "==============================="
-
-# API URL
 API_URL="http://localhost:5125/api"
+TOKEN="${AUTH0_TOKEN:-}"
 
-# Test 1: Login with valid credentials
-echo -e "\n${GREEN}Test 1: Login with valid credentials${NC}"
-echo "Request:"
-echo 'curl -X POST http://localhost:5125/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"admin@ewhq.com\",\"password\":\"PASSWORD\"}"'
+echo "Testing EWHQ API Authentication (Auth0)"
+echo "========================================"
 
-echo -e "\nResponse:"
-RESPONSE=$(curl -s -X POST $API_URL/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@ewhq.com",
-    "password": "|7Clj*ySIkzm"
-  }')
-
-echo $RESPONSE | jq '.' 2>/dev/null || echo $RESPONSE
-
-# Extract token if login successful
-TOKEN=$(echo $RESPONSE | jq -r '.token' 2>/dev/null)
-
-if [ "$TOKEN" != "null" ] && [ -n "$TOKEN" ]; then
-    echo -e "\n${GREEN}✓ Login successful!${NC}"
-    echo "Token (first 50 chars): ${TOKEN:0:50}..."
-    
-    # Test 2: Use token to make authenticated request
-    echo -e "\n${GREEN}Test 2: Make authenticated request${NC}"
-    echo "Note: This endpoint doesn't exist yet, but shows how to use the token"
-    echo "Request:"
-    echo "curl -X GET http://localhost:5125/api/users \\"
-    echo "  -H \"Authorization: Bearer \$TOKEN\""
-    
-else
-    echo -e "\n${RED}✗ Login failed!${NC}"
+if [ -z "$TOKEN" ]; then
+  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
+  echo "Get a token via Auth0 login and export it first:"
+  echo "  export AUTH0_TOKEN='<your-bearer-token>'"
+  exit 1
 fi
 
-# Test 3: Login with invalid credentials
-echo -e "\n${GREEN}Test 3: Login with invalid credentials${NC}"
-echo "Request:"
-echo 'curl -X POST http://localhost:5125/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"admin@ewhq.com\",\"password\":\"wrongpassword\"}"'
+auth_get() {
+  local path="$1"
+  local label="$2"
 
-echo -e "\nResponse:"
-curl -s -X POST $API_URL/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@ewhq.com",
-    "password": "wrongpassword"
-  }' | jq '.' 2>/dev/null || echo "Login failed as expected"
+  echo -e "\n${GREEN}${label}${NC}"
+  local code
+  code=$(curl -s -o /tmp/ewhq-auth-response.json -w "%{http_code}" \
+    -H "Authorization: Bearer $TOKEN" \
+    "$API_URL$path")
 
-echo -e "\n==============================="
+  echo "GET $API_URL$path"
+  echo "Status: $code"
+
+  if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+    echo -e "${GREEN}✓ Success${NC}"
+  else
+    echo -e "${RED}✗ Failed${NC}"
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    jq '.' /tmp/ewhq-auth-response.json 2>/dev/null || cat /tmp/ewhq-auth-response.json
+  else
+    cat /tmp/ewhq-auth-response.json
+  fi
+}
+
+auth_get "/auth0/profile" "Test 1: Fetch current Auth0-synced profile"
+auth_get "/tenants/check-setup" "Test 2: Check tenant setup status"
+auth_get "/user-access/companies-brands" "Test 3: Fetch companies/brands access"
+
+echo -e "\n========================================"
+echo "Done."

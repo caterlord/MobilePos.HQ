@@ -159,6 +159,7 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 // Add Admin services
 builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IAccessAuditService, AccessAuditService>();
 builder.Services.AddScoped<AdminDatabaseSeeder>();
 
 // Add Email service

@@ -31,6 +31,15 @@ public class UpdateModifierGroupPropertiesDto
     public IReadOnlyList<UpdateModifierGroupMemberDto> Items { get; set; } = Array.Empty<UpdateModifierGroupMemberDto>();
 }
 
+public class CreateModifierGroupDto
+{
+    public string GroupBatchName { get; set; } = string.Empty;
+    public string? GroupBatchNameAlt { get; set; }
+    public bool Enabled { get; set; } = true;
+    public bool IsFollowSet { get; set; } = false;
+    public IReadOnlyList<UpdateModifierGroupMemberDto> Items { get; set; } = Array.Empty<UpdateModifierGroupMemberDto>();
+}
+
 public class UpdateModifierGroupMemberDto
 {
     public int ItemId { get; set; }

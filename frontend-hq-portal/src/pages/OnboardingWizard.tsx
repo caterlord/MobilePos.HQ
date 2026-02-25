@@ -49,6 +49,11 @@ export default function OnboardingWizard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [invitationDetails, setInvitationDetails] = useState<{ organizationName: string; role?: string } | null>(null);
+  const [requiresEmailVerification, setRequiresEmailVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationInvitationId, setVerificationInvitationId] = useState('');
+  const [verificationInfo, setVerificationInfo] = useState('');
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
 
   // Check for invitation code in URL
   useEffect(() => {
@@ -63,7 +68,7 @@ export default function OnboardingWizard() {
 
   useEffect(() => {
     if (!isLoading && hasTenantAssociation()) {
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     }
   }, [isLoading, hasTenantAssociation, navigate]);
 
@@ -159,16 +164,24 @@ export default function OnboardingWizard() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            token: tenantSetup.inviteCode,
             inviteCode: tenantSetup.inviteCode,
           }),
         });
 
+        const result = await response.json();
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to join with invitation code');
+          throw new Error(result.message || 'Failed to join with invitation code');
         }
 
-        const result = await response.json();
+        if (result.requiresEmailVerification && result.invitationId) {
+          setRequiresEmailVerification(true);
+          setVerificationInvitationId(result.invitationId);
+          setVerificationInfo(result.message || 'Email verification is required to complete this invitation.');
+          setActiveStep(1);
+          return;
+        }
+
         console.log('Joined tenant:', result);
         navigate('/');
       }
@@ -196,7 +209,10 @@ export default function OnboardingWizard() {
 
       if (response.ok) {
         const details = await response.json();
-        setInvitationDetails(details);
+        setInvitationDetails({
+          organizationName: details.organizationName || details.teamName || 'Unknown Organization',
+          role: details.role,
+        });
       } else {
         setError('Invalid invitation code');
         setInvitationDetails(null);
@@ -204,6 +220,93 @@ export default function OnboardingWizard() {
     } catch (error) {
       console.error('Error validating invite code:', error);
       setError('Failed to validate invitation code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyEmailOwnership = async () => {
+    if (!verificationInvitationId) {
+      setError('Invitation verification session is missing. Try accepting the invitation again.');
+      return;
+    }
+
+    const trimmedCode = verificationCode.trim();
+    if (!trimmedCode) {
+      setError('Please enter the verification code sent to the invited email.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const token = await getAccessToken();
+      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
+      const response = await fetch(`${apiUrl}/api/invitations/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invitationId: verificationInvitationId,
+          verificationCode: trimmedCode,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        if (typeof result.attemptsRemaining === 'number') {
+          setAttemptsRemaining(result.attemptsRemaining);
+        }
+        throw new Error(result.message || 'Failed to verify email');
+      }
+
+      setRequiresEmailVerification(false);
+      setVerificationCode('');
+      setVerificationInfo('');
+      setAttemptsRemaining(null);
+      navigate('/');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendVerificationCode = async () => {
+    if (!verificationInvitationId) {
+      setError('Invitation verification session is missing. Try accepting the invitation again.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const token = await getAccessToken();
+      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
+      const response = await fetch(`${apiUrl}/api/invitations/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          invitationId: verificationInvitationId,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to resend verification code');
+      }
+
+      setVerificationInfo(result.message || 'Verification code resent successfully.');
+      setAttemptsRemaining(null);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to resend verification code';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -357,7 +460,14 @@ export default function OnboardingWizard() {
                   label="Invitation Code"
                   placeholder="Enter your invitation code"
                   value={tenantSetup.inviteCode || ''}
-                  onChange={(e) => setTenantSetup({ ...tenantSetup, inviteCode: e.target.value })}
+                  onChange={(e) => {
+                    setTenantSetup({ ...tenantSetup, inviteCode: e.target.value });
+                    setRequiresEmailVerification(false);
+                    setVerificationCode('');
+                    setVerificationInvitationId('');
+                    setVerificationInfo('');
+                    setAttemptsRemaining(null);
+                  }}
                   required
                   description="The code should be provided by your administrator"
                   onBlur={validateInviteCode}
@@ -375,6 +485,36 @@ export default function OnboardingWizard() {
                         </Text>
                       )}
                     </Box>
+                  </Alert>
+                )}
+
+                {requiresEmailVerification && (
+                  <Alert color="yellow" title="Email Verification Required">
+                    <Stack gap="sm">
+                      <Text size="sm">
+                        {verificationInfo || 'Your Auth0 email does not match the invited email. Enter the verification code to continue.'}
+                      </Text>
+                      <TextInput
+                        label="Verification Code"
+                        placeholder="Enter 6-digit code"
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        required
+                      />
+                      {attemptsRemaining !== null && (
+                        <Text size="xs" c="dimmed">
+                          Attempts remaining: {attemptsRemaining}
+                        </Text>
+                      )}
+                      <Group>
+                        <Button size="xs" onClick={verifyEmailOwnership} loading={loading}>
+                          Verify & Complete
+                        </Button>
+                        <Button size="xs" variant="light" onClick={resendVerificationCode} loading={loading}>
+                          Resend Code
+                        </Button>
+                      </Group>
+                    </Stack>
                   </Alert>
                 )}
               </Stack>

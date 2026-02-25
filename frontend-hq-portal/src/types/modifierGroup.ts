@@ -54,3 +54,11 @@ export interface UpdateModifierGroupPropertiesPayload {
   enabled: boolean;
   items: UpdateModifierGroupMemberPayload[];
 }
+
+export interface CreateModifierGroupPayload {
+  groupBatchName: string;
+  groupBatchNameAlt?: string | null;
+  enabled: boolean;
+  isFollowSet?: boolean;
+  items?: UpdateModifierGroupMemberPayload[];
+}

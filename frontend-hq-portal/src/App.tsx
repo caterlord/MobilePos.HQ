@@ -14,6 +14,10 @@ import { PosPage } from './pages/PosPage'
 import { MenuCategoriesPage } from './pages/operations/menu/MenuCategoriesPage'
 import ButtonStylesPage from './pages/operations/menu/ButtonStyles'
 import MenuItemsPage from './pages/operations/menu/MenuItems'
+import { ModifierGroupsPage } from './pages/operations/menu/ModifierGroupsPage'
+import { MealSetPage } from './pages/operations/menu/MealSetPage'
+import { PromotionsPage } from './pages/operations/menu/PromotionsPage'
+import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
 import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -102,6 +106,10 @@ function AppContent() {
         <Route path="menus/categories" element={<MenuCategoriesPage />} />
         <Route path="menus/smart-categories" element={<SmartCategoriesPage />} />
         <Route path="menus/items" element={<MenuItemsPage />} />
+        <Route path="menus/modifiers" element={<ModifierGroupsPage />} />
+        <Route path="menus/meal-set" element={<MealSetPage />} />
+        <Route path="menus/promotions" element={<PromotionsPage />} />
+        <Route path="menus/discounts" element={<DiscountsPage />} />
         <Route path="menus/button-styles" element={<ButtonStylesPage />} />
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
