@@ -20,13 +20,34 @@ import { PromotionsPage } from './pages/operations/menu/PromotionsPage'
 import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
 import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
 import { LoadingSpinner } from './components/LoadingSpinner'
+import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect } from 'react'
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth0();
-  const { user, isLoading: userLoading, hasTenantAssociation } = useAuth();
+  const {
+    user,
+    isLoading: userLoading,
+    hasTenantAssociation,
+    backendUnavailable,
+    backendError,
+    backendReconnectInProgress,
+    retryBackendConnection,
+    logout,
+  } = useAuth();
+
+  if (backendUnavailable) {
+    return (
+      <BackendConnectionOverlay
+        message={backendError}
+        reconnecting={backendReconnectInProgress}
+        onRetry={retryBackendConnection}
+        onLogout={logout}
+      />
+    );
+  }
 
   // Show loading while Auth0 or user profile is loading
   if (authLoading || userLoading) {
@@ -56,13 +77,26 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
 function CallbackPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth0();
-  const { user, isLoading: userLoading, hasTenantAssociation } = useAuth();
+  const {
+    user,
+    isLoading: userLoading,
+    hasTenantAssociation,
+    backendUnavailable,
+    backendError,
+    backendReconnectInProgress,
+    retryBackendConnection,
+    logout,
+  } = useAuth();
 
   useEffect(() => {
     // Wait for both Auth0 authentication and user profile sync
     if (!isLoading && !userLoading) {
       if (isAuthenticated && user) {
         // Check if user has tenant association
+        if (backendUnavailable) {
+          return;
+        }
+
         if (hasTenantAssociation()) {
           // Has tenant, go to dashboard
           navigate('/', { replace: true });
@@ -75,7 +109,18 @@ function CallbackPage() {
         navigate('/login', { replace: true });
       }
     }
-  }, [isAuthenticated, isLoading, user, userLoading, hasTenantAssociation, navigate]);
+  }, [isAuthenticated, isLoading, user, userLoading, hasTenantAssociation, navigate, backendUnavailable]);
+
+  if (backendUnavailable) {
+    return (
+      <BackendConnectionOverlay
+        message={backendError}
+        reconnecting={backendReconnectInProgress}
+        onRetry={retryBackendConnection}
+        onLogout={logout}
+      />
+    );
+  }
 
   return <LoadingSpinner message="Completing sign in..." />;
 }
