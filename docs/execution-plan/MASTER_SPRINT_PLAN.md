@@ -46,10 +46,11 @@ Sprint cadence: `2 weeks`
 - Access audit trail V1 in place.
 
 ## S04: Menu Completion
-- Work packages: `WP-018` `WP-019` `WP-020` `WP-021` `WP-022`
+- Work packages: `WP-018` `WP-019` `WP-020` `WP-021` `WP-022` `WP-050` `WP-051` `WP-052`
 - Primary outcome: Menu domain is complete enough for daily operations.
 - Exit criteria:
 - Modifiers/meal set/promotions/discounts available.
+- Promotions/discounts advanced rule engine parity completed.
 - Regression pack prevents core menu breakage.
 
 ## S05: Store Ops Settings

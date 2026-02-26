@@ -178,6 +178,30 @@ Each work package is atomic and execution-ready.
 - Deliverables: Automated menu regression pack.
 - Verification: Full pack green.
 
+## WP-050 Promotions Rule Engine Parity
+- Sprint: S04
+- Priority: P0
+- Depends on: WP-020
+- Scope: Port legacy promotions advanced rule configuration (match criteria, benefit logic, coexist flags, priority interactions, time/date windows, detail-level constraints).
+- Deliverables: Promotions setup parity API + frontend editor flows aligned with old HQ capabilities.
+- Verification: Legacy promotion scenarios can be created/edited/deactivated with equivalent behavior in new HQ.
+
+## WP-051 Discounts Rule Engine Parity
+- Sprint: S04
+- Priority: P0
+- Depends on: WP-021
+- Scope: Port legacy discounts advanced rule configuration (item/category inclusion-exclusion sets, thresholds, quantity constraints, open/fixed/percentage variants, conditional periods).
+- Deliverables: Discounts setup parity API + frontend editor flows aligned with old HQ capabilities.
+- Verification: Legacy discount scenarios can be created/edited/deactivated with equivalent behavior in new HQ.
+
+## WP-052 Promotions/Discounts Rule Regression Suite
+- Sprint: S04
+- Priority: P0
+- Depends on: WP-050, WP-051
+- Scope: Add API regression coverage for complex promotions/discount rules, including edge-case validation and lifecycle transitions.
+- Deliverables: Automated checks for advanced promotions/discounts rule behavior.
+- Verification: Rule regression pack green with expected outputs on seeded parity fixtures.
+
 ## WP-023 Store Settings Core Port
 - Sprint: S05
 - Priority: P0

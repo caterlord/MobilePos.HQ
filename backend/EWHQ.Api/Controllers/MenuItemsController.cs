@@ -641,6 +641,16 @@ public class MenuItemsController : ControllerBase
                 var details = await context.ModifierGroupDetails
                     .AsNoTracking()
                     .Where(d => d.AccountId == accountId && d.GroupHeaderId == itemSet.GroupHeaderId.Value && d.Enabled)
+                    .Join(
+                        context.ItemMasters
+                            .AsNoTracking()
+                            .Where(
+                                i => i.AccountId == accountId
+                                     && i.Enabled
+                                     && (i.IsFollowSet || (i.IsStandaloneAndSetItem ?? false))),
+                        detail => new { detail.AccountId, detail.ItemId },
+                        item => new { item.AccountId, item.ItemId },
+                        (detail, _) => detail)
                     .OrderBy(d => d.DisplayIndex)
                     .ToListAsync(cancellationToken);
 
@@ -751,14 +761,17 @@ public class MenuItemsController : ControllerBase
         {
             var validGroupIds = await context.ModifierGroupHeaders
                 .AsNoTracking()
-                .Where(g => g.AccountId == accountId && allGroupIds.Contains(g.GroupHeaderId))
+                .Where(
+                    g => g.AccountId == accountId
+                         && allGroupIds.Contains(g.GroupHeaderId)
+                         && (g.IsFollowSet ?? false))
                 .Select(g => g.GroupHeaderId)
                 .ToListAsync(cancellationToken);
 
             var invalid = allGroupIds.Except(validGroupIds).ToList();
             if (invalid.Count > 0)
             {
-                throw new InvalidOperationException("One or more item set groups are invalid for this brand.");
+                throw new InvalidOperationException("One or more item set groups are invalid for this brand or are not meal-set groups.");
             }
         }
 

@@ -7,7 +7,9 @@ import {
   Container,
   Group,
   Modal,
+  NumberInput,
   Paper,
+  Select,
   Stack,
   Table,
   Text,
@@ -41,6 +43,14 @@ export function MealSetPage() {
   const [createName, setCreateName] = useState('');
   const [createNameAlt, setCreateNameAlt] = useState('');
   const [createEnabled, setCreateEnabled] = useState(true);
+  const [createMaxSelection, setCreateMaxSelection] = useState(0);
+  const [createMinSelection, setCreateMinSelection] = useState(0);
+  const [createIsPosDisplay, setCreateIsPosDisplay] = useState(true);
+  const [createIsSelfOrderingDisplay, setCreateIsSelfOrderingDisplay] = useState(true);
+  const [createIsKioskDisplay, setCreateIsKioskDisplay] = useState(true);
+  const [createIsTableOrderingDisplay, setCreateIsTableOrderingDisplay] = useState(true);
+  const [createIsOdoDisplay, setCreateIsOdoDisplay] = useState(true);
+  const [copyByGroupHeaderId, setCopyByGroupHeaderId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ModifierGroupHeader | null>(null);
 
   const loadGroups = useCallback(async () => {
@@ -70,6 +80,14 @@ export function MealSetPage() {
     setCreateName('');
     setCreateNameAlt('');
     setCreateEnabled(true);
+    setCreateMaxSelection(0);
+    setCreateMinSelection(0);
+    setCreateIsPosDisplay(true);
+    setCreateIsSelfOrderingDisplay(true);
+    setCreateIsKioskDisplay(true);
+    setCreateIsTableOrderingDisplay(true);
+    setCreateIsOdoDisplay(true);
+    setCopyByGroupHeaderId(null);
   };
 
   const handleCreate = async () => {
@@ -91,6 +109,14 @@ export function MealSetPage() {
         groupBatchNameAlt: createNameAlt.trim() || null,
         enabled: createEnabled,
         isFollowSet: true,
+        maxModifierSelectCount: createMaxSelection,
+        minModifierSelectCount: createMinSelection,
+        isPosDisplay: createIsPosDisplay,
+        isSelfOrderingDisplay: createIsSelfOrderingDisplay,
+        isKioskDisplay: createIsKioskDisplay,
+        isTableOrderingDisplay: createIsTableOrderingDisplay,
+        isOdoDisplay: createIsOdoDisplay,
+        copyByGroupHeaderId: copyByGroupHeaderId ? parseInt(copyByGroupHeaderId, 10) : null,
         items: [],
       });
 
@@ -259,6 +285,56 @@ export function MealSetPage() {
             label="Enabled"
             checked={createEnabled}
             onChange={(event) => setCreateEnabled(event.currentTarget.checked)}
+          />
+          <Group grow>
+            <NumberInput
+              label="Max Selection"
+              min={0}
+              value={createMaxSelection}
+              onChange={(value) => setCreateMaxSelection(Math.max(Number(value) || 0, 0))}
+            />
+            <NumberInput
+              label="Min Selection"
+              min={0}
+              value={createMinSelection}
+              onChange={(value) => setCreateMinSelection(Math.max(Number(value) || 0, 0))}
+            />
+          </Group>
+          <Select
+            label="Copy From Existing Group (Optional)"
+            placeholder="Select existing meal set group"
+            clearable
+            value={copyByGroupHeaderId}
+            onChange={setCopyByGroupHeaderId}
+            data={groups.map((group) => ({
+              value: String(group.groupHeaderId),
+              label: `${group.groupBatchName} (#${group.groupHeaderId})`,
+            }))}
+          />
+          <Switch
+            label="Display in POS"
+            checked={createIsPosDisplay}
+            onChange={(event) => setCreateIsPosDisplay(event.currentTarget.checked)}
+          />
+          <Switch
+            label="Display in Self Ordering"
+            checked={createIsSelfOrderingDisplay}
+            onChange={(event) => setCreateIsSelfOrderingDisplay(event.currentTarget.checked)}
+          />
+          <Switch
+            label="Display in Kiosk"
+            checked={createIsKioskDisplay}
+            onChange={(event) => setCreateIsKioskDisplay(event.currentTarget.checked)}
+          />
+          <Switch
+            label="Display in Table Ordering"
+            checked={createIsTableOrderingDisplay}
+            onChange={(event) => setCreateIsTableOrderingDisplay(event.currentTarget.checked)}
+          />
+          <Switch
+            label="Display in ODO"
+            checked={createIsOdoDisplay}
+            onChange={(event) => setCreateIsOdoDisplay(event.currentTarget.checked)}
           />
           <Group justify="flex-end">
             <Button variant="light" onClick={() => setCreateOpened(false)}>

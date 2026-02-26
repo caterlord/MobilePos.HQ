@@ -9,9 +9,11 @@ import {
   Modal,
   NumberInput,
   Paper,
+  Select,
   Stack,
   Switch,
   Table,
+  Textarea,
   Text,
   TextInput,
   Title,
@@ -22,14 +24,29 @@ import { useBrands } from '../../../contexts/BrandContext';
 import discountService from '../../../services/discountService';
 import type { DiscountSummary, UpsertDiscountPayload } from '../../../types/discount';
 
+const discountTypeOptions = [
+  { value: '6', label: 'Discount: Fixed' },
+  { value: '7', label: 'Discount: Percent' },
+  { value: '10', label: 'Discount: Open' },
+  { value: '12', label: 'Discount: Fixed Item' },
+  { value: '13', label: 'Discount: Percent Item' },
+  { value: '14', label: 'Discount: Upgrade Item' },
+];
+
+const getDiscountTypeLabel = (typeId: number) =>
+  discountTypeOptions.find((option) => option.value === String(typeId))?.label ?? `Type ${typeId}`;
+
 const defaultPayload: UpsertDiscountPayload = {
   discountCode: '',
   discountName: '',
+  bundlePromoDesc: '',
+  bundlePromoHeaderTypeId: 7,
   isFixedAmount: false,
   discountPercent: 0,
   discountAmount: null,
   priority: 0,
   enabled: true,
+  isAvailable: true,
   startDate: null,
   endDate: null,
   startTime: null,
@@ -85,11 +102,14 @@ export function DiscountsPage() {
     setPayload({
       discountCode: discount.discountCode,
       discountName: discount.discountName,
+      bundlePromoDesc: discount.bundlePromoDesc ?? '',
+      bundlePromoHeaderTypeId: discount.bundlePromoHeaderTypeId,
       isFixedAmount: discount.isFixedAmount,
       discountPercent: discount.discountPercent ?? null,
       discountAmount: discount.discountAmount ?? null,
       priority: discount.priority,
-      enabled: discount.enabled,
+      enabled: true,
+      isAvailable: discount.isAvailable,
       startDate: discount.startDate ?? null,
       endDate: discount.endDate ?? null,
       startTime: discount.startTime ?? null,
@@ -125,8 +145,10 @@ export function DiscountsPage() {
         ...payload,
         discountCode: payload.discountCode.trim(),
         discountName: payload.discountName.trim(),
+        bundlePromoDesc: payload.bundlePromoDesc?.trim() || null,
         discountPercent: payload.isFixedAmount ? null : payload.discountPercent ?? 0,
         discountAmount: payload.isFixedAmount ? payload.discountAmount ?? 0 : null,
+        enabled: true,
       };
 
       if (editTarget) {
@@ -211,7 +233,8 @@ export function DiscountsPage() {
                 <Table.Tr>
                   <Table.Th>Code</Table.Th>
                   <Table.Th>Name</Table.Th>
-                  <Table.Th>Type</Table.Th>
+                  <Table.Th>Rule Type</Table.Th>
+                  <Table.Th>Value Type</Table.Th>
                   <Table.Th>Value</Table.Th>
                   <Table.Th>Priority</Table.Th>
                   <Table.Th>Status</Table.Th>
@@ -223,12 +246,13 @@ export function DiscountsPage() {
                   <Table.Tr key={discount.discountId}>
                     <Table.Td>{discount.discountCode}</Table.Td>
                     <Table.Td>{discount.discountName}</Table.Td>
+                    <Table.Td>{getDiscountTypeLabel(discount.bundlePromoHeaderTypeId)}</Table.Td>
                     <Table.Td>{discount.isFixedAmount ? 'Fixed Amount' : 'Percentage'}</Table.Td>
                     <Table.Td>{discount.isFixedAmount ? discount.discountAmount ?? 0 : discount.discountPercent ?? 0}</Table.Td>
                     <Table.Td>{discount.priority}</Table.Td>
                     <Table.Td>
-                      <Badge color={discount.enabled ? 'green' : 'gray'}>
-                        {discount.enabled ? 'Enabled' : 'Disabled'}
+                      <Badge color={discount.isAvailable ? 'green' : 'gray'}>
+                        {discount.isAvailable ? 'Available' : 'Unavailable'}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
@@ -243,7 +267,7 @@ export function DiscountsPage() {
                             setDeleteTarget(discount);
                             setDeleteOpened(true);
                           }}
-                          disabled={!discount.enabled}
+                          disabled={!discount.isAvailable}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
@@ -270,6 +294,24 @@ export function DiscountsPage() {
             value={payload.discountName}
             onChange={(event) => setPayload((prev) => ({ ...prev, discountName: event.currentTarget.value }))}
             required
+          />
+          <Select
+            label="Rule Type"
+            data={discountTypeOptions}
+            value={String(payload.bundlePromoHeaderTypeId)}
+            onChange={(value) =>
+              setPayload((prev) => ({
+                ...prev,
+                bundlePromoHeaderTypeId: value ? parseInt(value, 10) : prev.bundlePromoHeaderTypeId,
+              }))
+            }
+            required
+          />
+          <Textarea
+            label="Description"
+            minRows={2}
+            value={payload.bundlePromoDesc ?? ''}
+            onChange={(event) => setPayload((prev) => ({ ...prev, bundlePromoDesc: event.currentTarget.value }))}
           />
           <Switch
             label="Fixed Amount Discount"
@@ -307,9 +349,9 @@ export function DiscountsPage() {
             />
           </Group>
           <Switch
-            label="Enabled"
-            checked={payload.enabled}
-            onChange={(event) => setPayload((prev) => ({ ...prev, enabled: event.currentTarget.checked }))}
+            label="Available"
+            checked={payload.isAvailable}
+            onChange={(event) => setPayload((prev) => ({ ...prev, isAvailable: event.currentTarget.checked }))}
           />
           <Group justify="flex-end">
             <Button variant="light" onClick={() => setModalOpened(false)}>

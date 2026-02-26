@@ -9,9 +9,11 @@ import {
   Modal,
   NumberInput,
   Paper,
+  Select,
   Stack,
   Switch,
   Table,
+  Textarea,
   Text,
   TextInput,
   Title,
@@ -22,12 +24,27 @@ import { useBrands } from '../../../contexts/BrandContext';
 import promotionService from '../../../services/promotionService';
 import type { PromotionSummary, UpsertPromotionPayload } from '../../../types/promotion';
 
+const promotionTypeOptions = [
+  { value: '1', label: 'Promo: Meal Set Free Discount Item' },
+  { value: '2', label: 'Promo: Buy One Get One Free' },
+  { value: '3', label: 'Promo: Buy Multi Get One Free' },
+  { value: '4', label: 'Promo: Combo Deal Fix Discount' },
+  { value: '5', label: 'Promo: Combo Deal Percent Discount' },
+  { value: '11', label: 'Promo: Buy Multi Get Multi' },
+];
+
+const getPromotionTypeLabel = (typeId: number) =>
+  promotionTypeOptions.find((option) => option.value === String(typeId))?.label ?? `Type ${typeId}`;
+
 const defaultPayload: UpsertPromotionPayload = {
   promoCode: '',
   promoName: '',
+  bundlePromoDesc: '',
+  bundlePromoHeaderTypeId: 5,
   promoSaveAmount: 0,
   priority: null,
   enabled: true,
+  isAvailable: true,
   startDate: null,
   endDate: null,
   startTime: null,
@@ -83,9 +100,12 @@ export function PromotionsPage() {
     setPayload({
       promoCode: promotion.promoCode,
       promoName: promotion.promoName,
+      bundlePromoDesc: promotion.bundlePromoDesc ?? '',
+      bundlePromoHeaderTypeId: promotion.bundlePromoHeaderTypeId,
       promoSaveAmount: promotion.promoSaveAmount ?? 0,
       priority: promotion.priority ?? null,
-      enabled: promotion.enabled,
+      enabled: true,
+      isAvailable: promotion.isAvailable,
       startDate: promotion.startDate ?? null,
       endDate: promotion.endDate ?? null,
       startTime: promotion.startTime ?? null,
@@ -111,6 +131,8 @@ export function PromotionsPage() {
         ...payload,
         promoCode: payload.promoCode.trim(),
         promoName: payload.promoName.trim(),
+        bundlePromoDesc: payload.bundlePromoDesc?.trim() || null,
+        enabled: true,
       };
 
       if (editTarget) {
@@ -195,6 +217,7 @@ export function PromotionsPage() {
                 <Table.Tr>
                   <Table.Th>Code</Table.Th>
                   <Table.Th>Name</Table.Th>
+                  <Table.Th>Type</Table.Th>
                   <Table.Th>Save Amount</Table.Th>
                   <Table.Th>Priority</Table.Th>
                   <Table.Th>Status</Table.Th>
@@ -206,11 +229,12 @@ export function PromotionsPage() {
                   <Table.Tr key={promotion.promoHeaderId}>
                     <Table.Td>{promotion.promoCode}</Table.Td>
                     <Table.Td>{promotion.promoName}</Table.Td>
+                    <Table.Td>{getPromotionTypeLabel(promotion.bundlePromoHeaderTypeId)}</Table.Td>
                     <Table.Td>{promotion.promoSaveAmount}</Table.Td>
                     <Table.Td>{promotion.priority ?? '-'}</Table.Td>
                     <Table.Td>
-                      <Badge color={promotion.enabled ? 'green' : 'gray'}>
-                        {promotion.enabled ? 'Enabled' : 'Disabled'}
+                      <Badge color={promotion.isAvailable ? 'green' : 'gray'}>
+                        {promotion.isAvailable ? 'Available' : 'Unavailable'}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
@@ -225,7 +249,7 @@ export function PromotionsPage() {
                             setDeleteTarget(promotion);
                             setDeleteOpened(true);
                           }}
-                          disabled={!promotion.enabled}
+                          disabled={!promotion.isAvailable}
                         >
                           <IconTrash size={16} />
                         </ActionIcon>
@@ -253,6 +277,24 @@ export function PromotionsPage() {
             onChange={(event) => setPayload((prev) => ({ ...prev, promoName: event.currentTarget.value }))}
             required
           />
+          <Select
+            label="Rule Type"
+            data={promotionTypeOptions}
+            value={String(payload.bundlePromoHeaderTypeId)}
+            onChange={(value) =>
+              setPayload((prev) => ({
+                ...prev,
+                bundlePromoHeaderTypeId: value ? parseInt(value, 10) : prev.bundlePromoHeaderTypeId,
+              }))
+            }
+            required
+          />
+          <Textarea
+            label="Description"
+            minRows={2}
+            value={payload.bundlePromoDesc ?? ''}
+            onChange={(event) => setPayload((prev) => ({ ...prev, bundlePromoDesc: event.currentTarget.value }))}
+          />
           <Group grow>
             <NumberInput
               label="Save Amount"
@@ -274,9 +316,9 @@ export function PromotionsPage() {
             />
           </Group>
           <Switch
-            label="Enabled"
-            checked={payload.enabled}
-            onChange={(event) => setPayload((prev) => ({ ...prev, enabled: event.currentTarget.checked }))}
+            label="Available"
+            checked={payload.isAvailable}
+            onChange={(event) => setPayload((prev) => ({ ...prev, isAvailable: event.currentTarget.checked }))}
           />
           <Group justify="flex-end">
             <Button variant="light" onClick={() => setModalOpened(false)}>

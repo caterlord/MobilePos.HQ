@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using EWHQ.Api.Authorization;
+using EWHQ.Api.Constants;
 using EWHQ.Api.DTOs;
 using EWHQ.Api.Models.Entities;
 using EWHQ.Api.Services;
@@ -40,30 +42,61 @@ public class DiscountsController : ControllerBase
         return identifier.Length <= maxLength ? identifier : identifier[..maxLength];
     }
 
-    private static DiscountSummaryDto ToDto(Discount entity) =>
-        new()
+    private static string Clip(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
         {
-            DiscountId = entity.DiscountId,
-            AccountId = entity.AccountId,
-            DiscountCode = entity.DiscountCode,
-            DiscountName = entity.DiscountName,
-            IsFixedAmount = entity.IsFixedAmount,
-            DiscountPercent = entity.DiscountPercent,
-            DiscountAmount = entity.DiscountAmount,
-            Priority = entity.Priority,
-            Enabled = entity.Enabled,
-            StartDate = entity.StartDate,
-            EndDate = entity.EndDate,
-            StartTime = entity.StartTime,
-            EndTime = entity.EndTime,
-            ModifiedDate = entity.ModifiedDate,
-            ModifiedBy = entity.ModifiedBy
+            return string.Empty;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    private static DiscountSummaryDto ToDto(Discount discount, BundlePromoOverview? overview)
+    {
+        var priority = overview?.Priority ?? discount.Priority;
+        return new DiscountSummaryDto
+        {
+            DiscountId = discount.DiscountId,
+            AccountId = discount.AccountId,
+            BundlePromoOverviewId = overview?.BundlePromoOverviewId,
+            BundlePromoHeaderTypeId = overview?.BundlePromoHeaderTypeId ?? BundlePromoHeaderTypes.DefaultDiscountType,
+            DiscountCode = discount.DiscountCode,
+            DiscountName = discount.DiscountName,
+            BundlePromoDesc = overview?.BundlePromoDesc,
+            IsFixedAmount = discount.IsFixedAmount,
+            DiscountPercent = discount.DiscountPercent,
+            DiscountAmount = discount.DiscountAmount,
+            Priority = priority,
+            Enabled = discount.Enabled,
+            IsAvailable = overview?.IsAvailable ?? discount.Enabled,
+            StartDate = discount.StartDate,
+            EndDate = discount.EndDate,
+            StartTime = discount.StartTime,
+            EndTime = discount.EndTime,
+            ModifiedDate = discount.ModifiedDate,
+            ModifiedBy = discount.ModifiedBy
         };
+    }
+
+    private static int ResolveRequestedType(UpsertDiscountDto payload) =>
+        payload.BundlePromoHeaderTypeId == 0
+            ? BundlePromoHeaderTypes.DefaultDiscountType
+            : payload.BundlePromoHeaderTypeId;
+
+    private static bool ResolveAvailability(UpsertDiscountDto payload) => payload.Enabled && payload.IsAvailable;
 
     private static ActionResult? ValidatePayload(UpsertDiscountDto payload)
     {
         var discountCode = payload.DiscountCode?.Trim();
         var discountName = payload.DiscountName?.Trim();
+        var requestedType = ResolveRequestedType(payload);
+
+        if (!BundlePromoHeaderTypes.DiscountTypes.Contains(requestedType))
+        {
+            return new BadRequestObjectResult(new { message = "Invalid discount header type." });
+        }
 
         if (string.IsNullOrWhiteSpace(discountCode))
         {
@@ -78,6 +111,11 @@ public class DiscountsController : ControllerBase
         if (payload.StartDate.HasValue && payload.EndDate.HasValue && payload.StartDate > payload.EndDate)
         {
             return new BadRequestObjectResult(new { message = "Start date must be earlier than or equal to end date." });
+        }
+
+        if (payload.Priority < 0)
+        {
+            return new BadRequestObjectResult(new { message = "Priority must be 0 or greater." });
         }
 
         if (payload.IsFixedAmount)
@@ -105,33 +143,87 @@ public class DiscountsController : ControllerBase
         try
         {
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
             var discounts = await context.Discounts
                 .AsNoTracking()
                 .Where(x => x.AccountId == accountId)
-                .OrderByDescending(x => x.Enabled)
-                .ThenBy(x => x.Priority)
-                .ThenBy(x => x.DiscountName)
                 .Select(x => new DiscountSummaryDto
                 {
                     DiscountId = x.DiscountId,
                     AccountId = x.AccountId,
-                    DiscountCode = x.DiscountCode,
-                    DiscountName = x.DiscountName,
+                    BundlePromoOverviewId = null,
+                    BundlePromoHeaderTypeId = BundlePromoHeaderTypes.DefaultDiscountType,
+                    DiscountCode = x.DiscountCode ?? string.Empty,
+                    DiscountName = x.DiscountName ?? string.Empty,
+                    BundlePromoDesc = null,
                     IsFixedAmount = x.IsFixedAmount,
                     DiscountPercent = x.DiscountPercent,
                     DiscountAmount = x.DiscountAmount,
                     Priority = x.Priority,
                     Enabled = x.Enabled,
+                    IsAvailable = x.Enabled,
                     StartDate = x.StartDate,
                     EndDate = x.EndDate,
                     StartTime = x.StartTime,
                     EndTime = x.EndTime,
                     ModifiedDate = x.ModifiedDate,
-                    ModifiedBy = x.ModifiedBy
+                    ModifiedBy = x.ModifiedBy ?? string.Empty
                 })
                 .ToListAsync(HttpContext.RequestAborted);
 
-            return Ok(discounts);
+            var discountTypeIds = BundlePromoHeaderTypes.DiscountTypes.ToArray();
+
+            List<OverviewSnapshot> overviews;
+            try
+            {
+                overviews = await context.BundlePromoOverviews
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && discountTypeIds.Contains(x.BundlePromoHeaderTypeId))
+                    .Select(x => new OverviewSnapshot
+                    {
+                        BundlePromoOverviewId = x.BundlePromoOverviewId,
+                        BundlePromoHeaderTypeId = x.BundlePromoHeaderTypeId,
+                        BundlePromoRefId = x.BundlePromoRefId,
+                        Priority = x.Priority,
+                        IsAvailable = x.IsAvailable,
+                        Enabled = x.Enabled
+                    })
+                    .ToListAsync(HttpContext.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed loading BundlePromoOverview rows for account {AccountId}. Returning discounts without overview metadata.",
+                    accountId);
+                overviews = [];
+            }
+
+            var overviewByRef = overviews
+                .GroupBy(x => x.BundlePromoRefId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(x => x.Enabled).ThenBy(x => x.Priority).First());
+
+            var response = discounts
+                .Select(discount =>
+                {
+                    if (overviewByRef.TryGetValue(discount.DiscountId, out var overview))
+                    {
+                        discount.BundlePromoOverviewId = overview.BundlePromoOverviewId;
+                        discount.BundlePromoHeaderTypeId = overview.BundlePromoHeaderTypeId;
+                        discount.BundlePromoDesc = null;
+                        discount.Priority = overview.Priority;
+                        discount.IsAvailable = overview.IsAvailable;
+                    }
+
+                    return discount;
+                })
+                .OrderByDescending(x => x.Enabled)
+                .ThenBy(x => x.Priority)
+                .ThenBy(x => x.DiscountName)
+                .ToList();
+
+            return Ok(response);
         }
         catch (InvalidOperationException ex)
         {
@@ -157,8 +249,12 @@ public class DiscountsController : ControllerBase
                 return validationError;
             }
 
-            var discountCode = payload.DiscountCode.Trim();
-            var discountName = payload.DiscountName.Trim();
+            var discountCode = Clip(payload.DiscountCode, 50);
+            var discountName = Clip(payload.DiscountName, 200);
+            var discountNameForOverview = Clip(payload.DiscountName, 500);
+            var discountDesc = Clip(payload.BundlePromoDesc, 4000);
+            var requestedType = ResolveRequestedType(payload);
+            var isAvailable = ResolveAvailability(payload);
 
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
             var normalizedCode = discountCode.ToUpperInvariant();
@@ -173,21 +269,32 @@ public class DiscountsController : ControllerBase
                 return Conflict(new { message = "A discount with the same code already exists." });
             }
 
-            var nextId = (await context.Discounts
+            var nextDiscountId = (await context.Discounts
                 .Where(x => x.AccountId == accountId)
                 .Select(x => (int?)x.DiscountId)
                 .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
 
+            var nextOverviewId = (await context.BundlePromoOverviews
+                .Where(x => x.AccountId == accountId)
+                .Select(x => (int?)x.BundlePromoOverviewId)
+                .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+            var nextPriority = (await context.BundlePromoOverviews
+                .Where(x => x.AccountId == accountId && x.Enabled && BundlePromoHeaderTypes.DiscountTypes.Contains(x.BundlePromoHeaderTypeId))
+                .Select(x => (int?)x.Priority)
+                .MaxAsync(HttpContext.RequestAborted) ?? -1) + 1;
+
             var now = DateTime.UtcNow;
             var currentUser = GetCurrentUserIdentifier();
+            var effectivePriority = payload.Priority > 0 ? payload.Priority : nextPriority;
 
-            var entity = new Discount
+            var discount = new Discount
             {
-                DiscountId = nextId,
+                DiscountId = nextDiscountId,
                 AccountId = accountId,
                 DiscountCode = discountCode,
                 DiscountName = discountName,
-                Priority = payload.Priority,
+                Priority = effectivePriority,
                 IsDateSpecific = payload.StartDate.HasValue
                                  || payload.EndDate.HasValue
                                  || payload.StartTime.HasValue
@@ -199,7 +306,7 @@ public class DiscountsController : ControllerBase
                 EndDate = payload.EndDate,
                 StartTime = payload.StartTime,
                 EndTime = payload.EndTime,
-                Enabled = payload.Enabled,
+                Enabled = isAvailable,
                 CreatedDate = now,
                 CreatedBy = currentUser,
                 ModifiedDate = now,
@@ -250,10 +357,29 @@ public class DiscountsController : ControllerBase
                 DiscountedItemPriceOrderDescending = false
             };
 
-            context.Discounts.Add(entity);
+            var overview = new BundlePromoOverview
+            {
+                AccountId = accountId,
+                BundlePromoOverviewId = nextOverviewId,
+                BundlePromoCode = discountCode,
+                BundlePromoName = discountNameForOverview,
+                BundlePromoDesc = discountDesc,
+                BundlePromoHeaderTypeId = requestedType,
+                BundlePromoRefId = nextDiscountId,
+                Priority = effectivePriority,
+                IsAvailable = isAvailable,
+                Enabled = true,
+                CreatedDate = now,
+                CreatedBy = currentUser,
+                ModifiedDate = now,
+                ModifiedBy = currentUser
+            };
+
+            context.Discounts.Add(discount);
+            context.BundlePromoOverviews.Add(overview);
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
-            return Ok(ToDto(entity));
+            return Ok(ToDto(discount, overview));
         }
         catch (InvalidOperationException ex)
         {
@@ -279,16 +405,20 @@ public class DiscountsController : ControllerBase
                 return validationError;
             }
 
-            var discountCode = payload.DiscountCode.Trim();
-            var discountName = payload.DiscountName.Trim();
+            var discountCode = Clip(payload.DiscountCode, 50);
+            var discountName = Clip(payload.DiscountName, 200);
+            var discountNameForOverview = Clip(payload.DiscountName, 500);
+            var discountDesc = Clip(payload.BundlePromoDesc, 4000);
+            var requestedType = ResolveRequestedType(payload);
+            var isAvailable = ResolveAvailability(payload);
 
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
-            var entity = await context.Discounts
+            var discount = await context.Discounts
                 .FirstOrDefaultAsync(
                     x => x.AccountId == accountId && x.DiscountId == discountId,
                     HttpContext.RequestAborted);
 
-            if (entity == null)
+            if (discount == null)
             {
                 return NotFound(new { message = "Discount not found." });
             }
@@ -307,26 +437,69 @@ public class DiscountsController : ControllerBase
                 return Conflict(new { message = "A discount with the same code already exists." });
             }
 
-            entity.DiscountCode = discountCode;
-            entity.DiscountName = discountName;
-            entity.IsFixedAmount = payload.IsFixedAmount;
-            entity.DiscountPercent = payload.DiscountPercent;
-            entity.DiscountAmount = payload.DiscountAmount;
-            entity.Priority = payload.Priority;
-            entity.Enabled = payload.Enabled;
-            entity.StartDate = payload.StartDate;
-            entity.EndDate = payload.EndDate;
-            entity.StartTime = payload.StartTime;
-            entity.EndTime = payload.EndTime;
-            entity.IsDateSpecific = payload.StartDate.HasValue
+            var overview = await context.BundlePromoOverviews
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId
+                         && x.BundlePromoRefId == discountId
+                         && BundlePromoHeaderTypes.DiscountTypes.Contains(x.BundlePromoHeaderTypeId),
+                    HttpContext.RequestAborted);
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+
+            var effectivePriority = payload.Priority > 0
+                ? payload.Priority
+                : overview?.Priority ?? discount.Priority;
+
+            if (overview == null)
+            {
+                var nextOverviewId = (await context.BundlePromoOverviews
+                    .Where(x => x.AccountId == accountId)
+                    .Select(x => (int?)x.BundlePromoOverviewId)
+                    .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+                overview = new BundlePromoOverview
+                {
+                    AccountId = accountId,
+                    BundlePromoOverviewId = nextOverviewId,
+                    BundlePromoRefId = discountId,
+                    Enabled = true,
+                    CreatedDate = now,
+                    CreatedBy = currentUser
+                };
+                context.BundlePromoOverviews.Add(overview);
+            }
+
+            overview.BundlePromoHeaderTypeId = requestedType;
+            overview.BundlePromoCode = discountCode;
+            overview.BundlePromoName = discountNameForOverview;
+            overview.BundlePromoDesc = discountDesc;
+            overview.Priority = effectivePriority;
+            overview.IsAvailable = isAvailable;
+            overview.Enabled = true;
+            overview.ModifiedDate = now;
+            overview.ModifiedBy = currentUser;
+
+            discount.DiscountCode = discountCode;
+            discount.DiscountName = discountName;
+            discount.IsFixedAmount = payload.IsFixedAmount;
+            discount.DiscountPercent = payload.DiscountPercent;
+            discount.DiscountAmount = payload.DiscountAmount;
+            discount.Priority = effectivePriority;
+            discount.Enabled = isAvailable;
+            discount.StartDate = payload.StartDate;
+            discount.EndDate = payload.EndDate;
+            discount.StartTime = payload.StartTime;
+            discount.EndTime = payload.EndTime;
+            discount.IsDateSpecific = payload.StartDate.HasValue
                                     || payload.EndDate.HasValue
                                     || payload.StartTime.HasValue
                                     || payload.EndTime.HasValue;
-            entity.ModifiedDate = DateTime.UtcNow;
-            entity.ModifiedBy = GetCurrentUserIdentifier();
+            discount.ModifiedDate = now;
+            discount.ModifiedBy = currentUser;
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
-            return Ok(ToDto(entity));
+            return Ok(ToDto(discount, overview));
         }
         catch (InvalidOperationException ex)
         {
@@ -347,24 +520,35 @@ public class DiscountsController : ControllerBase
         try
         {
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
-            var entity = await context.Discounts
+            var discount = await context.Discounts
                 .FirstOrDefaultAsync(
                     x => x.AccountId == accountId && x.DiscountId == discountId,
                     HttpContext.RequestAborted);
 
-            if (entity == null)
+            if (discount == null)
             {
                 return NotFound(new { message = "Discount not found." });
             }
 
-            if (entity.Enabled)
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+            discount.Enabled = false;
+            discount.ModifiedDate = now;
+            discount.ModifiedBy = currentUser;
+
+            var overviews = await context.BundlePromoOverviews
+                .Where(
+                    x => x.AccountId == accountId
+                         && x.BundlePromoRefId == discountId
+                         && BundlePromoHeaderTypes.DiscountTypes.Contains(x.BundlePromoHeaderTypeId))
+                .ToListAsync(HttpContext.RequestAborted);
+
+            if (overviews.Count > 0)
             {
-                entity.Enabled = false;
-                entity.ModifiedDate = DateTime.UtcNow;
-                entity.ModifiedBy = GetCurrentUserIdentifier();
-                await context.SaveChangesAsync(HttpContext.RequestAborted);
+                context.BundlePromoOverviews.RemoveRange(overviews);
             }
 
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -377,5 +561,15 @@ public class DiscountsController : ControllerBase
             _logger.LogError(ex, "Error deactivating discount {DiscountId} for brand {BrandId}", discountId, brandId);
             return StatusCode(500, new { message = "An error occurred while deactivating the discount." });
         }
+    }
+
+    private sealed class OverviewSnapshot
+    {
+        public int BundlePromoOverviewId { get; init; }
+        public int BundlePromoHeaderTypeId { get; init; }
+        public int BundlePromoRefId { get; init; }
+        public int Priority { get; init; }
+        public bool IsAvailable { get; init; }
+        public bool Enabled { get; init; }
     }
 }

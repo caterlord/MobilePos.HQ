@@ -11,7 +11,7 @@
 | S01 | done | 100 | Sprint completed and runtime-gated checks confirmed |
 | S02 | in_progress | 80 | WP-008/009/010/011 done; WP-012 script added and awaiting runtime evidence |
 | S03 | in_progress | 95 | WP-013/014/015/016/017 integrated (API + UI + admin migration) with partial runtime verification captured |
-| S04 | in_progress | 70 | WP-018/019/020/021 baseline API+UI flows shipped; WP-022 regression script baseline added (runtime evidence pending) |
+| S04 | in_progress | 82 | WP-018/019/020/021 expanded with legacy parity rules (shop pricing, set-item filtering, overview lifecycle batch APIs); advanced promo/discount rule-engine parity now tracked as WP-050/051/052 |
 | S05 | todo | 0 | Not started |
 | S06 | todo | 0 | Not started |
 | S07 | todo | 0 | Not started |
@@ -57,11 +57,14 @@
 ### S04
 | WP | Title | Status | Owner | Updated | Evidence |
 |---|---|---|---|---|---|
-| WP-018 | Menu Module Completion: Modifiers | in_progress | codex | 2026-02-25 | Added `/api/modifier-groups/brand/{brandId}` list/create/deactivate API + `ModifierGroupsPage` CRUD/editor wiring; validated with `dotnet build`, `npm run lint`, and `npm run build` |
-| WP-019 | Menu Module Completion: Meal Set | in_progress | codex | 2026-02-25 | Added `isFollowSet` filter/create contract, new `/menus/meal-set` page with CRUD + item-set membership editor wiring, and route/sidebar/breadcrumb updates |
-| WP-020 | Menu Module Completion: Promotions | in_progress | codex | 2026-02-25 | Added promotions API (`GET/POST/PUT/DELETE /api/promotions/brand/{brandId}`), `PromotionsPage`, and route wiring for `/menus/promotions` |
-| WP-021 | Menu Module Completion: Discounts | in_progress | codex | 2026-02-25 | Added discounts API (`GET/POST/PUT/DELETE /api/discounts/brand/{brandId}`), `DiscountsPage`, and route wiring for `/menus/discounts` |
+| WP-018 | Menu Module Completion: Modifiers | in_progress | codex | 2026-02-25 | Added legacy parity on modifier groups: min/max + channel-display flags, copy-from-group clone (details + shop overrides), orphaned shop-price cleanup on member removal, enabled-only member projection, and group item shop-pricing API + drawer UI |
+| WP-019 | Menu Module Completion: Meal Set | in_progress | codex | 2026-02-25 | Added `isFollowSet` filter/create contract, new `/menus/meal-set` page with CRUD + item-set membership editor wiring, and restored legacy set-candidate constraints (`isFollowSet || isStandaloneAndSetItem`) for relationship tree + item-set link validation |
+| WP-020 | Menu Module Completion: Promotions | in_progress | codex | 2026-02-25 | Added promotions API (`GET/POST/PUT/DELETE /api/promotions/brand/{brandId}`), `PromotionsPage`, overview linkage fields/type handling, and batch overview lifecycle API (`PUT/DELETE /api/bundle-promo-overviews/brand/{brandId}/batch`) for priority/availability sync parity |
+| WP-021 | Menu Module Completion: Discounts | in_progress | codex | 2026-02-25 | Added discounts API (`GET/POST/PUT/DELETE /api/discounts/brand/{brandId}`), `DiscountsPage`, overview linkage fields/type handling, and batch overview lifecycle API parity for linked discount enable/disable propagation |
 | WP-022 | Menu Regression Suite | in_progress | codex | 2026-02-25 | Added `backend/EWHQ.Api/test-menu-regression.sh` baseline for modifier/meal-set/promotion/discount CRUD lifecycle checks; awaiting runtime execution with token + brand context |
+| WP-050 | Promotions Rule Engine Parity | todo | unassigned | - | Legacy advanced promotion setup (conditions/benefits/coexist/detail rules) not yet ported |
+| WP-051 | Discounts Rule Engine Parity | todo | unassigned | - | Legacy advanced discount setup (include/exclude/threshold/qty/conditional rule logic) not yet ported |
+| WP-052 | Promotions/Discounts Rule Regression Suite | todo | unassigned | - | Advanced rule scenario API regression pack not yet created |
 
 ### S05
 | WP | Title | Status | Owner | Updated | Evidence |
@@ -141,3 +144,5 @@
 | 2026-02-25 | Progressed S04 WP-018/WP-019: finalized modifier-group list/create/deactivate flow and added meal-set group management (`isFollowSet` API contract + `/menus/meal-set` UI) with shared node-properties editor integration. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
 | 2026-02-25 | Progressed S04 WP-020/WP-021: implemented promotions and discounts module baseline with backend CRUD endpoints and frontend management pages/routes. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
 | 2026-02-25 | Progressed S04 WP-022: added `test-menu-regression.sh` script baseline and syntax validation (`bash -n`). Local build check passed: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`. |
+| 2026-02-25 | Progressed S04 parity hardening: added modifier group shop-pricing drawer flow, stale override cleanup, enabled-only membership projection, meal-set candidate/link guards, and bundle-promo overview batch lifecycle endpoints. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-26 | Extended S04 plan scope with explicit advanced promo/discount rule migration packages (WP-050/051/052) to track full legacy setup parity beyond baseline CRUD screens. |

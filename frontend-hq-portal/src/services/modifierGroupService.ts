@@ -3,6 +3,8 @@ import type {
   CreateModifierGroupPayload,
   ModifierGroupHeader,
   ModifierGroupProperties,
+  ModifierGroupShopPricing,
+  UpdateModifierGroupShopPricingPayload,
   UpdateModifierGroupPropertiesPayload,
 } from '../types/modifierGroup';
 
@@ -42,6 +44,21 @@ class ModifierGroupService {
 
   async deactivate(brandId: number, groupHeaderId: number): Promise<void> {
     await api.delete(`/modifier-groups/brand/${brandId}/${groupHeaderId}`);
+  }
+
+  async getShopPricing(brandId: number, groupHeaderId: number, itemId: number): Promise<ModifierGroupShopPricing[]> {
+    const response = await api.get(`/modifier-groups/brand/${brandId}/${groupHeaderId}/item/${itemId}/shop-pricing`);
+    return response.data as ModifierGroupShopPricing[];
+  }
+
+  async updateShopPricing(
+    brandId: number,
+    groupHeaderId: number,
+    itemId: number,
+    payload: UpdateModifierGroupShopPricingPayload,
+  ): Promise<ModifierGroupShopPricing[]> {
+    const response = await api.put(`/modifier-groups/brand/${brandId}/${groupHeaderId}/item/${itemId}/shop-pricing`, payload);
+    return response as ModifierGroupShopPricing[];
   }
 }
 

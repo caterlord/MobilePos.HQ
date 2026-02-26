@@ -43,6 +43,8 @@ public class ModifierGroupsController : ControllerBase
         return identifier.Length <= maxLength ? identifier : identifier[..maxLength];
     }
 
+    private static bool ResolveDisplayFlag(bool? value) => value ?? true;
+
     [HttpGet("brand/{brandId:int}")]
     [RequireBrandView]
     public async Task<ActionResult<IReadOnlyList<ModifierGroupHeaderDto>>> GetModifierGroups(
@@ -157,6 +159,19 @@ public class ModifierGroupsController : ControllerBase
                 }
             }
 
+            var hasCopySource = createDto.CopyByGroupHeaderId.HasValue && createDto.CopyByGroupHeaderId.Value > 0;
+            if (hasCopySource && effectiveItems.Count > 0)
+            {
+                return BadRequest(new { message = "Cannot provide both items and copyByGroupHeaderId in the same request." });
+            }
+
+            var maxModifierSelectCount = Math.Max(createDto.MaxModifierSelectCount ?? 0, 0);
+            var minModifierSelectCount = Math.Max(createDto.MinModifierSelectCount ?? 0, 0);
+            if (maxModifierSelectCount > 0 && minModifierSelectCount > maxModifierSelectCount)
+            {
+                return BadRequest(new { message = "Min modifier select count cannot be greater than max modifier select count." });
+            }
+
             var nextGroupHeaderId = (await context.ModifierGroupHeaders
                 .Where(h => h.AccountId == accountId)
                 .Select(h => (int?)h.GroupHeaderId)
@@ -171,31 +186,99 @@ public class ModifierGroupsController : ControllerBase
                 AccountId = accountId,
                 GroupBatchName = groupName,
                 GroupBatchNameAlt = string.IsNullOrWhiteSpace(createDto.GroupBatchNameAlt) ? null : createDto.GroupBatchNameAlt.Trim(),
-                MaxModifierSelectCount = 0,
+                MaxModifierSelectCount = maxModifierSelectCount,
+                MinModifierSelectCount = minModifierSelectCount,
                 Enabled = createDto.Enabled,
                 CreatedDate = now,
                 CreatedBy = currentUser,
                 ModifiedDate = now,
                 ModifiedBy = currentUser,
-                IsFollowSet = isFollowSet
+                IsFollowSet = isFollowSet,
+                IsOdoDisplay = ResolveDisplayFlag(createDto.IsOdoDisplay),
+                IsKioskDisplay = ResolveDisplayFlag(createDto.IsKioskDisplay),
+                IsTableOrderingDisplay = ResolveDisplayFlag(createDto.IsTableOrderingDisplay),
+                IsPosDisplay = ResolveDisplayFlag(createDto.IsPosDisplay),
+                IsSelfOrderingDisplay = ResolveDisplayFlag(createDto.IsSelfOrderingDisplay)
             };
 
             context.ModifierGroupHeaders.Add(header);
 
-            foreach (var item in effectiveItems)
+            if (hasCopySource)
             {
-                context.ModifierGroupDetails.Add(new ModifierGroupDetail
+                var sourceGroupHeaderId = createDto.CopyByGroupHeaderId!.Value;
+                var sourceExists = await context.ModifierGroupHeaders
+                    .AsNoTracking()
+                    .AnyAsync(
+                        h => h.AccountId == accountId
+                             && h.GroupHeaderId == sourceGroupHeaderId
+                             && (h.IsFollowSet ?? false) == isFollowSet,
+                        HttpContext.RequestAborted);
+
+                if (!sourceExists)
                 {
-                    GroupHeaderId = nextGroupHeaderId,
-                    AccountId = accountId,
-                    ItemId = item.ItemId,
-                    DisplayIndex = item.DisplayIndex,
-                    Enabled = item.Enabled,
-                    CreatedDate = now,
-                    CreatedBy = currentUser,
-                    ModifiedDate = now,
-                    ModifiedBy = currentUser
-                });
+                    return BadRequest(new { message = "Copy source group not found or not compatible with this group type." });
+                }
+
+                var sourceDetails = await context.ModifierGroupDetails
+                    .AsNoTracking()
+                    .Where(d => d.AccountId == accountId && d.GroupHeaderId == sourceGroupHeaderId)
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                foreach (var sourceDetail in sourceDetails)
+                {
+                    context.ModifierGroupDetails.Add(new ModifierGroupDetail
+                    {
+                        GroupHeaderId = nextGroupHeaderId,
+                        AccountId = accountId,
+                        ItemId = sourceDetail.ItemId,
+                        DisplayIndex = sourceDetail.DisplayIndex,
+                        Enabled = sourceDetail.Enabled,
+                        CreatedDate = now,
+                        CreatedBy = currentUser,
+                        ModifiedDate = now,
+                        ModifiedBy = currentUser
+                    });
+                }
+
+                var sourceShopDetails = await context.ModifierGroupShopDetails
+                    .AsNoTracking()
+                    .Where(sd => sd.AccountId == accountId && sd.GroupHeaderId == sourceGroupHeaderId)
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                foreach (var sourceShopDetail in sourceShopDetails)
+                {
+                    context.ModifierGroupShopDetails.Add(new ModifierGroupShopDetail
+                    {
+                        GroupHeaderId = nextGroupHeaderId,
+                        AccountId = accountId,
+                        ShopId = sourceShopDetail.ShopId,
+                        ItemId = sourceShopDetail.ItemId,
+                        Price = sourceShopDetail.Price,
+                        Enabled = sourceShopDetail.Enabled,
+                        CreatedDate = now,
+                        CreatedBy = currentUser,
+                        ModifiedDate = now,
+                        ModifiedBy = currentUser
+                    });
+                }
+            }
+            else
+            {
+                foreach (var item in effectiveItems)
+                {
+                    context.ModifierGroupDetails.Add(new ModifierGroupDetail
+                    {
+                        GroupHeaderId = nextGroupHeaderId,
+                        AccountId = accountId,
+                        ItemId = item.ItemId,
+                        DisplayIndex = item.DisplayIndex,
+                        Enabled = item.Enabled,
+                        CreatedDate = now,
+                        CreatedBy = currentUser,
+                        ModifiedDate = now,
+                        ModifiedBy = currentUser
+                    });
+                }
             }
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
@@ -296,6 +379,18 @@ public class ModifierGroupsController : ControllerBase
                 return BadRequest(new { message = "Duplicate items are not allowed in a modifier group." });
             }
 
+            var maxModifierSelectCount = updateDto.MaxModifierSelectCount.HasValue
+                ? Math.Max(updateDto.MaxModifierSelectCount.Value, 0)
+                : header.MaxModifierSelectCount;
+            var minModifierSelectCount = updateDto.MinModifierSelectCount.HasValue
+                ? Math.Max(updateDto.MinModifierSelectCount.Value, 0)
+                : (header.MinModifierSelectCount ?? 0);
+
+            if (maxModifierSelectCount > 0 && minModifierSelectCount > maxModifierSelectCount)
+            {
+                return BadRequest(new { message = "Min modifier select count cannot be greater than max modifier select count." });
+            }
+
             var now = DateTime.UtcNow;
             var currentUser = GetCurrentUserIdentifier();
 
@@ -304,6 +399,13 @@ public class ModifierGroupsController : ControllerBase
                 ? null
                 : updateDto.GroupBatchNameAlt.Trim();
             header.Enabled = updateDto.Enabled;
+            header.MaxModifierSelectCount = maxModifierSelectCount;
+            header.MinModifierSelectCount = minModifierSelectCount;
+            header.IsOdoDisplay = updateDto.IsOdoDisplay ?? header.IsOdoDisplay ?? true;
+            header.IsKioskDisplay = updateDto.IsKioskDisplay ?? header.IsKioskDisplay ?? true;
+            header.IsTableOrderingDisplay = updateDto.IsTableOrderingDisplay ?? header.IsTableOrderingDisplay ?? true;
+            header.IsPosDisplay = updateDto.IsPosDisplay ?? header.IsPosDisplay ?? true;
+            header.IsSelfOrderingDisplay = updateDto.IsSelfOrderingDisplay ?? header.IsSelfOrderingDisplay ?? true;
             header.ModifiedDate = now;
             header.ModifiedBy = currentUser;
 
@@ -313,12 +415,31 @@ public class ModifierGroupsController : ControllerBase
 
             var existingMap = existingDetails.ToDictionary(detail => detail.ItemId);
             var requestedIds = effectiveItems.Select(item => item.ItemId).ToHashSet();
+            var removedItemIds = existingDetails
+                .Where(detail => !requestedIds.Contains(detail.ItemId))
+                .Select(detail => detail.ItemId)
+                .ToHashSet();
 
             foreach (var detail in existingDetails)
             {
-                if (!requestedIds.Contains(detail.ItemId))
+                if (removedItemIds.Contains(detail.ItemId))
                 {
                     context.ModifierGroupDetails.Remove(detail);
+                }
+            }
+
+            if (removedItemIds.Count > 0)
+            {
+                var staleShopOverrides = await context.ModifierGroupShopDetails
+                    .Where(
+                        row => row.AccountId == accountId
+                               && row.GroupHeaderId == groupHeaderId
+                               && removedItemIds.Contains(row.ItemId))
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                if (staleShopOverrides.Count > 0)
+                {
+                    context.ModifierGroupShopDetails.RemoveRange(staleShopOverrides);
                 }
             }
 
@@ -394,6 +515,26 @@ public class ModifierGroupsController : ControllerBase
                 header.Enabled = false;
                 header.ModifiedDate = DateTime.UtcNow;
                 header.ModifiedBy = GetCurrentUserIdentifier();
+
+                if (header.IsFollowSet ?? false)
+                {
+                    var now = DateTime.UtcNow;
+                    var currentUser = GetCurrentUserIdentifier();
+                    var linkedItemSets = await context.ItemSets
+                        .Where(
+                            set => set.AccountId == accountId
+                                   && set.GroupHeaderId == groupHeaderId
+                                   && set.Enabled)
+                        .ToListAsync(HttpContext.RequestAborted);
+
+                    foreach (var itemSet in linkedItemSets)
+                    {
+                        itemSet.Enabled = false;
+                        itemSet.ModifiedDate = now;
+                        itemSet.ModifiedBy = currentUser;
+                    }
+                }
+
                 await context.SaveChangesAsync(HttpContext.RequestAborted);
             }
 
@@ -409,6 +550,197 @@ public class ModifierGroupsController : ControllerBase
             _logger.LogError(ex, "Error deactivating modifier group {GroupHeaderId}", groupHeaderId);
             return StatusCode(500, new { message = "An error occurred while deactivating the modifier group" });
         }
+    }
+
+    [HttpGet("brand/{brandId:int}/{groupHeaderId:int}/item/{itemId:int}/shop-pricing")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<ModifierGroupShopPricingDto>>> GetModifierGroupShopPricing(
+        int brandId,
+        int groupHeaderId,
+        int itemId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var exists = await context.ModifierGroupHeaders
+                .AsNoTracking()
+                .AnyAsync(
+                    h => h.AccountId == accountId && h.GroupHeaderId == groupHeaderId,
+                    HttpContext.RequestAborted);
+
+            if (!exists)
+            {
+                return NotFound(new { message = "Modifier group not found" });
+            }
+
+            var response = await BuildShopPricingDtosAsync(context, accountId, groupHeaderId, itemId, HttpContext.RequestAborted);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching shop pricing for modifier group {GroupHeaderId} and item {ItemId}", groupHeaderId, itemId);
+            return StatusCode(500, new { message = "An error occurred while fetching modifier group shop pricing." });
+        }
+    }
+
+    [HttpPut("brand/{brandId:int}/{groupHeaderId:int}/item/{itemId:int}/shop-pricing")]
+    [RequireBrandModify]
+    public async Task<ActionResult<IReadOnlyList<ModifierGroupShopPricingDto>>> UpdateModifierGroupShopPricing(
+        int brandId,
+        int groupHeaderId,
+        int itemId,
+        UpdateModifierGroupShopPricingDto updateDto)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var exists = await context.ModifierGroupHeaders
+                .AsNoTracking()
+                .AnyAsync(
+                    h => h.AccountId == accountId && h.GroupHeaderId == groupHeaderId,
+                    HttpContext.RequestAborted);
+
+            if (!exists)
+            {
+                return NotFound(new { message = "Modifier group not found" });
+            }
+
+            var entries = (updateDto.Entries ?? Array.Empty<UpdateModifierGroupShopPricingEntryDto>())
+                .Where(entry => entry != null)
+                .ToList();
+
+            if (entries.Count == 0)
+            {
+                return BadRequest(new { message = "At least one shop pricing entry is required." });
+            }
+
+            if (entries.GroupBy(entry => entry.ShopId).Any(group => group.Count() > 1))
+            {
+                return BadRequest(new { message = "Duplicate shop IDs are not allowed." });
+            }
+
+            var shopIds = entries.Select(entry => entry.ShopId).Distinct().ToList();
+            var validShopCount = await context.Shops
+                .AsNoTracking()
+                .CountAsync(
+                    shop => shop.AccountId == accountId && shop.Enabled && shopIds.Contains(shop.ShopId),
+                    HttpContext.RequestAborted);
+
+            if (validShopCount != shopIds.Count)
+            {
+                return BadRequest(new { message = "One or more shops are invalid for this brand." });
+            }
+
+            var existingRows = await context.ModifierGroupShopDetails
+                .Where(
+                    row => row.AccountId == accountId
+                           && row.GroupHeaderId == groupHeaderId
+                           && row.ItemId == itemId
+                           && shopIds.Contains(row.ShopId))
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var existingMap = existingRows.ToDictionary(row => row.ShopId);
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+
+            foreach (var entry in entries)
+            {
+                if (existingMap.TryGetValue(entry.ShopId, out var row))
+                {
+                    row.Enabled = entry.Price.HasValue;
+                    row.Price = entry.Price ?? row.Price;
+                    row.ModifiedDate = now;
+                    row.ModifiedBy = currentUser;
+                }
+                else
+                {
+                    context.ModifierGroupShopDetails.Add(new ModifierGroupShopDetail
+                    {
+                        AccountId = accountId,
+                        GroupHeaderId = groupHeaderId,
+                        ItemId = itemId,
+                        ShopId = entry.ShopId,
+                        Price = entry.Price ?? 0m,
+                        Enabled = entry.Price.HasValue,
+                        CreatedDate = now,
+                        CreatedBy = currentUser,
+                        ModifiedDate = now,
+                        ModifiedBy = currentUser
+                    });
+                }
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            var response = await BuildShopPricingDtosAsync(context, accountId, groupHeaderId, itemId, HttpContext.RequestAborted);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating shop pricing for modifier group {GroupHeaderId} and item {ItemId}", groupHeaderId, itemId);
+            return StatusCode(500, new { message = "An error occurred while updating modifier group shop pricing." });
+        }
+    }
+
+    private static async Task<IReadOnlyList<ModifierGroupShopPricingDto>> BuildShopPricingDtosAsync(
+        EWHQDbContext context,
+        int accountId,
+        int groupHeaderId,
+        int itemId,
+        CancellationToken cancellationToken)
+    {
+        var shopPrices = await context.ItemShopDetails
+            .AsNoTracking()
+            .Where(detail => detail.AccountId == accountId && detail.ItemId == itemId && (detail.Enabled ?? true))
+            .Join(
+                context.Shops.AsNoTracking().Where(shop => shop.AccountId == accountId && shop.Enabled),
+                detail => new { detail.AccountId, detail.ShopId },
+                shop => new { shop.AccountId, shop.ShopId },
+                (detail, shop) => new
+                {
+                    shop.ShopId,
+                    shop.Name,
+                    detail.Price
+                })
+            .OrderBy(row => row.Name)
+            .ToListAsync(cancellationToken);
+
+        var overrides = await context.ModifierGroupShopDetails
+            .AsNoTracking()
+            .Where(
+                row => row.AccountId == accountId
+                       && row.GroupHeaderId == groupHeaderId
+                       && row.ItemId == itemId)
+            .ToListAsync(cancellationToken);
+
+        var overrideMap = overrides.ToDictionary(row => row.ShopId);
+
+        return shopPrices
+            .Select(price =>
+            {
+                overrideMap.TryGetValue(price.ShopId, out var overrideValue);
+                var isEnabled = overrideValue?.Enabled ?? false;
+                return new ModifierGroupShopPricingDto
+                {
+                    ShopId = price.ShopId,
+                    ShopName = price.Name,
+                    ItemId = itemId,
+                    OriginalPrice = price.Price,
+                    Price = isEnabled ? overrideValue?.Price : null,
+                    Enabled = isEnabled
+                };
+            })
+            .ToList();
     }
 
     private async Task<ModifierGroupPropertiesDto?> BuildModifierGroupPropertiesAsync(
@@ -430,7 +762,12 @@ public class ModifierGroupsController : ControllerBase
 
         var details = await context.ModifierGroupDetails
             .AsNoTracking()
-            .Where(d => d.AccountId == accountId && d.GroupHeaderId == groupHeaderId)
+            .Where(d => d.AccountId == accountId && d.GroupHeaderId == groupHeaderId && d.Enabled)
+            .Join(
+                context.ItemMasters.AsNoTracking().Where(i => i.AccountId == accountId && i.Enabled),
+                detail => new { detail.AccountId, detail.ItemId },
+                item => new { item.AccountId, item.ItemId },
+                (detail, _) => detail)
             .OrderBy(d => d.DisplayIndex)
             .ThenBy(d => d.ItemId)
             .ToListAsync(cancellationToken);
@@ -463,6 +800,13 @@ public class ModifierGroupsController : ControllerBase
             GroupBatchNameAlt = header.GroupBatchNameAlt,
             Enabled = header.Enabled,
             IsFollowSet = header.IsFollowSet ?? false,
+            MaxModifierSelectCount = header.MaxModifierSelectCount,
+            MinModifierSelectCount = header.MinModifierSelectCount ?? 0,
+            IsOdoDisplay = header.IsOdoDisplay ?? true,
+            IsKioskDisplay = header.IsKioskDisplay ?? true,
+            IsTableOrderingDisplay = header.IsTableOrderingDisplay ?? true,
+            IsPosDisplay = header.IsPosDisplay ?? true,
+            IsSelfOrderingDisplay = header.IsSelfOrderingDisplay ?? true,
             ModifiedDate = header.ModifiedDate,
             ModifiedBy = header.ModifiedBy,
             Items = items
