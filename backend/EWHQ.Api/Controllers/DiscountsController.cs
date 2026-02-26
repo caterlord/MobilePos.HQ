@@ -275,7 +275,7 @@ public class DiscountsController : ControllerBase
             .Select(x => new
             {
                 x.ShopId,
-                ShopName = x.Name
+                ShopName = x.Name ?? string.Empty
             })
             .ToListAsync(cancellationToken))
             .Select(shop => new DiscountShopRuleDto
