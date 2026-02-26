@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Container,
+  Divider,
   Group,
   Modal,
   NumberInput,
@@ -19,10 +20,17 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconAlertCircle, IconEdit, IconPlus, IconSettings, IconTrash } from '@tabler/icons-react';
 import { useBrands } from '../../../contexts/BrandContext';
 import promotionService from '../../../services/promotionService';
-import type { PromotionSummary, UpsertPromotionPayload } from '../../../types/promotion';
+import type {
+  PromotionRuleDetail,
+  PromotionRuleDetailGroup,
+  PromotionRuleEditor,
+  PromotionSummary,
+  UpdatePromotionRuleEditorPayload,
+  UpsertPromotionPayload,
+} from '../../../types/promotion';
 
 const promotionTypeOptions = [
   { value: '1', label: 'Promo: Meal Set Free Discount Item' },
@@ -33,8 +41,78 @@ const promotionTypeOptions = [
   { value: '11', label: 'Promo: Buy Multi Get Multi' },
 ];
 
+const detailTypeOptions = [
+  { value: '1', label: 'By Category' },
+  { value: '2', label: 'By Item' },
+  { value: '3', label: 'By Price' },
+];
+
+const deductTypeOptions = [
+  { value: '0', label: 'None' },
+  { value: '1', label: 'Deduct Amount' },
+  { value: '2', label: 'Sell As' },
+  { value: '3', label: 'Deduct Percent' },
+];
+
 const getPromotionTypeLabel = (typeId: number) =>
   promotionTypeOptions.find((option) => option.value === String(typeId))?.label ?? `Type ${typeId}`;
+
+const toNullableNumber = (value: string | number | undefined | null): number | null => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeDateInput = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.includes('T') ? trimmed.slice(0, 10) : trimmed;
+};
+
+const normalizeTimeInput = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.includes('T')) {
+    const timePart = trimmed.split('T')[1] ?? '';
+    return timePart.slice(0, 8) || null;
+  }
+
+  return trimmed;
+};
+
+const createEmptyRuleDetail = (isOptional = false, groupIndex: number | null = null): PromotionRuleDetail => ({
+  promoDetailId: null,
+  bundlePromoDetailTypeId: 1,
+  selectedCategoryId: null,
+  selectedItemId: null,
+  specificPrice: null,
+  bundleDeductRuleTypeId: 0,
+  enabled: true,
+  isOptionalItem: isOptional,
+  isReplaceItem: false,
+  isItemCanReplace: false,
+  priceReplace: null,
+  groupIndex,
+  isDepartmentRevenue: false,
+  departmentRevenue: null,
+});
 
 const defaultPayload: UpsertPromotionPayload = {
   promoCode: '',
@@ -65,6 +143,11 @@ export function PromotionsPage() {
   const [modalOpened, setModalOpened] = useState(false);
   const [deleteOpened, setDeleteOpened] = useState(false);
   const [payload, setPayload] = useState<UpsertPromotionPayload>(defaultPayload);
+  const [ruleEditorOpened, setRuleEditorOpened] = useState(false);
+  const [ruleEditorLoading, setRuleEditorLoading] = useState(false);
+  const [ruleEditorSaving, setRuleEditorSaving] = useState(false);
+  const [ruleEditorTarget, setRuleEditorTarget] = useState<PromotionSummary | null>(null);
+  const [ruleEditor, setRuleEditor] = useState<PromotionRuleEditor | null>(null);
 
   const loadPromotions = useCallback(async () => {
     if (!brandId) {
@@ -112,6 +195,109 @@ export function PromotionsPage() {
       endTime: promotion.endTime ?? null,
     });
     setModalOpened(true);
+  };
+
+  const openRuleEditor = async (promotion: PromotionSummary) => {
+    if (!brandId) {
+      notifications.show({ color: 'red', message: 'Select a brand first' });
+      return;
+    }
+
+    setRuleEditorTarget(promotion);
+    setRuleEditorOpened(true);
+    setRuleEditorLoading(true);
+    setRuleEditor(null);
+
+    try {
+      const response = await promotionService.getRuleEditor(brandId, promotion.promoHeaderId);
+      setRuleEditor({
+        ...response,
+        startDate: normalizeDateInput(response.startDate),
+        endDate: normalizeDateInput(response.endDate),
+        startTime: normalizeTimeInput(response.startTime),
+        endTime: normalizeTimeInput(response.endTime),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load promotion rule editor';
+      notifications.show({ color: 'red', message });
+      setRuleEditorOpened(false);
+      setRuleEditorTarget(null);
+    } finally {
+      setRuleEditorLoading(false);
+    }
+  };
+
+  const updateMandatoryDetail = (index: number, updater: (detail: PromotionRuleDetail) => PromotionRuleDetail) => {
+    setRuleEditor((prev) => {
+      if (!prev) return prev;
+      const next = [...prev.mandatoryDetails];
+      next[index] = updater(next[index]);
+      return { ...prev, mandatoryDetails: next };
+    });
+  };
+
+  const updateOptionalGroup = (groupIndex: number, updater: (group: PromotionRuleDetailGroup) => PromotionRuleDetailGroup) => {
+    setRuleEditor((prev) => {
+      if (!prev) return prev;
+      const groups = [...prev.optionalDetailGroups];
+      groups[groupIndex] = updater(groups[groupIndex]);
+      return { ...prev, optionalDetailGroups: groups };
+    });
+  };
+
+  const handleSaveRuleEditor = async () => {
+    if (!brandId || !ruleEditorTarget || !ruleEditor) {
+      return;
+    }
+
+    if (!ruleEditor.promoCode.trim() || !ruleEditor.promoName.trim()) {
+      notifications.show({ color: 'red', message: 'Promotion code and name are required' });
+      return;
+    }
+
+    const payloadForApi: UpdatePromotionRuleEditorPayload = {
+      bundlePromoHeaderTypeId: ruleEditor.bundlePromoHeaderTypeId,
+      promoCode: ruleEditor.promoCode.trim(),
+      promoName: ruleEditor.promoName.trim(),
+      bundlePromoDesc: ruleEditor.bundlePromoDesc?.trim() || null,
+      promoSaveAmount: ruleEditor.promoSaveAmount,
+      priority: ruleEditor.priority ?? null,
+      enabled: ruleEditor.enabled,
+      isAvailable: ruleEditor.isAvailable,
+      startDate: normalizeDateInput(ruleEditor.startDate),
+      endDate: normalizeDateInput(ruleEditor.endDate),
+      startTime: normalizeTimeInput(ruleEditor.startTime),
+      endTime: normalizeTimeInput(ruleEditor.endTime),
+      isCoexistPromo: ruleEditor.isCoexistPromo,
+      isAmountDeductEvenly: ruleEditor.isAmountDeductEvenly,
+      isPromoDetailMatchMustExist: ruleEditor.isPromoDetailMatchMustExist,
+      flatPrice: ruleEditor.flatPrice ?? null,
+      dayOfWeeks: ruleEditor.dayOfWeeks ?? '',
+      months: ruleEditor.months ?? '',
+      dates: ruleEditor.dates ?? '',
+      mandatoryDetails: ruleEditor.mandatoryDetails,
+      optionalDetailGroups: ruleEditor.optionalDetailGroups,
+      shopRules: ruleEditor.shopRules,
+    };
+
+    try {
+      setRuleEditorSaving(true);
+      const response = await promotionService.updateRuleEditor(brandId, ruleEditorTarget.promoHeaderId, payloadForApi);
+      setRuleEditor({
+        ...response,
+        startDate: normalizeDateInput(response.startDate),
+        endDate: normalizeDateInput(response.endDate),
+        startTime: normalizeTimeInput(response.startTime),
+        endTime: normalizeTimeInput(response.endTime),
+      });
+      notifications.show({ color: 'green', message: 'Promotion rule editor updated' });
+      await loadPromotions();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save promotion rule editor';
+      notifications.show({ color: 'red', message });
+    } finally {
+      setRuleEditorSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -242,6 +428,9 @@ export function PromotionsPage() {
                         <ActionIcon variant="light" color="blue" onClick={() => openEdit(promotion)}>
                           <IconEdit size={16} />
                         </ActionIcon>
+                        <ActionIcon variant="light" color="teal" onClick={() => void openRuleEditor(promotion)}>
+                          <IconSettings size={16} />
+                        </ActionIcon>
                         <ActionIcon
                           variant="light"
                           color="red"
@@ -300,7 +489,9 @@ export function PromotionsPage() {
               label="Save Amount"
               min={0}
               value={payload.promoSaveAmount}
-              onChange={(value) => setPayload((prev) => ({ ...prev, promoSaveAmount: Number(value) || 0 }))}
+              onChange={(value) =>
+                setPayload((prev) => ({ ...prev, promoSaveAmount: toNullableNumber(value) ?? 0 }))
+              }
             />
             <NumberInput
               label="Priority"
@@ -329,6 +520,595 @@ export function PromotionsPage() {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      <Modal
+        opened={ruleEditorOpened}
+        onClose={() => {
+          setRuleEditorOpened(false);
+          setRuleEditorTarget(null);
+          setRuleEditor(null);
+        }}
+        title={`Promotion Rule Editor${ruleEditorTarget ? ` · ${ruleEditorTarget.promoName}` : ''}`}
+        size="xl"
+      >
+        {ruleEditorLoading || !ruleEditor ? (
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Loading promotion rule editor...
+            </Text>
+          </Stack>
+        ) : (
+          <Stack gap="md">
+            <Group grow>
+              <TextInput
+                label="Promotion Code"
+                value={ruleEditor.promoCode}
+                onChange={(event) => setRuleEditor((prev) => (prev ? { ...prev, promoCode: event.currentTarget.value } : prev))}
+              />
+              <TextInput
+                label="Promotion Name"
+                value={ruleEditor.promoName}
+                onChange={(event) => setRuleEditor((prev) => (prev ? { ...prev, promoName: event.currentTarget.value } : prev))}
+              />
+            </Group>
+            <Group grow>
+              <Select
+                label="Rule Type"
+                data={promotionTypeOptions}
+                value={String(ruleEditor.bundlePromoHeaderTypeId)}
+                onChange={(value) =>
+                  setRuleEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          bundlePromoHeaderTypeId: value ? parseInt(value, 10) : prev.bundlePromoHeaderTypeId,
+                        }
+                      : prev,
+                  )
+                }
+              />
+              <NumberInput
+                label="Save Amount"
+                min={0}
+                value={ruleEditor.promoSaveAmount}
+                onChange={(value) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, promoSaveAmount: toNullableNumber(value) ?? 0 } : prev))
+                }
+              />
+              <NumberInput
+                label="Priority"
+                min={0}
+                value={ruleEditor.priority ?? undefined}
+                onChange={(value) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, priority: toNullableNumber(value) } : prev))
+                }
+              />
+            </Group>
+            <Textarea
+              label="Description"
+              minRows={2}
+              value={ruleEditor.bundlePromoDesc ?? ''}
+              onChange={(event) => setRuleEditor((prev) => (prev ? { ...prev, bundlePromoDesc: event.currentTarget.value } : prev))}
+            />
+            <Group grow>
+              <TextInput
+                label="Start Date (YYYY-MM-DD)"
+                value={ruleEditor.startDate ?? ''}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, startDate: event.currentTarget.value || null } : prev))
+                }
+              />
+              <TextInput
+                label="End Date (YYYY-MM-DD)"
+                value={ruleEditor.endDate ?? ''}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, endDate: event.currentTarget.value || null } : prev))
+                }
+              />
+              <TextInput
+                label="Start Time (HH:mm:ss)"
+                value={ruleEditor.startTime ?? ''}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, startTime: event.currentTarget.value || null } : prev))
+                }
+              />
+              <TextInput
+                label="End Time (HH:mm:ss)"
+                value={ruleEditor.endTime ?? ''}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, endTime: event.currentTarget.value || null } : prev))
+                }
+              />
+            </Group>
+            <Group grow>
+              <NumberInput
+                label="Flat Price"
+                min={0}
+                value={ruleEditor.flatPrice ?? undefined}
+                onChange={(value) => setRuleEditor((prev) => (prev ? { ...prev, flatPrice: toNullableNumber(value) } : prev))}
+              />
+              <TextInput
+                label="Day Of Weeks"
+                placeholder="e.g. 1,2,3,4,5"
+                value={ruleEditor.dayOfWeeks ?? ''}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, dayOfWeeks: event.currentTarget.value } : prev))
+                }
+              />
+              <TextInput
+                label="Months"
+                placeholder="e.g. 1,2,12"
+                value={ruleEditor.months ?? ''}
+                onChange={(event) => setRuleEditor((prev) => (prev ? { ...prev, months: event.currentTarget.value } : prev))}
+              />
+              <TextInput
+                label="Dates"
+                placeholder="e.g. 1,15,31"
+                value={ruleEditor.dates ?? ''}
+                onChange={(event) => setRuleEditor((prev) => (prev ? { ...prev, dates: event.currentTarget.value } : prev))}
+              />
+            </Group>
+
+            <Divider label="Flags" labelPosition="center" />
+            <Group>
+              <Switch
+                label="Enabled"
+                checked={ruleEditor.enabled}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, enabled: event.currentTarget.checked } : prev))
+                }
+              />
+              <Switch
+                label="Available"
+                checked={ruleEditor.isAvailable}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, isAvailable: event.currentTarget.checked } : prev))
+                }
+              />
+              <Switch
+                label="Coexist Promo"
+                checked={ruleEditor.isCoexistPromo}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, isCoexistPromo: event.currentTarget.checked } : prev))
+                }
+              />
+              <Switch
+                label="Amount Deduct Evenly"
+                checked={ruleEditor.isAmountDeductEvenly}
+                onChange={(event) =>
+                  setRuleEditor((prev) => (prev ? { ...prev, isAmountDeductEvenly: event.currentTarget.checked } : prev))
+                }
+              />
+              <Switch
+                label="Require Detail Match"
+                checked={ruleEditor.isPromoDetailMatchMustExist}
+                onChange={(event) =>
+                  setRuleEditor((prev) =>
+                    prev ? { ...prev, isPromoDetailMatchMustExist: event.currentTarget.checked } : prev,
+                  )
+                }
+              />
+            </Group>
+
+            <Divider label="Mandatory Rules" labelPosition="center" />
+            <Stack gap="xs">
+              {ruleEditor.mandatoryDetails.map((detail, index) => (
+                <Group key={`mandatory-${index}`} align="end">
+                  <Select
+                    label="Type"
+                    data={detailTypeOptions}
+                    value={String(detail.bundlePromoDetailTypeId)}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({
+                        ...prev,
+                        bundlePromoDetailTypeId: value ? parseInt(value, 10) : prev.bundlePromoDetailTypeId,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Category ID"
+                    min={0}
+                    value={detail.selectedCategoryId ?? undefined}
+                    disabled={detail.bundlePromoDetailTypeId === 2}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, selectedCategoryId: toNullableNumber(value) }))
+                    }
+                  />
+                  <NumberInput
+                    label="Item ID"
+                    min={0}
+                    value={detail.selectedItemId ?? undefined}
+                    disabled={detail.bundlePromoDetailTypeId !== 2}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, selectedItemId: toNullableNumber(value) }))
+                    }
+                  />
+                  <NumberInput
+                    label="Specific Price"
+                    min={0}
+                    value={detail.specificPrice ?? undefined}
+                    disabled={detail.bundlePromoDetailTypeId !== 3}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, specificPrice: toNullableNumber(value) }))
+                    }
+                  />
+                  <Select
+                    label="Deduct Rule"
+                    data={deductTypeOptions}
+                    value={String(detail.bundleDeductRuleTypeId)}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({
+                        ...prev,
+                        bundleDeductRuleTypeId: value ? parseInt(value, 10) : 0,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Benefit Value"
+                    min={0}
+                    value={detail.priceReplace ?? undefined}
+                    disabled={detail.bundleDeductRuleTypeId === 0}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, priceReplace: toNullableNumber(value) }))
+                    }
+                  />
+                  <Switch
+                    label="Enabled"
+                    checked={detail.enabled}
+                    onChange={(event) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, enabled: event.currentTarget.checked }))
+                    }
+                  />
+                  <Switch
+                    label="Dept Revenue"
+                    checked={detail.isDepartmentRevenue}
+                    onChange={(event) =>
+                      updateMandatoryDetail(index, (prev) => ({
+                        ...prev,
+                        isDepartmentRevenue: event.currentTarget.checked,
+                        departmentRevenue: event.currentTarget.checked ? prev.departmentRevenue : null,
+                      }))
+                    }
+                  />
+                  <NumberInput
+                    label="Dept Revenue Amt"
+                    min={0}
+                    value={detail.departmentRevenue ?? undefined}
+                    disabled={!detail.isDepartmentRevenue}
+                    onChange={(value) =>
+                      updateMandatoryDetail(index, (prev) => ({ ...prev, departmentRevenue: toNullableNumber(value) }))
+                    }
+                  />
+                  <ActionIcon
+                    variant="light"
+                    color="red"
+                    onClick={() =>
+                      setRuleEditor((prev) =>
+                        prev ? { ...prev, mandatoryDetails: prev.mandatoryDetails.filter((_, rowIndex) => rowIndex !== index) } : prev,
+                      )
+                    }
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                </Group>
+              ))}
+              <Button
+                variant="light"
+                size="xs"
+                onClick={() =>
+                  setRuleEditor((prev) =>
+                    prev ? { ...prev, mandatoryDetails: [...prev.mandatoryDetails, createEmptyRuleDetail(false, null)] } : prev,
+                  )
+                }
+              >
+                Add Mandatory Rule
+              </Button>
+            </Stack>
+
+            <Divider label="Optional Rule Groups" labelPosition="center" />
+            <Stack gap="sm">
+              {ruleEditor.optionalDetailGroups.map((group, groupIndex) => (
+                <Paper withBorder p="sm" key={`group-${groupIndex}`}>
+                  <Stack gap="xs">
+                    <Group>
+                      <NumberInput
+                        label="Group Index"
+                        min={0}
+                        value={group.groupIndex}
+                        onChange={(value) =>
+                          updateOptionalGroup(groupIndex, (prev) => ({ ...prev, groupIndex: Math.max(toNullableNumber(value) ?? 0, 0) }))
+                        }
+                      />
+                      <ActionIcon
+                        variant="light"
+                        color="red"
+                        onClick={() =>
+                          setRuleEditor((prev) =>
+                            prev
+                              ? { ...prev, optionalDetailGroups: prev.optionalDetailGroups.filter((_, idx) => idx !== groupIndex) }
+                              : prev,
+                          )
+                        }
+                      >
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Group>
+                    {group.details.map((detail, detailIndex) => (
+                      <Group key={`group-${groupIndex}-detail-${detailIndex}`} align="end">
+                        <Select
+                          label="Type"
+                          data={detailTypeOptions}
+                          value={String(detail.bundlePromoDetailTypeId)}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex
+                                  ? {
+                                      ...row,
+                                      bundlePromoDetailTypeId: value ? parseInt(value, 10) : row.bundlePromoDetailTypeId,
+                                    }
+                                  : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <NumberInput
+                          label="Category ID"
+                          min={0}
+                          value={detail.selectedCategoryId ?? undefined}
+                          disabled={detail.bundlePromoDetailTypeId === 2}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, selectedCategoryId: toNullableNumber(value) } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <NumberInput
+                          label="Item ID"
+                          min={0}
+                          value={detail.selectedItemId ?? undefined}
+                          disabled={detail.bundlePromoDetailTypeId !== 2}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, selectedItemId: toNullableNumber(value) } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <NumberInput
+                          label="Specific Price"
+                          min={0}
+                          value={detail.specificPrice ?? undefined}
+                          disabled={detail.bundlePromoDetailTypeId !== 3}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, specificPrice: toNullableNumber(value) } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <Select
+                          label="Deduct Rule"
+                          data={deductTypeOptions}
+                          value={String(detail.bundleDeductRuleTypeId)}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex
+                                  ? { ...row, bundleDeductRuleTypeId: value ? parseInt(value, 10) : 0 }
+                                  : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <NumberInput
+                          label="Benefit Value"
+                          min={0}
+                          value={detail.priceReplace ?? undefined}
+                          disabled={detail.bundleDeductRuleTypeId === 0}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, priceReplace: toNullableNumber(value) } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <Switch
+                          label="Enabled"
+                          checked={detail.enabled}
+                          onChange={(event) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, enabled: event.currentTarget.checked } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <Switch
+                          label="Can Replace"
+                          checked={detail.isItemCanReplace}
+                          onChange={(event) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex
+                                  ? { ...row, isItemCanReplace: event.currentTarget.checked, isReplaceItem: !event.currentTarget.checked && row.isReplaceItem }
+                                  : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <Switch
+                          label="Is Replacement"
+                          checked={detail.isReplaceItem}
+                          onChange={(event) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex
+                                  ? { ...row, isReplaceItem: event.currentTarget.checked, isItemCanReplace: !event.currentTarget.checked && row.isItemCanReplace }
+                                  : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <Switch
+                          label="Dept Revenue"
+                          checked={detail.isDepartmentRevenue}
+                          onChange={(event) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex
+                                  ? {
+                                      ...row,
+                                      isDepartmentRevenue: event.currentTarget.checked,
+                                      departmentRevenue: event.currentTarget.checked ? row.departmentRevenue : null,
+                                    }
+                                  : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <NumberInput
+                          label="Dept Revenue Amt"
+                          min={0}
+                          value={detail.departmentRevenue ?? undefined}
+                          disabled={!detail.isDepartmentRevenue}
+                          onChange={(value) =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.map((row, idx) =>
+                                idx === detailIndex ? { ...row, departmentRevenue: toNullableNumber(value) } : row,
+                              ),
+                            }))
+                          }
+                        />
+                        <ActionIcon
+                          variant="light"
+                          color="red"
+                          onClick={() =>
+                            updateOptionalGroup(groupIndex, (prev) => ({
+                              ...prev,
+                              details: prev.details.filter((_, idx) => idx !== detailIndex),
+                            }))
+                          }
+                        >
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    ))}
+                    <Button
+                      variant="light"
+                      size="xs"
+                      onClick={() =>
+                        updateOptionalGroup(groupIndex, (prev) => ({
+                          ...prev,
+                          details: [...prev.details, createEmptyRuleDetail(true, prev.groupIndex)],
+                        }))
+                      }
+                    >
+                      Add Optional Rule
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+              <Button
+                variant="light"
+                size="xs"
+                onClick={() =>
+                  setRuleEditor((prev) =>
+                    prev
+                      ? (() => {
+                          const nextGroupIndex =
+                            (prev.optionalDetailGroups.length > 0
+                              ? Math.max(...prev.optionalDetailGroups.map((group) => group.groupIndex))
+                              : -1) + 1;
+
+                          return {
+                            ...prev,
+                            optionalDetailGroups: [
+                              ...prev.optionalDetailGroups,
+                              {
+                                groupIndex: nextGroupIndex,
+                                details: [createEmptyRuleDetail(true, nextGroupIndex)],
+                              },
+                            ],
+                          };
+                        })()
+                      : prev,
+                  )
+                }
+              >
+                Add Optional Group
+              </Button>
+            </Stack>
+
+            <Divider label="Shop Availability" labelPosition="center" />
+            <Table striped withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Shop</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Enabled</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {ruleEditor.shopRules.map((shop) => (
+                  <Table.Tr key={shop.shopId}>
+                    <Table.Td>{shop.shopName}</Table.Td>
+                    <Table.Td>
+                      <Switch
+                        size="xs"
+                        checked={shop.enabled}
+                        onChange={(event) =>
+                          setRuleEditor((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  shopRules: prev.shopRules.map((row) =>
+                                    row.shopId === shop.shopId ? { ...row, enabled: event.currentTarget.checked } : row,
+                                  ),
+                                }
+                              : prev,
+                          )
+                        }
+                      />
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+
+            <Group justify="flex-end">
+              <Button
+                variant="light"
+                onClick={() => {
+                  setRuleEditorOpened(false);
+                  setRuleEditorTarget(null);
+                  setRuleEditor(null);
+                }}
+              >
+                Close
+              </Button>
+              <Button loading={ruleEditorSaving} onClick={() => void handleSaveRuleEditor()}>
+                Save Rule Editor
+              </Button>
+            </Group>
+          </Stack>
+        )}
       </Modal>
 
       <Modal opened={deleteOpened} onClose={() => setDeleteOpened(false)} title="Deactivate Promotion" size="sm">
