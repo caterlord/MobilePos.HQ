@@ -8,6 +8,7 @@ import { DashboardLayout } from './layouts/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { OrganizationManagementPage } from './pages/OrganizationManagementPage'
+import { IntegrationsPage } from './pages/IntegrationsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
 import { MenuPage } from './pages/MenuPage'
 import { PosPage } from './pages/PosPage'
@@ -19,6 +20,11 @@ import { MealSetPage } from './pages/operations/menu/MealSetPage'
 import { PromotionsPage } from './pages/operations/menu/PromotionsPage'
 import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
 import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
+import { StoreSettingsOverviewPage } from './pages/operations/store-settings/StoreSettingsOverviewPage'
+import { StoreInfoSettingsPage } from './pages/operations/store-settings/StoreInfoSettingsPage'
+import { StoreWorkdaySchedulePage } from './pages/operations/store-settings/StoreWorkdaySchedulePage'
+import { StoreWorkdayPeriodsPage } from './pages/operations/store-settings/StoreWorkdayPeriodsPage'
+import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
 import { useAuth0 } from '@auth0/auth0-react'
@@ -147,6 +153,13 @@ function AppContent() {
         <Route path="pos" element={<PosPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="organization-management" element={<OrganizationManagementPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="store-settings" element={<StoreSettingsOverviewPage />} />
+        <Route path="store-settings/info" element={<StoreInfoSettingsPage />} />
+        <Route path="store-settings/workday-schedule" element={<StoreWorkdaySchedulePage />} />
+        <Route path="store-settings/workday-periods" element={<StoreWorkdayPeriodsPage />} />
+        <Route path="store-settings/system-parameters" element={<StoreSystemParametersPage />} />
+        <Route path="settings" element={<Navigate to="/store-settings" replace />} />
         <Route path="menus" element={<MenuPage />} />
         <Route path="menus/categories" element={<MenuCategoriesPage />} />
         <Route path="menus/smart-categories" element={<SmartCategoriesPage />} />

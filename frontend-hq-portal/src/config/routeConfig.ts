@@ -66,6 +66,32 @@ export const ROUTE_CONFIG: RouteItem[] = [
     ],
   },
   {
+    path: '/store-settings',
+    label: 'Store Settings',
+    children: [
+      {
+        path: '/store-settings/info',
+        label: 'Info Settings',
+      },
+      {
+        path: '/store-settings/workday-schedule',
+        label: 'Workday Schedule',
+      },
+      {
+        path: '/store-settings/workday-periods',
+        label: 'Workday Periods',
+      },
+      {
+        path: '/store-settings/system-parameters',
+        label: 'System Parameters',
+      },
+    ],
+  },
+  {
+    path: '/integrations',
+    label: 'Integrations',
+  },
+  {
     path: '/organization-management',
     label: 'Organization Management',
   },

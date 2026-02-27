@@ -11,7 +11,6 @@ import {
   UnstyledButton,
   ThemeIcon,
   Anchor,
-  Breadcrumbs,
   Badge,
 } from '@mantine/core'
 import {
@@ -109,35 +108,6 @@ export function MenuPage() {
 
   return (
     <Box>
-      {/* Sticky Breadcrumbs Only */}
-      <Box
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 100,
-          backgroundColor: 'white',
-          borderBottom: '1px solid #E3E8EE',
-          minHeight: 48,
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        <Container size="xl" px="xl" style={{ marginInline: 0 }}>
-          <Breadcrumbs
-            separator={<IconChevronRight size={14} />}
-            styles={{
-              root: { fontSize: 14 },
-              separator: { color: '#697386' },
-            }}
-          >
-            <Anchor onClick={() => navigate('/')} c="dimmed">
-              Home
-            </Anchor>
-            <Text c="dark" fw={500}>Menu Management</Text>
-          </Breadcrumbs>
-        </Container>
-      </Box>
-
       {/* Page Header - Non-sticky */}
       <Box
         pt="xl"

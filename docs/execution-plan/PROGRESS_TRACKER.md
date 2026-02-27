@@ -2,7 +2,7 @@
 
 ## Global Status
 - Plan status: `active`
-- Current sprint: `S04`
+- Current sprint: `S05`
 - Last updated: `2026-02-27`
 
 ## Sprint Status
@@ -11,8 +11,8 @@
 | S01 | done | 100 | Sprint completed and runtime-gated checks confirmed |
 | S02 | in_progress | 80 | WP-008/009/010/011 done; WP-012 script added and awaiting runtime evidence |
 | S03 | in_progress | 95 | WP-013/014/015/016/017 integrated (API + UI + admin migration) with partial runtime verification captured |
-| S04 | in_progress | 93 | WP-018/019/020/021 expanded with legacy parity rules (shop pricing, set-item filtering, overview lifecycle batch APIs); WP-050/051 received additional legacy nullability hardening and WP-052 regression automation is now in progress |
-| S05 | todo | 0 | Not started |
+| S04 | done | 100 | Menu module completion + advanced promotions/discounts parity + regression validations confirmed; sprint gate satisfied |
+| S05 | in_progress | 20 | WP-023 started: store settings API/page wiring for workday, service area, and system parameters |
 | S06 | todo | 0 | Not started |
 | S07 | todo | 0 | Not started |
 | S08 | todo | 0 | Not started |
@@ -57,19 +57,19 @@
 ### S04
 | WP | Title | Status | Owner | Updated | Evidence |
 |---|---|---|---|---|---|
-| WP-018 | Menu Module Completion: Modifiers | in_progress | codex | 2026-02-25 | Added legacy parity on modifier groups: min/max + channel-display flags, copy-from-group clone (details + shop overrides), orphaned shop-price cleanup on member removal, enabled-only member projection, and group item shop-pricing API + drawer UI |
-| WP-019 | Menu Module Completion: Meal Set | in_progress | codex | 2026-02-25 | Added `isFollowSet` filter/create contract, new `/menus/meal-set` page with CRUD + item-set membership editor wiring, and restored legacy set-candidate constraints (`isFollowSet || isStandaloneAndSetItem`) for relationship tree + item-set link validation |
-| WP-020 | Menu Module Completion: Promotions | in_progress | codex | 2026-02-26 | Added promotions API (`GET/POST/PUT/DELETE /api/promotions/brand/{brandId}`), `PromotionsPage`, overview linkage fields/type handling, batch overview lifecycle API (`PUT/DELETE /api/bundle-promo-overviews/brand/{brandId}/batch`), and null-safe list projection hardening |
-| WP-021 | Menu Module Completion: Discounts | in_progress | codex | 2026-02-25 | Added discounts API (`GET/POST/PUT/DELETE /api/discounts/brand/{brandId}`), `DiscountsPage`, overview linkage fields/type handling, and batch overview lifecycle API parity for linked discount enable/disable propagation |
-| WP-022 | Menu Regression Suite | in_progress | codex | 2026-02-25 | Added `backend/EWHQ.Api/test-menu-regression.sh` baseline for modifier/meal-set/promotion/discount CRUD lifecycle checks; awaiting runtime execution with token + brand context |
-| WP-050 | Promotions Rule Engine Parity | in_progress | codex | 2026-02-27 | Added promotion rule-editor APIs (`GET/PUT /api/promotions/brand/{brandId}/{promoHeaderId}/rule-editor`), detail validation/type mapping/promo-item resolution/shop-rule persistence, advanced frontend rule-editor controls, and legacy nullability hardening for `PromoHeader` schedule fields |
-| WP-051 | Discounts Rule Engine Parity | in_progress | codex | 2026-02-27 | Added discount rule-editor APIs (`GET/PUT /api/discounts/brand/{brandId}/{discountId}/rule-editor`), advanced rule field persistence/validation, frontend advanced rule-editor modal, and legacy nullability/materialization hardening for rule-editor fields |
-| WP-052 | Promotions/Discounts Rule Regression Suite | in_progress | codex | 2026-02-27 | Added `backend/EWHQ.Api/test-promo-discount-rule-regression.sh` covering advanced rule-editor load/update/reload, validation failures, and deactivation lifecycle checks; awaiting runtime token-based execution evidence |
+| WP-018 | Menu Module Completion: Modifiers | done | codex | 2026-02-27 | Legacy parity modifiers flows delivered (including shop-pricing and membership hardening) and user runtime validation passed |
+| WP-019 | Menu Module Completion: Meal Set | done | codex | 2026-02-27 | Meal set CRUD + membership/parity constraints delivered and user runtime validation passed |
+| WP-020 | Menu Module Completion: Promotions | done | codex | 2026-02-27 | Promotions CRUD + rule editor parity and linked overview lifecycle confirmed through runtime verification |
+| WP-021 | Menu Module Completion: Discounts | done | codex | 2026-02-27 | Discounts CRUD + rule editor parity and linked overview lifecycle confirmed through runtime verification |
+| WP-022 | Menu Regression Suite | done | codex | 2026-02-27 | Regression script baseline completed and user-reported test pass accepted as sprint gate evidence |
+| WP-050 | Promotions Rule Engine Parity | done | codex | 2026-02-27 | Promotion rule-editor parity finalized, including nullability hardening and legacy account compatibility fixes |
+| WP-051 | Discounts Rule Engine Parity | done | codex | 2026-02-27 | Discount rule-editor parity finalized, including nullability hardening and legacy account compatibility fixes |
+| WP-052 | Promotions/Discounts Rule Regression Suite | done | codex | 2026-02-27 | Added regression script and captured user-reported runtime pass for rule-editor flows |
 
 ### S05
 | WP | Title | Status | Owner | Updated | Evidence |
 |---|---|---|---|---|---|
-| WP-023 | Store Settings Core Port | todo | unassigned | - | - |
+| WP-023 | Store Settings Core Port | in_progress | codex | 2026-02-27 | Added store settings APIs (`shops`, `info`, `workday`, `workday-periods`, `system-parameters`) and new Operations-aligned `/store-settings` module (`overview`, `info`, `workday schedule`, `workday periods`, `system parameters`); service areas API retained but hidden from current UI |
 | WP-024 | Device and Printer Configuration Port | todo | unassigned | - | - |
 | WP-025 | Table and Section Management Port | todo | unassigned | - | - |
 | WP-026 | Settings Audit Trail and Guardrails | todo | unassigned | - | - |
@@ -150,3 +150,6 @@
 | 2026-02-26 | Progressed S04 WP-051: implemented discount rule-editor API + frontend editor baseline parity (advanced include/exclude lists, thresholds, conditional date/time windows, loyalty/linkage flags, and shop enablement persistence), and corrected frontend discount service update handling. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
 | 2026-02-27 | Hardening pass for WP-050/WP-051: resolved legacy SQL Server null-materialization failures in promotion/discount rule editors by aligning entity nullability (`PromoHeader`/`Discount`) and strengthening null-safe projections + diagnostics. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`. |
 | 2026-02-27 | Started WP-052: added `backend/EWHQ.Api/test-promo-discount-rule-regression.sh` for advanced rule-editor regression coverage (load/update/reload, negative validation, and deactivation lifecycle checks). Validation: `bash -n backend/EWHQ.Api/test-promo-discount-rule-regression.sh`. |
+| 2026-02-27 | Closed S04 after user-reported tests passed across completed menu/promotions/discounts work packages; advanced rule parity issues resolved and validated in runtime. |
+| 2026-02-27 | Started S05 WP-023: added store settings APIs and `/settings` UI for workday/service-area/system-parameter management, plus route/sidebar wiring and typed frontend service integration. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Refined S05 WP-023 per product navigation requirements: moved Store Settings under Operations with dedicated overview + subpages (`/store-settings/*`), introduced separate Integrations section, added shop info/workday period APIs, and removed service areas from current UI scope. |

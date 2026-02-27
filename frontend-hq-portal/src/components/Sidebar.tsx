@@ -89,6 +89,8 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         '/menus/promotions',
         '/menus/discounts',
         '/menus/button-styles',
+        '/store-settings',
+        '/integrations',
         '/profile',
         '/organization-management',
       ]),
@@ -118,6 +120,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           items: [
             { icon: IconBuildingStore, label: 'Stores', path: '/stores' },
             { icon: IconMenu2, label: 'Menus', path: '/menus' },
+            { icon: IconAdjustments, label: 'Store Settings', path: '/store-settings' },
             { icon: IconTable, label: 'Tables', path: '/tables' },
             { icon: IconUserCheck, label: 'Staff', path: '/staff' },
             { icon: IconClock, label: 'Shifts', path: '/shifts' },
@@ -165,12 +168,11 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         },
         {
           key: 'integrations',
-          label: 'Integrations & Settings',
+          label: 'Integrations',
           items: [
             { icon: IconLink, label: 'Integrations', path: '/integrations' },
             { icon: IconBuildingBank, label: 'Payment Gateway', path: '/payment-gateway' },
             { icon: IconBrandSlack, label: 'Brand Management', path: '/brand-management' },
-            { icon: IconAdjustments, label: 'Settings', path: '/settings' },
           ],
         },
       ]
