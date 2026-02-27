@@ -107,8 +107,10 @@ This plan is AI-agent-friendly and executable in independent work packages.
 
 ## Implementation Notes (Current Repo State)
 - Current DB-backed settings audit writes have been disabled.
-- Current `GET /api/store-settings/brand/{brandId}/audit-logs` may return empty until Azure-backed read path is implemented.
-- Mutation details are currently emitted as structured application logs as transitional behavior.
+- Current DB-backed access audit writes have been disabled.
+- Request-level audit middleware and mutation interception are implemented in `backend/EWHQ.Api/Auditing/*`.
+- Current `GET /api/store-settings/brand/{brandId}/audit-logs` and team access-audit query APIs may return empty until Azure-backed read path is implemented.
+- Mutation details are published directly to Azure Logs Ingestion API when configured, with structured application logs retained as fallback diagnostics.
 
 ## Validation Checklist
 - [ ] API request telemetry visible with user + tenant context

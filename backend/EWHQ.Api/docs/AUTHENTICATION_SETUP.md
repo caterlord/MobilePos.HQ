@@ -31,6 +31,15 @@ AUTH0_MANAGEMENT_API_SECRET=your-m2m-client-secret
 SENDGRID_API_KEY=your-sendgrid-api-key
 ```
 
+### Optional: Azure Log Analytics Audit
+```env
+AZURE_LOG_AUDIT_ENABLED=true
+AZURE_LOG_AUDIT_ENDPOINT=https://<dce>.ingest.monitor.azure.com
+AZURE_LOG_AUDIT_DCR_IMMUTABLE_ID=dcr-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+AZURE_LOG_AUDIT_REQUEST_STREAM=Custom-HqRequestAudit
+AZURE_LOG_AUDIT_MUTATION_STREAM=Custom-HqDataMutationAudit
+```
+
 ### Databases
 Use the DB variables from `.env.example` (`DB_*`, `ADMIN_DB_*`, and provider-specific settings).
 

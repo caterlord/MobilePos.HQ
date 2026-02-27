@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using EWHQ.Api.Data;
 using DotNetEnv;
 using EWHQ.Api.Identity;
+using EWHQ.Api.Auditing;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -99,21 +101,52 @@ else // PostgreSQL
     adminDbConfig = DatabaseConfigurationFactory.Create(DatabaseProvider.PostgreSQL, adminDbParams);
 }
 
-// Add Entity Framework Core with provider-specific configuration
-builder.Services.AddDbContext<AdminPortalDbContext>(options =>
-    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString()));
+// Add Azure Log Analytics audit settings and ingestion services
+builder.Services.Configure<AzureLogAnalyticsAuditOptions>(options =>
+{
+    options.Enabled = ParseBoolEnvironment("AZURE_LOG_AUDIT_ENABLED");
+    options.Endpoint = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_ENDPOINT") ?? string.Empty;
+    options.DataCollectionRuleImmutableId = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_DCR_IMMUTABLE_ID") ?? string.Empty;
+    options.RequestStreamName = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_REQUEST_STREAM") ?? "Custom-HqRequestAudit";
+    options.MutationStreamName = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_MUTATION_STREAM") ?? "Custom-HqDataMutationAudit";
+    options.TenantId = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_TENANT_ID") ?? string.Empty;
+    options.ClientId = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_CLIENT_ID") ?? string.Empty;
+    options.ClientSecret = Environment.GetEnvironmentVariable("AZURE_LOG_AUDIT_CLIENT_SECRET") ?? string.Empty;
+    options.Environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+    options.ServiceName = "ewhq-api";
+});
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IAuditIngestionService, AzureLogAnalyticsAuditIngestionService>();
+builder.Services.AddScoped<AuditSaveChangesInterceptor>();
+
+// Add Entity Framework Core with provider-specific configuration + mutation audit interceptor
+builder.Services.AddDbContext<AdminPortalDbContext>((serviceProvider, options) =>
+{
+    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString());
+    options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
+});
 
 // Add User Profile DbContext (consolidated into Admin database)
-builder.Services.AddDbContext<UserProfileDbContext>(options =>
-    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString()));
+builder.Services.AddDbContext<UserProfileDbContext>((serviceProvider, options) =>
+{
+    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString());
+    options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
+});
 
-// Add Admin DbContext with provider-specific configuration  
-builder.Services.AddDbContext<AdminDbContext>(options =>
-    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString()));
+// Add Admin DbContext with provider-specific configuration
+builder.Services.AddDbContext<AdminDbContext>((serviceProvider, options) =>
+{
+    adminDbConfig.ConfigureDbContext(options, adminDbConfig.BuildConnectionString());
+    options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
+});
 
 // Add EWHQ Portal DbContext with provider-specific configuration
-builder.Services.AddDbContext<EWHQDbContext>(options =>
-    mainDbConfig.ConfigureDbContext(options, mainDbConfig.BuildConnectionString()));
+builder.Services.AddDbContext<EWHQDbContext>((serviceProvider, options) =>
+{
+    mainDbConfig.ConfigureDbContext(options, mainDbConfig.BuildConnectionString());
+    options.AddInterceptors(serviceProvider.GetRequiredService<AuditSaveChangesInterceptor>());
+});
 
 // Add POS DbContext service for managing legacy and new POS databases
 builder.Services.AddScoped<IPOSDbContextService, POSDbContextService>();
@@ -177,6 +210,19 @@ builder.Services.AddScoped<ILegacyPOSService, LegacyPOSService>();
 // Add HttpClient for Auth0 controller
 builder.Services.AddHttpClient();
 
+// Enable Azure Monitor OpenTelemetry export when connection string is configured.
+var applicationInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
+if (!string.IsNullOrWhiteSpace(applicationInsightsConnectionString))
+{
+    var samplingRatio = ParseDoubleEnvironment("AZURE_MONITOR_SAMPLING_RATIO", 1.0);
+    builder.Services.AddOpenTelemetry().UseAzureMonitor(options =>
+    {
+        options.ConnectionString = applicationInsightsConnectionString;
+        options.SamplingRatio = (float)samplingRatio;
+        options.EnableLiveMetrics = ParseBoolEnvironment("AZURE_MONITOR_ENABLE_LIVE_METRICS");
+    });
+}
+
 // Add CORS
 builder.Services.AddCors(options =>
 {
@@ -203,6 +249,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
+app.UseMiddleware<RequestAuditMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
@@ -218,6 +265,31 @@ if (args.Length > 0)
 }
 
 app.Run();
+
+static bool ParseBoolEnvironment(string key)
+{
+    var value = Environment.GetEnvironmentVariable(key);
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return false;
+    }
+
+    return value.Equals("1", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("true", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("yes", StringComparison.OrdinalIgnoreCase)
+        || value.Equals("on", StringComparison.OrdinalIgnoreCase);
+}
+
+static double ParseDoubleEnvironment(string key, double fallback)
+{
+    var value = Environment.GetEnvironmentVariable(key);
+    if (double.TryParse(value, out var parsed))
+    {
+        return parsed;
+    }
+
+    return fallback;
+}
 
 // CLI command handler for seeding sample teams
 async Task SeedSampleTeams(WebApplication app)

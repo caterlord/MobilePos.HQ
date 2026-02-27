@@ -15,6 +15,8 @@ Required groups:
 - Auth0 app IDs: `AUTH0_ADMIN_CLIENT_ID` (and optional `AUTH0_CLIENT_ID` fallback)
 - Auth0 DB reset connection: `AUTH0_DB_CONNECTION`
 - Email: `SENDGRID_API_KEY`
+- Azure audit (optional): `AZURE_LOG_AUDIT_*`
+- Azure Monitor request telemetry (optional): `APPLICATIONINSIGHTS_CONNECTION_STRING`, `AZURE_MONITOR_*`
 
 ## Frontend (`frontend-hq-portal/.env`)
 Copy:
@@ -47,3 +49,4 @@ npm run dev
 ## Notes
 - Never commit `.env` files.
 - This repo uses Auth0-only authentication; local username/password backend login is not used.
+- DB-backed HQ settings audit table writes are currently disabled; use Azure Log Analytics audit flow for ongoing rollout.
