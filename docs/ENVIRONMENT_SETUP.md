@@ -17,6 +17,7 @@ Required groups:
 - Email: `SENDGRID_API_KEY`
 - Azure audit (optional): `AZURE_LOG_AUDIT_*`
 - Azure Monitor request telemetry (optional): `APPLICATIONINSIGHTS_CONNECTION_STRING`, `AZURE_MONITOR_*`
+- Azure audit provisioning runbook: [AZURE_LOG_ANALYTICS_SETUP_GUIDE.md](/Users/michaelyung/RiderProjects/ewhq-new/docs/execution-plan/AZURE_LOG_ANALYTICS_SETUP_GUIDE.md)
 
 ## Frontend (`frontend-hq-portal/.env`)
 Copy:
