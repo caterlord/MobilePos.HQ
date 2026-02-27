@@ -33,7 +33,7 @@ This plan is AI-agent-friendly and executable in independent work packages.
 ## Work Packages
 
 ### ALA-001 Audit Contract Freeze
-- Status: `todo`
+- Status: `done`
 - Deliverables:
   - canonical field schema for request + mutation audits
   - masking policy for sensitive fields
