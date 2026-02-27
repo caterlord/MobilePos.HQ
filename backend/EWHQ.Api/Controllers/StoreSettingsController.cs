@@ -20,11 +20,16 @@ namespace EWHQ.Api.Controllers;
 public class StoreSettingsController : ControllerBase
 {
     private readonly IPOSDbContextService _posContextService;
+    private readonly ISettingsAuditService _settingsAuditService;
     private readonly ILogger<StoreSettingsController> _logger;
 
-    public StoreSettingsController(IPOSDbContextService posContextService, ILogger<StoreSettingsController> logger)
+    public StoreSettingsController(
+        IPOSDbContextService posContextService,
+        ISettingsAuditService settingsAuditService,
+        ILogger<StoreSettingsController> logger)
     {
         _posContextService = posContextService;
+        _settingsAuditService = settingsAuditService;
         _logger = logger;
     }
 
@@ -79,6 +84,28 @@ public class StoreSettingsController : ControllerBase
         };
     }
 
+    private static StoreSettingsAuditLogDto ToStoreSettingsAuditLogDto(AuditTrailLog log)
+    {
+        var actionName = log.ActionName ?? string.Empty;
+        var separatorIndex = actionName.IndexOf(':');
+        var normalizedAction = separatorIndex >= 0 && separatorIndex < actionName.Length - 1
+            ? actionName[(separatorIndex + 1)..]
+            : actionName;
+
+        return new StoreSettingsAuditLogDto
+        {
+            LogId = log.LogId,
+            ShopId = log.ShopId,
+            Category = log.SourceRefId ?? string.Empty,
+            ActionName = normalizedAction,
+            ActionRefId = log.ActionRefId ?? string.Empty,
+            ActionRefDescription = log.ActionRefDesc ?? string.Empty,
+            Details = log.SourceRefDesc ?? string.Empty,
+            ActionUserName = log.ActionUserName ?? string.Empty,
+            LoggedAt = log.LogDatetime
+        };
+    }
+
     [HttpGet("brand/{brandId:int}/shops")]
     [RequireBrandView]
     public async Task<ActionResult<IReadOnlyList<StoreSettingsShopDto>>> GetShops(int brandId)
@@ -113,6 +140,47 @@ public class StoreSettingsController : ControllerBase
         }
     }
 
+    [HttpGet("brand/{brandId:int}/audit-logs")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<StoreSettingsAuditLogDto>>> GetAuditLogs(
+        int brandId,
+        [FromQuery] int? shopId = null,
+        [FromQuery] int limit = 50)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            if (shopId.HasValue)
+            {
+                var shop = await GetShopAsync(context, accountId, shopId.Value);
+                if (shop == null)
+                {
+                    return NotFound(new { message = "Shop not found." });
+                }
+            }
+
+            var logs = await _settingsAuditService.GetRecentMutationsAsync(
+                context,
+                accountId,
+                shopId,
+                limit,
+                HttpContext.RequestAborted);
+
+            return Ok(logs.Select(ToStoreSettingsAuditLogDto).ToList());
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading settings audit logs for brand {BrandId}, shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred while loading settings audit logs." });
+        }
+    }
+
     [HttpGet("brand/{brandId:int}/shops/{shopId:int}/info")]
     [RequireBrandView]
     public async Task<ActionResult<StoreInfoSettingsDto>> GetStoreInfoSettings(int brandId, int shopId)
@@ -141,7 +209,7 @@ public class StoreSettingsController : ControllerBase
     }
 
     [HttpPut("brand/{brandId:int}/shops/{shopId:int}/info")]
-    [RequireBrandModify]
+    [RequireBrandAdmin]
     public async Task<ActionResult<StoreInfoSettingsDto>> UpdateStoreInfoSettings(
         int brandId,
         int shopId,
@@ -192,6 +260,21 @@ public class StoreSettingsController : ControllerBase
             shop.Enabled = payload.Enabled;
             shop.ModifiedDate = now;
             shop.ModifiedBy = currentUser;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "STORE_SETTINGS",
+                    ActionType = "UPDATE_INFO",
+                    ActionRefId = shopId.ToString(),
+                    ActionRefDescription = shop.Name ?? string.Empty,
+                    Details = $"Updated store info; enabled={shop.Enabled}",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
@@ -291,7 +374,7 @@ public class StoreSettingsController : ControllerBase
     }
 
     [HttpPut("brand/{brandId:int}/shops/{shopId:int}/workday")]
-    [RequireBrandModify]
+    [RequireBrandAdmin]
     public async Task<ActionResult<IReadOnlyList<StoreWorkdayEntryDto>>> UpdateStoreWorkday(
         int brandId,
         int shopId,
@@ -385,6 +468,21 @@ public class StoreSettingsController : ControllerBase
                 context.ShopWorkdayHeaders.RemoveRange(rowsToRemove);
             }
 
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "STORE_SETTINGS",
+                    ActionType = "UPDATE_WORKDAY",
+                    ActionRefId = shopId.ToString(),
+                    ActionRefDescription = shop.Name ?? string.Empty,
+                    Details = $"Updated workday schedule; entries={entries.Count}; removed={rowsToRemove.Count}",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
             var response = await context.ShopWorkdayHeaders
@@ -462,7 +560,7 @@ public class StoreSettingsController : ControllerBase
     }
 
     [HttpPut("brand/{brandId:int}/shops/{shopId:int}/workday-periods")]
-    [RequireBrandModify]
+    [RequireBrandAdmin]
     public async Task<ActionResult<IReadOnlyList<StoreWorkdayPeriodDto>>> ReplaceWorkdayPeriods(
         int brandId,
         int shopId,
@@ -566,6 +664,21 @@ public class StoreSettingsController : ControllerBase
                 });
             }
 
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "STORE_SETTINGS",
+                    ActionType = "REPLACE_WORKDAY_PERIODS",
+                    ActionRefId = shopId.ToString(),
+                    ActionRefDescription = shop.Name ?? string.Empty,
+                    Details = $"Replaced workday periods; periods={periods.Count}",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
             var response = await context.ShopWorkdayPeriods
@@ -601,7 +714,7 @@ public class StoreSettingsController : ControllerBase
     }
 
     [HttpPut("brand/{brandId:int}/shops/{shopId:int}/service-areas")]
-    [RequireBrandModify]
+    [RequireBrandAdmin]
     public async Task<ActionResult<IReadOnlyList<StoreServiceAreaDto>>> ReplaceServiceAreas(
         int brandId,
         int shopId,
@@ -690,6 +803,21 @@ public class StoreSettingsController : ControllerBase
                 });
             }
 
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "STORE_SETTINGS",
+                    ActionType = "REPLACE_SERVICE_AREAS",
+                    ActionRefId = shopId.ToString(),
+                    ActionRefDescription = shop.Name ?? string.Empty,
+                    Details = $"Replaced service areas; areas={areas.Count}",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
             var response = await context.ShopServiceAreaSettings
@@ -726,7 +854,7 @@ public class StoreSettingsController : ControllerBase
     }
 
     [HttpPut("brand/{brandId:int}/shops/{shopId:int}/system-parameters/{paramCode}")]
-    [RequireBrandModify]
+    [RequireBrandAdmin]
     public async Task<ActionResult<StoreSystemParameterDto>> UpsertSystemParameter(
         int brandId,
         int shopId,
@@ -789,6 +917,21 @@ public class StoreSettingsController : ControllerBase
             parameter.Enabled = payload.Enabled;
             parameter.ModifiedDate = now;
             parameter.ModifiedBy = currentUser;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "STORE_SETTINGS",
+                    ActionType = "UPSERT_SYSTEM_PARAMETER",
+                    ActionRefId = normalizedCode,
+                    ActionRefDescription = description,
+                    Details = $"Upserted system parameter; enabled={payload.Enabled}",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 

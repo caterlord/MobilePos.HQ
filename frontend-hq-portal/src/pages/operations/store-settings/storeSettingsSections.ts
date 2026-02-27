@@ -31,4 +31,12 @@ export const storeSettingsSections = [
     color: 'grape',
     path: '/store-settings/system-parameters',
   },
+  {
+    id: 'tables-sections',
+    title: 'Tables & Sections',
+    description: 'Dining sections, table codes, and per-table options',
+    stats: 'Floor Layout',
+    color: 'orange',
+    path: '/store-settings/tables',
+  },
 ] as const;

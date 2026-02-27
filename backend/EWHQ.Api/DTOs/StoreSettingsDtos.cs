@@ -115,3 +115,16 @@ public class StoreSettingsSnapshotDto
     public IReadOnlyList<StoreServiceAreaDto> ServiceAreas { get; set; } = Array.Empty<StoreServiceAreaDto>();
     public IReadOnlyList<StoreSystemParameterDto> SystemParameters { get; set; } = Array.Empty<StoreSystemParameterDto>();
 }
+
+public class StoreSettingsAuditLogDto
+{
+    public int LogId { get; set; }
+    public int ShopId { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string ActionName { get; set; } = string.Empty;
+    public string ActionRefId { get; set; } = string.Empty;
+    public string ActionRefDescription { get; set; } = string.Empty;
+    public string Details { get; set; } = string.Empty;
+    public string ActionUserName { get; set; } = string.Empty;
+    public DateTime LoggedAt { get; set; }
+}

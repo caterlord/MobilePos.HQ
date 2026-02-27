@@ -91,6 +91,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         '/menus/button-styles',
         '/store-settings',
         '/integrations',
+        '/integrations/device-settings',
         '/profile',
         '/organization-management',
       ]),
@@ -171,6 +172,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
           label: 'Integrations',
           items: [
             { icon: IconLink, label: 'Integrations', path: '/integrations' },
+            { icon: IconDevices, label: 'Device Settings', path: '/integrations/device-settings' },
             { icon: IconBuildingBank, label: 'Payment Gateway', path: '/payment-gateway' },
             { icon: IconBrandSlack, label: 'Brand Management', path: '/brand-management' },
           ],

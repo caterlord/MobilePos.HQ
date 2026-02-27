@@ -87,6 +87,18 @@ export interface StoreSettingsSnapshot {
   systemParameters: StoreSystemParameter[];
 }
 
+export interface StoreSettingsAuditLog {
+  logId: number;
+  shopId: number;
+  category: string;
+  actionName: string;
+  actionRefId: string;
+  actionRefDescription: string;
+  details: string;
+  actionUserName: string;
+  loggedAt: string;
+}
+
 export interface UpdateStoreWorkdayRequest {
   entries: StoreWorkdayEntry[];
 }
@@ -117,7 +129,7 @@ const storeSettingsService = {
     shopId: number,
     payload: UpdateStoreInfoSettingsRequest,
   ): Promise<StoreInfoSettings> {
-    return await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/info`, payload) as StoreInfoSettings;
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/info`, payload));
   },
 
   async getSnapshot(brandId: number, shopId: number): Promise<StoreSettingsSnapshot> {
@@ -125,7 +137,7 @@ const storeSettingsService = {
   },
 
   async updateWorkday(brandId: number, shopId: number, payload: UpdateStoreWorkdayRequest): Promise<StoreWorkdayEntry[]> {
-    return await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/workday`, payload) as StoreWorkdayEntry[];
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/workday`, payload));
   },
 
   async getWorkdayPeriods(brandId: number, shopId: number): Promise<StoreWorkdayPeriod[]> {
@@ -137,11 +149,11 @@ const storeSettingsService = {
     shopId: number,
     payload: ReplaceStoreWorkdayPeriodsRequest,
   ): Promise<StoreWorkdayPeriod[]> {
-    return await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/workday-periods`, payload) as StoreWorkdayPeriod[];
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/workday-periods`, payload));
   },
 
   async replaceServiceAreas(brandId: number, shopId: number, payload: ReplaceStoreServiceAreasRequest): Promise<StoreServiceArea[]> {
-    return await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/service-areas`, payload) as StoreServiceArea[];
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/service-areas`, payload));
   },
 
   async upsertSystemParameter(
@@ -150,7 +162,23 @@ const storeSettingsService = {
     paramCode: string,
     payload: UpsertStoreSystemParameterRequest,
   ): Promise<StoreSystemParameter> {
-    return await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/system-parameters/${encodeURIComponent(paramCode)}`, payload) as StoreSystemParameter;
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/shops/${shopId}/system-parameters/${encodeURIComponent(paramCode)}`, payload));
+  },
+
+  async getAuditLogs(
+    brandId: number,
+    options?: { shopId?: number; limit?: number },
+  ): Promise<StoreSettingsAuditLog[]> {
+    const query = new URLSearchParams();
+    if (options?.shopId && options.shopId > 0) {
+      query.set('shopId', String(options.shopId));
+    }
+    if (options?.limit && options.limit > 0) {
+      query.set('limit', String(options.limit));
+    }
+
+    const suffix = query.toString();
+    return unwrap(await api.get(`/store-settings/brand/${brandId}/audit-logs${suffix ? `?${suffix}` : ''}`));
   },
 };
 

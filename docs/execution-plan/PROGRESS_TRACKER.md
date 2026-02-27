@@ -12,7 +12,7 @@
 | S02 | in_progress | 80 | WP-008/009/010/011 done; WP-012 script added and awaiting runtime evidence |
 | S03 | in_progress | 95 | WP-013/014/015/016/017 integrated (API + UI + admin migration) with partial runtime verification captured |
 | S04 | done | 100 | Menu module completion + advanced promotions/discounts parity + regression validations confirmed; sprint gate satisfied |
-| S05 | in_progress | 20 | WP-023 started: store settings API/page wiring for workday, service area, and system parameters |
+| S05 | in_progress | 78 | WP-023 stabilized, WP-024 completed, WP-025 hardening progressed with regression coverage, and WP-026 guardrails/audit implementation is in progress |
 | S06 | todo | 0 | Not started |
 | S07 | todo | 0 | Not started |
 | S08 | todo | 0 | Not started |
@@ -69,10 +69,10 @@
 ### S05
 | WP | Title | Status | Owner | Updated | Evidence |
 |---|---|---|---|---|---|
-| WP-023 | Store Settings Core Port | in_progress | codex | 2026-02-27 | Added store settings APIs (`shops`, `info`, `workday`, `workday-periods`, `system-parameters`) and new Operations-aligned `/store-settings` module (`overview`, `info`, `workday schedule`, `workday periods`, `system parameters`); service areas API retained but hidden from current UI |
-| WP-024 | Device and Printer Configuration Port | todo | unassigned | - | - |
-| WP-025 | Table and Section Management Port | todo | unassigned | - | - |
-| WP-026 | Settings Audit Trail and Guardrails | todo | unassigned | - | - |
+| WP-023 | Store Settings Core Port | in_progress | codex | 2026-02-27 | Added store settings APIs (`shops`, `info`, `workday`, `workday-periods`, `system-parameters`) and new Operations-aligned `/store-settings` module (`overview`, `info`, `workday schedule`, `workday periods`, `system parameters`), removed obsolete subpage nav component, and added `test-store-settings-regression.sh` for runtime verification |
+| WP-024 | Device and Printer Configuration Port | done | codex | 2026-02-27 | Completed device settings parity slice: terminal/printer/cash-drawer CRUD, terminal config-file read endpoint + UI modal, frontend service response hardening, and `test-device-settings-regression.sh` verification script |
+| WP-025 | Table and Section Management Port | in_progress | codex | 2026-02-27 | Hardened table/section port with expanded regression coverage in `test-store-settings-regression.sh` (metadata + section/table CRUD lifecycle) and maintained `/store-settings/tables` API/UI workflow |
+| WP-026 | Settings Audit Trail and Guardrails | in_progress | codex | 2026-02-27 | Added centralized settings mutation audit service writing to POS `AuditTrailLog`, new `GET /api/store-settings/brand/{brandId}/audit-logs`, upgraded settings write endpoints to `RequireBrandAdmin`, and wired Store Settings overview recent-activity feed to live audit logs |
 
 ### S06
 | WP | Title | Status | Owner | Updated | Evidence |
@@ -153,3 +153,10 @@
 | 2026-02-27 | Closed S04 after user-reported tests passed across completed menu/promotions/discounts work packages; advanced rule parity issues resolved and validated in runtime. |
 | 2026-02-27 | Started S05 WP-023: added store settings APIs and `/settings` UI for workday/service-area/system-parameter management, plus route/sidebar wiring and typed frontend service integration. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
 | 2026-02-27 | Refined S05 WP-023 per product navigation requirements: moved Store Settings under Operations with dedicated overview + subpages (`/store-settings/*`), introduced separate Integrations section, added shop info/workday period APIs, and removed service areas from current UI scope. |
+| 2026-02-27 | Progressed S05 WP-023 stabilization: added `backend/EWHQ.Api/test-store-settings-regression.sh` (shops/info/workday/workday-periods/system-parameters no-op checks) and removed unused `StoreSettingsNav.tsx`. Validation: `bash -n backend/EWHQ.Api/test-store-settings-regression.sh`, `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Started S05 WP-024 first cut: implemented brand-scoped device settings APIs (`terminals`, `printers`, `cash-drawers`) and frontend `/integrations/device-settings` page with CRUD flows + Integrations overview card wiring. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Completed S05 WP-024 hardening: added terminal config-file API/UI parity (`GET /api/device-settings/brand/{brandId}/shops/{shopId}/terminals/{terminalId}/config-file`), fixed frontend device settings update response unwrapping, and added `backend/EWHQ.Api/test-device-settings-regression.sh`. Validation: `bash -n backend/EWHQ.Api/test-device-settings-regression.sh`, `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Started S05 WP-025 first cut: implemented table/section management baseline (`/api/table-settings` metadata + section CRUD + table CRUD) and added `/store-settings/tables` UI with section/table tabs, modal editors, and route/breadcrumb/overview wiring. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Progressed S05 WP-025 hardening: extended `test-store-settings-regression.sh` with table-settings metadata + section/table CRUD lifecycle checks and integrated settings-audit endpoint assertions. Validation: `bash -n backend/EWHQ.Api/test-store-settings-regression.sh`, `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`. |
+| 2026-02-27 | Started S05 WP-026: implemented centralized settings mutation auditing (store/device/table writes -> `AuditTrailLog`), introduced `GET /api/store-settings/brand/{brandId}/audit-logs`, raised write guardrails to `RequireBrandAdmin` for settings mutations, and wired Store Settings overview to live audit activity. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Planned Azure Log Analytics audit migration in `docs/execution-plan/AZURE_LOG_ANALYTICS_AUDIT_PLAN.md` and initialized execution tracker `docs/execution-plan/AZURE_LOG_ANALYTICS_AUDIT_PROGRESS.md`; temporarily disabled DB-backed settings audit writes so mutation audit now emits structured application logs pending Azure ingestion cutover. |

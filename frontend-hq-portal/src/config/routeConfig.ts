@@ -85,11 +85,21 @@ export const ROUTE_CONFIG: RouteItem[] = [
         path: '/store-settings/system-parameters',
         label: 'System Parameters',
       },
+      {
+        path: '/store-settings/tables',
+        label: 'Tables & Sections',
+      },
     ],
   },
   {
     path: '/integrations',
     label: 'Integrations',
+    children: [
+      {
+        path: '/integrations/device-settings',
+        label: 'Device Settings',
+      },
+    ],
   },
   {
     path: '/organization-management',

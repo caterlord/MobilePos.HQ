@@ -12,22 +12,130 @@ import {
   ThemeIcon,
   Anchor,
   Badge,
+  Loader,
 } from '@mantine/core';
 import {
   IconAdjustments,
   IconCalendarTime,
   IconChevronRight,
   IconClockHour4,
-  IconPlus,
+  IconDevices,
+  IconLayoutGrid,
+  IconListCheck,
   IconSettings,
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useBrands } from '../../../contexts/BrandContext';
+import storeSettingsService, { type StoreSettingsAuditLog } from '../../../services/storeSettingsService';
 import { storeSettingsSections } from './storeSettingsSections';
 
-const sectionIcons = [IconAdjustments, IconCalendarTime, IconClockHour4, IconSettings] as const;
+const sectionIcons = [IconAdjustments, IconCalendarTime, IconClockHour4, IconSettings, IconLayoutGrid] as const;
 
 export function StoreSettingsOverviewPage() {
   const navigate = useNavigate();
+  const { selectedBrand } = useBrands();
+  const [auditLogs, setAuditLogs] = useState<StoreSettingsAuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+
+  const selectedBrandId = useMemo(() => {
+    if (!selectedBrand) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(selectedBrand, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [selectedBrand]);
+
+  useEffect(() => {
+    if (!selectedBrandId) {
+      setAuditLogs([]);
+      setAuditError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAuditLogs = async () => {
+      try {
+        setAuditLoading(true);
+        setAuditError(null);
+        const logs = await storeSettingsService.getAuditLogs(selectedBrandId, { limit: 8 });
+        if (!cancelled) {
+          setAuditLogs(logs);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'Failed to load activity';
+          setAuditError(message);
+          setAuditLogs([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setAuditLoading(false);
+        }
+      }
+    };
+
+    void loadAuditLogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBrandId]);
+
+  const toDisplayAction = (actionName: string) => {
+    if (!actionName) {
+      return 'Settings updated';
+    }
+
+    return actionName
+      .split('_')
+      .filter((segment) => segment.length > 0)
+      .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  const toRelativeTime = (loggedAt: string) => {
+    const timestamp = Date.parse(loggedAt);
+    if (Number.isNaN(timestamp)) {
+      return 'Unknown';
+    }
+
+    const diffMs = Date.now() - timestamp;
+    if (diffMs < 60_000) {
+      return 'Just now';
+    }
+
+    const diffMinutes = Math.floor(diffMs / 60_000);
+    if (diffMinutes < 60) {
+      return `${diffMinutes}m ago`;
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    }
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) {
+      return `${diffDays}d ago`;
+    }
+
+    return new Date(timestamp).toLocaleDateString();
+  };
+
+  const getActivityVisual = (category: string) => {
+    switch (category) {
+      case 'TABLE_SETTINGS':
+        return { icon: IconLayoutGrid, color: 'orange' };
+      case 'DEVICE_SETTINGS':
+        return { icon: IconDevices, color: 'blue' };
+      default:
+        return { icon: IconListCheck, color: 'teal' };
+    }
+  };
 
   return (
     <Box>
@@ -124,51 +232,57 @@ export function StoreSettingsOverviewPage() {
                 <Title order={2} size={20} fw={600}>
                   Recent Activity
                 </Title>
-                <Anchor size="sm" c="indigo">
-                  View all →
+                <Anchor size="sm" c="dimmed">
+                  Last 8 events
                 </Anchor>
               </Group>
 
-              <Stack gap="sm">
-                <Group justify="space-between" p="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
-                  <Group>
-                    <ThemeIcon size="md" radius="md" variant="light" color="green">
-                      <IconPlus size={16} />
-                    </ThemeIcon>
-                    <Box>
-                      <Text size="sm" fw={500}>Workday schedule updated</Text>
-                      <Text size="xs" c="dimmed">Friday closing time changed to 23:00</Text>
-                    </Box>
-                  </Group>
-                  <Text size="xs" c="dimmed">2 hours ago</Text>
+              {auditLoading ? (
+                <Group py="md" justify="center" gap="xs">
+                  <Loader size="xs" />
+                  <Text size="sm" c="dimmed">Loading activity...</Text>
                 </Group>
+              ) : null}
 
-                <Group justify="space-between" p="sm" style={{ borderBottom: '1px solid #F0F0F0' }}>
-                  <Group>
-                    <ThemeIcon size="md" radius="md" variant="light" color="blue">
-                      <IconAdjustments size={16} />
-                    </ThemeIcon>
-                    <Box>
-                      <Text size="sm" fw={500}>System parameter changed</Text>
-                      <Text size="xs" c="dimmed">POS_TIMEOUT set to 45 seconds</Text>
-                    </Box>
-                  </Group>
-                  <Text size="xs" c="dimmed">5 hours ago</Text>
-                </Group>
+              {!auditLoading && auditError ? (
+                <Text size="sm" c="red">{auditError}</Text>
+              ) : null}
 
-                <Group justify="space-between" p="sm">
-                  <Group>
-                    <ThemeIcon size="md" radius="md" variant="light" color="teal">
-                      <IconClockHour4 size={16} />
-                    </ThemeIcon>
-                    <Box>
-                      <Text size="sm" fw={500}>Workday period adjusted</Text>
-                      <Text size="xs" c="dimmed">Dinner period extended by 30 minutes</Text>
-                    </Box>
-                  </Group>
-                  <Text size="xs" c="dimmed">Yesterday</Text>
-                </Group>
-              </Stack>
+              {!auditLoading && !auditError && auditLogs.length === 0 ? (
+                <Text size="sm" c="dimmed">No settings changes recorded yet.</Text>
+              ) : null}
+
+              {!auditLoading && !auditError && auditLogs.length > 0 ? (
+                <Stack gap="sm">
+                  {auditLogs.map((log, index) => {
+                    const activityVisual = getActivityVisual(log.category);
+                    const Icon = activityVisual.icon;
+                    const detail = [log.actionRefDescription || log.actionRefId, log.details]
+                      .filter((value) => value && value.trim().length > 0)
+                      .join(' · ');
+
+                    return (
+                      <Group
+                        key={`${log.logId}-${log.loggedAt}`}
+                        justify="space-between"
+                        p="sm"
+                        style={index < auditLogs.length - 1 ? { borderBottom: '1px solid #F0F0F0' } : undefined}
+                      >
+                        <Group>
+                          <ThemeIcon size="md" radius="md" variant="light" color={activityVisual.color}>
+                            <Icon size={16} />
+                          </ThemeIcon>
+                          <Box>
+                            <Text size="sm" fw={500}>{toDisplayAction(log.actionName)}</Text>
+                            <Text size="xs" c="dimmed">{detail || log.category}</Text>
+                          </Box>
+                        </Group>
+                        <Text size="xs" c="dimmed">{toRelativeTime(log.loggedAt)}</Text>
+                      </Group>
+                    );
+                  })}
+                </Stack>
+              ) : null}
             </Paper>
           </Stack>
         </Container>
