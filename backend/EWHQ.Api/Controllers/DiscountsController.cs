@@ -182,8 +182,8 @@ public class DiscountsController : ControllerBase
             {
                 x.DiscountId,
                 x.AccountId,
-                DiscountCode = EF.Property<string?>(x, nameof(Discount.DiscountCode)) ?? string.Empty,
-                DiscountName = EF.Property<string?>(x, nameof(Discount.DiscountName)) ?? string.Empty,
+                DiscountCode = x.DiscountCode ?? string.Empty,
+                DiscountName = x.DiscountName ?? string.Empty,
                 x.Priority,
                 x.Enabled,
                 x.IsDateSpecific,
@@ -197,21 +197,21 @@ public class DiscountsController : ControllerBase
                 x.StartTime,
                 x.EndTime,
                 IsNoOtherLoyalty = x.IsNoOtherLoyalty ?? false,
-                MandatoryIncludedCategoryIdList = EF.Property<string?>(x, nameof(Discount.MandatoryIncludedCategoryIdList)) ?? string.Empty,
-                MandatoryIncludedItemIdList = EF.Property<string?>(x, nameof(Discount.MandatoryIncludedItemIdList)) ?? string.Empty,
-                MandatoryIncludedModifierItemIdList = EF.Property<string?>(x, nameof(Discount.MandatoryIncludedModifierItemIdList)) ?? string.Empty,
-                MandatoryExcludedCategoryIdList = EF.Property<string?>(x, nameof(Discount.MandatoryExcludedCategoryIdList)) ?? string.Empty,
-                MandatoryExcludedItemIdList = EF.Property<string?>(x, nameof(Discount.MandatoryExcludedItemIdList)) ?? string.Empty,
-                MandatoryExcludedModifierItemIdList = EF.Property<string?>(x, nameof(Discount.MandatoryExcludedModifierItemIdList)) ?? string.Empty,
+                MandatoryIncludedCategoryIdList = x.MandatoryIncludedCategoryIdList ?? string.Empty,
+                MandatoryIncludedItemIdList = x.MandatoryIncludedItemIdList ?? string.Empty,
+                MandatoryIncludedModifierItemIdList = x.MandatoryIncludedModifierItemIdList ?? string.Empty,
+                MandatoryExcludedCategoryIdList = x.MandatoryExcludedCategoryIdList ?? string.Empty,
+                MandatoryExcludedItemIdList = x.MandatoryExcludedItemIdList ?? string.Empty,
+                MandatoryExcludedModifierItemIdList = x.MandatoryExcludedModifierItemIdList ?? string.Empty,
                 x.PriceSpecific,
                 x.PriceHigherThanEqualToSpecific,
                 x.PriceLowerThanEqualToSpecific,
                 IsLinkedWithThirdPartyLoyalty = x.IsLinkedWithThirdPartyLoyalty ?? false,
-                LinkedThirdPartyLoyaltyCode = EF.Property<string?>(x, nameof(Discount.LinkedThirdPartyLoyaltyCode)) ?? string.Empty,
+                LinkedThirdPartyLoyaltyCode = x.LinkedThirdPartyLoyaltyCode ?? string.Empty,
                 IsAppliedOnItemLevel = x.IsAppliedOnItemLevel ?? false,
                 x.UpgradeModifierItemId,
-                DiscountTag = EF.Property<string?>(x, nameof(Discount.DiscountTag)) ?? string.Empty,
-                DiscountBenefitModifierAmountAdjustment = EF.Property<string?>(x, nameof(Discount.DiscountBenefitModifierAmountAdjustment)) ?? string.Empty,
+                DiscountTag = x.DiscountTag ?? string.Empty,
+                DiscountBenefitModifierAmountAdjustment = x.DiscountBenefitModifierAmountAdjustment ?? string.Empty,
                 x.MinOrderAmount,
                 x.MaxOrderAmount,
                 x.MinMatchedItemAmount,
@@ -220,20 +220,20 @@ public class DiscountsController : ControllerBase
                 x.MaxDiscountAmount,
                 x.MaxDiscountQty,
                 x.DiscountFirstQty,
-                ConditionalDayOfWeeks = EF.Property<string?>(x, nameof(Discount.ConditionalDayOfWeeks)) ?? string.Empty,
-                ConditionalMonths = EF.Property<string?>(x, nameof(Discount.ConditionalMonths)) ?? string.Empty,
-                ConditionalDates = EF.Property<string?>(x, nameof(Discount.ConditionalDates)) ?? string.Empty,
+                ConditionalDayOfWeeks = x.ConditionalDayOfWeeks ?? string.Empty,
+                ConditionalMonths = x.ConditionalMonths ?? string.Empty,
+                ConditionalDates = x.ConditionalDates ?? string.Empty,
                 x.ConditionalStartDate,
                 x.ConditionalEndDate,
                 x.ConditionalStartTime,
                 x.ConditionalEndTime,
                 CalculateIncludedSubItems = x.CalculateIncludedSubItems ?? false,
                 MatchMultiple = x.MatchMultiple ?? false,
-                DiscountedCategoryIdList = EF.Property<string?>(x, nameof(Discount.DiscountedCategoryIdList)) ?? string.Empty,
-                DiscountedItemIdList = EF.Property<string?>(x, nameof(Discount.DiscountedItemIdList)) ?? string.Empty,
-                DiscountedModifierItemIdList = EF.Property<string?>(x, nameof(Discount.DiscountedModifierItemIdList)) ?? string.Empty,
+                DiscountedCategoryIdList = x.DiscountedCategoryIdList ?? string.Empty,
+                DiscountedItemIdList = x.DiscountedItemIdList ?? string.Empty,
+                DiscountedModifierItemIdList = x.DiscountedModifierItemIdList ?? string.Empty,
                 DiscountedItemPriceOrderDescending = x.DiscountedItemPriceOrderDescending ?? false,
-                PromoHeaderIdList = EF.Property<string?>(x, nameof(Discount.PromoHeaderIdList)) ?? string.Empty
+                PromoHeaderIdList = x.PromoHeaderIdList ?? string.Empty
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -254,7 +254,7 @@ public class DiscountsController : ControllerBase
             {
                 x.BundlePromoOverviewId,
                 x.BundlePromoHeaderTypeId,
-                BundlePromoDesc = EF.Property<string?>(x, nameof(BundlePromoOverview.BundlePromoDesc)) ?? string.Empty,
+                BundlePromoDesc = x.BundlePromoDesc ?? string.Empty,
                 x.IsAvailable
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -733,10 +733,12 @@ public class DiscountsController : ControllerBase
     [RequireBrandView]
     public async Task<ActionResult<DiscountRuleEditorDto>> GetDiscountRuleEditor(int brandId, int discountId)
     {
+        int? accountId = null;
         try
         {
-            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
-            var response = await BuildDiscountRuleEditorAsync(context, accountId, discountId, HttpContext.RequestAborted);
+            var (context, resolvedAccountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            accountId = resolvedAccountId;
+            var response = await BuildDiscountRuleEditorAsync(context, resolvedAccountId, discountId, HttpContext.RequestAborted);
             if (response == null)
             {
                 return NotFound(new { message = "Discount not found." });
@@ -751,7 +753,12 @@ public class DiscountsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching discount rule editor for discount {DiscountId} and brand {BrandId}", discountId, brandId);
+            _logger.LogError(
+                ex,
+                "Error fetching discount rule editor for discount {DiscountId}, brand {BrandId}, account {AccountId}",
+                discountId,
+                brandId,
+                accountId);
             return StatusCode(500, new { message = "An error occurred while loading the discount rule editor." });
         }
     }
@@ -763,6 +770,7 @@ public class DiscountsController : ControllerBase
         int discountId,
         UpdateDiscountRuleEditorDto payload)
     {
+        int? accountId = null;
         try
         {
             var requestedType = payload.BundlePromoHeaderTypeId == 0
@@ -905,10 +913,11 @@ public class DiscountsController : ControllerBase
                 .ToList();
             var requestedShopIds = normalizedShopRules.Select(shop => shop.ShopId).Distinct().ToList();
 
-            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var (context, resolvedAccountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            accountId = resolvedAccountId;
             var discount = await context.Discounts
                 .FirstOrDefaultAsync(
-                    x => x.AccountId == accountId && x.DiscountId == discountId,
+                    x => x.AccountId == resolvedAccountId && x.DiscountId == discountId,
                     HttpContext.RequestAborted);
 
             if (discount == null)
@@ -920,7 +929,7 @@ public class DiscountsController : ControllerBase
             var duplicateCode = await context.Discounts
                 .AsNoTracking()
                 .AnyAsync(
-                    x => x.AccountId == accountId
+                    x => x.AccountId == resolvedAccountId
                          && x.DiscountId != discountId
                          && x.DiscountCode.ToUpper() == normalizedCode,
                     HttpContext.RequestAborted);
@@ -934,7 +943,7 @@ public class DiscountsController : ControllerBase
                 var validCategoryCount = await context.ItemCategories
                     .AsNoTracking()
                     .CountAsync(
-                        category => category.AccountId == accountId && categoryIds.Contains(category.CategoryId),
+                        category => category.AccountId == resolvedAccountId && categoryIds.Contains(category.CategoryId),
                         HttpContext.RequestAborted);
                 if (validCategoryCount != categoryIds.Count)
                 {
@@ -947,7 +956,7 @@ public class DiscountsController : ControllerBase
                 var validItemCount = await context.ItemMasters
                     .AsNoTracking()
                     .CountAsync(
-                        item => item.AccountId == accountId && itemIds.Contains(item.ItemId),
+                        item => item.AccountId == resolvedAccountId && itemIds.Contains(item.ItemId),
                         HttpContext.RequestAborted);
                 if (validItemCount != itemIds.Count)
                 {
@@ -960,7 +969,7 @@ public class DiscountsController : ControllerBase
                 var validPromoHeaderCount = await context.PromoHeaders
                     .AsNoTracking()
                     .CountAsync(
-                        header => header.AccountId == accountId && promoHeaderIds.Contains(header.PromoHeaderId),
+                        header => header.AccountId == resolvedAccountId && promoHeaderIds.Contains(header.PromoHeaderId),
                         HttpContext.RequestAborted);
                 if (validPromoHeaderCount != promoHeaderIds.Count)
                 {
@@ -972,7 +981,7 @@ public class DiscountsController : ControllerBase
             {
                 var validShopCount = await context.Shops
                     .AsNoTracking()
-                    .CountAsync(shop => shop.AccountId == accountId && shop.Enabled && requestedShopIds.Contains(shop.ShopId), HttpContext.RequestAborted);
+                    .CountAsync(shop => shop.AccountId == resolvedAccountId && shop.Enabled && requestedShopIds.Contains(shop.ShopId), HttpContext.RequestAborted);
                 if (validShopCount != requestedShopIds.Count)
                 {
                     return BadRequest(new { message = "One or more shop IDs are invalid for this brand." });
@@ -981,10 +990,10 @@ public class DiscountsController : ControllerBase
 
             var overview = await context.BundlePromoOverviews
                 .FirstOrDefaultAsync(
-                    x => x.AccountId == accountId
+                    x => x.AccountId == resolvedAccountId
                          && x.BundlePromoRefId == discountId
                          && BundlePromoHeaderTypes.DiscountTypes.Contains(x.BundlePromoHeaderTypeId),
-                    HttpContext.RequestAborted);
+                        HttpContext.RequestAborted);
 
             var now = DateTime.UtcNow;
             var currentUser = GetCurrentUserIdentifier();
@@ -993,13 +1002,13 @@ public class DiscountsController : ControllerBase
             if (overview == null)
             {
                 var nextOverviewId = (await context.BundlePromoOverviews
-                    .Where(x => x.AccountId == accountId)
+                    .Where(x => x.AccountId == resolvedAccountId)
                     .Select(x => (int?)x.BundlePromoOverviewId)
                     .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
 
                 overview = new BundlePromoOverview
                 {
-                    AccountId = accountId,
+                    AccountId = resolvedAccountId,
                     BundlePromoOverviewId = nextOverviewId,
                     BundlePromoRefId = discountId,
                     Enabled = true,
@@ -1082,7 +1091,7 @@ public class DiscountsController : ControllerBase
             discount.ModifiedBy = currentUser;
 
             await context.DiscountShopDetails
-                .Where(detail => detail.AccountId == accountId && detail.DiscountId == discountId)
+                .Where(detail => detail.AccountId == resolvedAccountId && detail.DiscountId == discountId)
                 .ExecuteDeleteAsync(HttpContext.RequestAborted);
 
             foreach (var shop in normalizedShopRules)
@@ -1091,7 +1100,7 @@ public class DiscountsController : ControllerBase
                 {
                     DiscountId = discountId,
                     ShopId = shop.ShopId,
-                    AccountId = accountId,
+                    AccountId = resolvedAccountId,
                     Enabled = shop.Enabled,
                     CreatedDate = now,
                     CreatedBy = currentUser,
@@ -1101,7 +1110,7 @@ public class DiscountsController : ControllerBase
             }
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
-            var response = await BuildDiscountRuleEditorAsync(context, accountId, discountId, HttpContext.RequestAborted);
+            var response = await BuildDiscountRuleEditorAsync(context, resolvedAccountId, discountId, HttpContext.RequestAborted);
             if (response == null)
             {
                 return NotFound(new { message = "Discount not found." });
@@ -1116,7 +1125,12 @@ public class DiscountsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating discount rule editor for discount {DiscountId} and brand {BrandId}", discountId, brandId);
+            _logger.LogError(
+                ex,
+                "Error updating discount rule editor for discount {DiscountId}, brand {BrandId}, account {AccountId}",
+                discountId,
+                brandId,
+                accountId);
             return StatusCode(500, new { message = "An error occurred while saving discount rule editor settings." });
         }
     }

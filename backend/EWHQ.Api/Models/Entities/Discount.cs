@@ -65,22 +65,22 @@ public class Discount
     public bool? IsNoOtherLoyalty { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryIncludedCategoryIdList { get; set; }
+    public string? MandatoryIncludedCategoryIdList { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryIncludedItemIdList { get; set; }
+    public string? MandatoryIncludedItemIdList { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryIncludedModifierItemIdList { get; set; }
+    public string? MandatoryIncludedModifierItemIdList { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryExcludedCategoryIdList { get; set; }
+    public string? MandatoryExcludedCategoryIdList { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryExcludedItemIdList { get; set; }
+    public string? MandatoryExcludedItemIdList { get; set; }
 
     [MaxLength(4000)]
-    public string MandatoryExcludedModifierItemIdList { get; set; }
+    public string? MandatoryExcludedModifierItemIdList { get; set; }
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? PriceSpecific { get; set; }
@@ -94,17 +94,17 @@ public class Discount
     public bool? IsLinkedWithThirdPartyLoyalty { get; set; }
 
     [MaxLength(50)]
-    public string LinkedThirdPartyLoyaltyCode { get; set; }
+    public string? LinkedThirdPartyLoyaltyCode { get; set; }
 
     public bool? IsAppliedOnItemLevel { get; set; }
 
     public int? UpgradeModifierItemId { get; set; }
 
     [MaxLength(500)]
-    public string DiscountTag { get; set; }
+    public string? DiscountTag { get; set; }
 
     [MaxLength(1000)]
-    public string DiscountBenefitModifierAmountAdjustment { get; set; }
+    public string? DiscountBenefitModifierAmountAdjustment { get; set; }
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? DiscountPrice { get; set; }
@@ -116,7 +116,7 @@ public class Discount
     public decimal? TotalAmount { get; set; }
 
     [MaxLength(4000)]
-    public string PromoHeaderIdList { get; set; }
+    public string? PromoHeaderIdList { get; set; }
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? MinOrderAmount { get; set; }
@@ -143,13 +143,13 @@ public class Discount
     public decimal? DiscountFirstQty { get; set; }
 
     [MaxLength(100)]
-    public string ConditionalDayOfWeeks { get; set; }
+    public string? ConditionalDayOfWeeks { get; set; }
 
     [MaxLength(100)]
-    public string ConditionalMonths { get; set; }
+    public string? ConditionalMonths { get; set; }
 
     [MaxLength(150)]
-    public string ConditionalDates { get; set; }
+    public string? ConditionalDates { get; set; }
 
     public DateTime? ConditionalStartDate { get; set; }
 
@@ -164,13 +164,13 @@ public class Discount
     public bool? MatchMultiple { get; set; }
 
     [MaxLength(4000)]
-    public string DiscountedCategoryIdList { get; set; }
+    public string? DiscountedCategoryIdList { get; set; }
 
     [MaxLength(4000)]
-    public string DiscountedItemIdList { get; set; }
+    public string? DiscountedItemIdList { get; set; }
 
     [MaxLength(4000)]
-    public string DiscountedModifierItemIdList { get; set; }
+    public string? DiscountedModifierItemIdList { get; set; }
 
     public bool? DiscountedItemPriceOrderDescending { get; set; }
 
