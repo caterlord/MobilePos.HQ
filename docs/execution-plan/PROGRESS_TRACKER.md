@@ -3,7 +3,7 @@
 ## Global Status
 - Plan status: `active`
 - Current sprint: `S04`
-- Last updated: `2026-02-26`
+- Last updated: `2026-02-27`
 
 ## Sprint Status
 | Sprint | Status | Completion % | Notes |
@@ -11,7 +11,7 @@
 | S01 | done | 100 | Sprint completed and runtime-gated checks confirmed |
 | S02 | in_progress | 80 | WP-008/009/010/011 done; WP-012 script added and awaiting runtime evidence |
 | S03 | in_progress | 95 | WP-013/014/015/016/017 integrated (API + UI + admin migration) with partial runtime verification captured |
-| S04 | in_progress | 90 | WP-018/019/020/021 expanded with legacy parity rules (shop pricing, set-item filtering, overview lifecycle batch APIs); WP-050 promotion + WP-051 discount rule-editor parity API/UX are now in implementation |
+| S04 | in_progress | 93 | WP-018/019/020/021 expanded with legacy parity rules (shop pricing, set-item filtering, overview lifecycle batch APIs); WP-050/051 received additional legacy nullability hardening and WP-052 regression automation is now in progress |
 | S05 | todo | 0 | Not started |
 | S06 | todo | 0 | Not started |
 | S07 | todo | 0 | Not started |
@@ -62,9 +62,9 @@
 | WP-020 | Menu Module Completion: Promotions | in_progress | codex | 2026-02-26 | Added promotions API (`GET/POST/PUT/DELETE /api/promotions/brand/{brandId}`), `PromotionsPage`, overview linkage fields/type handling, batch overview lifecycle API (`PUT/DELETE /api/bundle-promo-overviews/brand/{brandId}/batch`), and null-safe list projection hardening |
 | WP-021 | Menu Module Completion: Discounts | in_progress | codex | 2026-02-25 | Added discounts API (`GET/POST/PUT/DELETE /api/discounts/brand/{brandId}`), `DiscountsPage`, overview linkage fields/type handling, and batch overview lifecycle API parity for linked discount enable/disable propagation |
 | WP-022 | Menu Regression Suite | in_progress | codex | 2026-02-25 | Added `backend/EWHQ.Api/test-menu-regression.sh` baseline for modifier/meal-set/promotion/discount CRUD lifecycle checks; awaiting runtime execution with token + brand context |
-| WP-050 | Promotions Rule Engine Parity | in_progress | codex | 2026-02-26 | Added promotion rule-editor APIs (`GET/PUT /api/promotions/brand/{brandId}/{promoHeaderId}/rule-editor`), detail validation/type mapping/promo-item resolution/shop-rule persistence, and advanced frontend rule-editor controls (flags, schedule fields, mandatory/optional detail rows, deduct/benefit/dept-revenue fields) |
-| WP-051 | Discounts Rule Engine Parity | in_progress | codex | 2026-02-26 | Added discount rule-editor APIs (`GET/PUT /api/discounts/brand/{brandId}/{discountId}/rule-editor`), advanced rule field persistence/validation (include-exclude lists, thresholds, conditional windows, loyalty/linkage flags), and frontend advanced rule-editor modal with shop scope controls |
-| WP-052 | Promotions/Discounts Rule Regression Suite | todo | unassigned | - | Advanced rule scenario API regression pack not yet created |
+| WP-050 | Promotions Rule Engine Parity | in_progress | codex | 2026-02-27 | Added promotion rule-editor APIs (`GET/PUT /api/promotions/brand/{brandId}/{promoHeaderId}/rule-editor`), detail validation/type mapping/promo-item resolution/shop-rule persistence, advanced frontend rule-editor controls, and legacy nullability hardening for `PromoHeader` schedule fields |
+| WP-051 | Discounts Rule Engine Parity | in_progress | codex | 2026-02-27 | Added discount rule-editor APIs (`GET/PUT /api/discounts/brand/{brandId}/{discountId}/rule-editor`), advanced rule field persistence/validation, frontend advanced rule-editor modal, and legacy nullability/materialization hardening for rule-editor fields |
+| WP-052 | Promotions/Discounts Rule Regression Suite | in_progress | codex | 2026-02-27 | Added `backend/EWHQ.Api/test-promo-discount-rule-regression.sh` covering advanced rule-editor load/update/reload, validation failures, and deactivation lifecycle checks; awaiting runtime token-based execution evidence |
 
 ### S05
 | WP | Title | Status | Owner | Updated | Evidence |
@@ -148,3 +148,5 @@
 | 2026-02-26 | Extended S04 plan scope with explicit advanced promo/discount rule migration packages (WP-050/051/052) to track full legacy setup parity beyond baseline CRUD screens. |
 | 2026-02-26 | Progressed S04 WP-050: implemented promotion rule-editor API + frontend editor baseline parity (advanced flags/schedule, mandatory/optional details, deduct/benefit + department revenue, shop enablement persistence), fixed promotion list null-mapping path, and corrected frontend promotion service response handling. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
 | 2026-02-26 | Progressed S04 WP-051: implemented discount rule-editor API + frontend editor baseline parity (advanced include/exclude lists, thresholds, conditional date/time windows, loyalty/linkage flags, and shop enablement persistence), and corrected frontend discount service update handling. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`, `npm run lint`, and `npm run build` in `frontend-hq-portal`. |
+| 2026-02-27 | Hardening pass for WP-050/WP-051: resolved legacy SQL Server null-materialization failures in promotion/discount rule editors by aligning entity nullability (`PromoHeader`/`Discount`) and strengthening null-safe projections + diagnostics. Validation: `dotnet build backend/EWHQ.Api/EWHQ.Api.csproj`. |
+| 2026-02-27 | Started WP-052: added `backend/EWHQ.Api/test-promo-discount-rule-regression.sh` for advanced rule-editor regression coverage (load/update/reload, negative validation, and deactivation lifecycle checks). Validation: `bash -n backend/EWHQ.Api/test-promo-discount-rule-regression.sh`. |
