@@ -6,7 +6,7 @@ import type {
   SmartCategoryItemAssignmentRequest,
   SmartCategoryDisplaySettingsPayload,
   SmartCategoryReorderRequest,
-  SmartCategoryLookups,
+  LookupOptions,
 } from '../types/smartCategory';
 
 class SmartCategoryService {
@@ -15,7 +15,7 @@ class SmartCategoryService {
     return response.data;
   }
 
-  async getLookups(brandId: number): Promise<SmartCategoryLookups> {
+  async getLookups(brandId: number): Promise<LookupOptions> {
     const response = await api.get(`/smart-categories/brand/${brandId}/lookups`);
     return response.data;
   }

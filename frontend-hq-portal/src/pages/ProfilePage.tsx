@@ -14,7 +14,6 @@ import {
   Card,
   Divider,
   Alert,
-  PasswordInput,
   Grid,
   Box,
   Loader,
@@ -46,13 +45,6 @@ export function ProfilePage() {
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
-  });
-
-  // Password form state
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
   });
 
   const handleProfileUpdate = async () => {
@@ -101,13 +93,8 @@ export function ProfilePage() {
   };
 
   const handlePasswordChange = async () => {
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match!' });
-      return;
-    }
-
-    if (passwordForm.newPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Password must be at least 8 characters long!' });
+    if (!user?.email) {
+      setMessage({ type: 'error', text: 'Unable to find your email address for password reset.' });
       return;
     }
 
@@ -124,24 +111,16 @@ export function ProfilePage() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          currentPassword: passwordForm.currentPassword,
-          newPassword: passwordForm.newPassword,
-        }),
+        body: JSON.stringify({}),
       });
 
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Password changed successfully!' });
-        setPasswordForm({
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        });
+        setMessage({ type: 'success', text: 'Password reset email sent. Please check your inbox.' });
       } else {
         throw new Error('Failed to change password');
       }
     } catch {
-      setMessage({ type: 'error', text: 'Failed to change password. Please check your current password.' });
+      setMessage({ type: 'error', text: 'Failed to send password reset email. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -335,31 +314,15 @@ export function ProfilePage() {
                 </Alert>
               ) : (
                 <Stack gap="md">
-                  <PasswordInput
-                    label="Current Password"
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    required
-                  />
-                  <PasswordInput
-                    label="New Password"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    description="At least 8 characters"
-                    required
-                  />
-                  <PasswordInput
-                    label="Confirm New Password"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                    required
-                  />
+                  <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
+                    For security, password changes are handled via Auth0 email reset flow.
+                  </Alert>
                   <Button
                     onClick={handlePasswordChange}
-                    disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                    disabled={loading}
                     leftSection={loading ? <Loader size={16} /> : <IconLock size={16} />}
                   >
-                    Change Password
+                    Send Password Reset Email
                   </Button>
                 </Stack>
               )}

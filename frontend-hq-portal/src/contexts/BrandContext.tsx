@@ -73,11 +73,27 @@ export const BrandProvider: React.FC<BrandProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
-      setCompaniesWithBrands(data.data || data);
+      const companyData = data.data || data;
+      setCompaniesWithBrands(companyData);
 
-      // If no brand is selected and we have brands, select the first one
-      if (!selectedBrand && data.data && data.data.length > 0 && data.data[0].brands.length > 0) {
-        const firstBrand = data.data[0].brands[0];
+      const availableBrandIds = new Set<string>();
+      companyData.forEach((entry: CompanyWithBrands) => {
+        entry.brands.forEach((brand) => {
+          availableBrandIds.add(brand.id.toString());
+        });
+      });
+
+      const firstBrand = companyData[0]?.brands?.[0];
+      if (selectedBrand && !availableBrandIds.has(selectedBrand)) {
+        // Recover from stale localStorage when access changed or a brand was deleted.
+        if (firstBrand) {
+          setSelectedBrandState(firstBrand.id.toString());
+          localStorage.setItem('selectedBrandId', firstBrand.id.toString());
+        } else {
+          setSelectedBrandState(null);
+          localStorage.removeItem('selectedBrandId');
+        }
+      } else if (!selectedBrand && firstBrand) {
         setSelectedBrandState(firstBrand.id.toString());
         localStorage.setItem('selectedBrandId', firstBrand.id.toString());
       }

@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 
 const menuTabs = [
   { value: 'categories', label: 'Categories', path: '/menus/categories' },
-  { value: 'virtual-categories', label: 'Smart Categories', path: '/menus/virtual-categories' },
+  { value: 'virtual-categories', label: 'Smart Categories', path: '/menus/smart-categories' },
   { value: 'items', label: 'Menu Items', path: '/menus/items' },
   { value: 'modifiers', label: 'Modifiers', path: '/menus/modifiers' },
+  { value: 'meal-set', label: 'Meal Set', path: '/menus/meal-set' },
   { value: 'promotions', label: 'Promotions', path: '/menus/promotions' },
   { value: 'discounts', label: 'Discounts', path: '/menus/discounts' },
 ]

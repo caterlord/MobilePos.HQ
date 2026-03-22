@@ -1,4 +1,5 @@
 using EWHQ.Api.Data;
+using EWHQ.Api.Auditing;
 using EWHQ.Api.Models.AdminPortal;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,17 +16,20 @@ public class POSDbContextService : IPOSDbContextService
     private readonly IServiceProvider _serviceProvider;
     private readonly AdminPortalDbContext _adminContext;
     private readonly IConfiguration _configuration;
+    private readonly AuditSaveChangesInterceptor _auditSaveChangesInterceptor;
     private readonly ILogger<POSDbContextService> _logger;
 
     public POSDbContextService(
         IServiceProvider serviceProvider,
         AdminPortalDbContext adminContext,
         IConfiguration configuration,
+        AuditSaveChangesInterceptor auditSaveChangesInterceptor,
         ILogger<POSDbContextService> logger)
     {
         _serviceProvider = serviceProvider;
         _adminContext = adminContext;
         _configuration = configuration;
+        _auditSaveChangesInterceptor = auditSaveChangesInterceptor;
         _logger = logger;
     }
 
@@ -115,6 +119,7 @@ public class POSDbContextService : IPOSDbContextService
         var connectionString = legacyDbConfig.BuildConnectionString();
         var optionsBuilder = new DbContextOptionsBuilder<EWHQDbContext>();
         legacyDbConfig.ConfigureDbContext(optionsBuilder, connectionString);
+        optionsBuilder.AddInterceptors(_auditSaveChangesInterceptor);
 
         return new EWHQDbContext(optionsBuilder.Options);
     }

@@ -6,6 +6,7 @@ using EWHQ.Api.Models.DTOs;
 using EWHQ.Api.Services;
 using EWHQ.Api.Identity;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace EWHQ.Api.Controllers;
 
@@ -15,12 +16,18 @@ namespace EWHQ.Api.Controllers;
 public class TeamsController : ControllerBase
 {
     private readonly ITeamService _teamService;
+    private readonly IAccessAuditService _accessAuditService;
     private readonly UserProfileDbContext _identityContext;
     private readonly ILogger<TeamsController> _logger;
 
-    public TeamsController(ITeamService teamService, UserProfileDbContext identityContext, ILogger<TeamsController> logger)
+    public TeamsController(
+        ITeamService teamService,
+        IAccessAuditService accessAuditService,
+        UserProfileDbContext identityContext,
+        ILogger<TeamsController> logger)
     {
         _teamService = teamService;
+        _accessAuditService = accessAuditService;
         _identityContext = identityContext;
         _logger = logger;
     }
@@ -164,6 +171,20 @@ public class TeamsController : ControllerBase
         return Ok(pendingInvitations);
     }
 
+    [HttpGet("{id}/access-audit")]
+    public async Task<ActionResult<IEnumerable<AccessAuditLog>>> GetAccessAuditLogs(string id, [FromQuery] int limit = 50)
+    {
+        var userId = await GetCurrentUserIdAsync();
+
+        if (!User.IsInRole("SuperAdmin") && !await _teamService.IsUserInTeamAsync(id, userId))
+        {
+            return Forbid();
+        }
+
+        var logs = await _accessAuditService.GetTeamLogsAsync(id, limit);
+        return Ok(logs);
+    }
+
     [HttpPost("{id}/invite")]
     public async Task<IActionResult> InviteTeamMember(string id, InviteTeamMemberRequest request)
     {
@@ -196,6 +217,13 @@ public class TeamsController : ControllerBase
             var invitation = await _teamService.InviteTeamMemberByEmailAsync(id, request.Email, request.Role, currentUserId);
             if (invitation == null)
                 return BadRequest(new { message = "Failed to create invitation. User may already be a member of this team or a pending invitation exists." });
+
+            await TryAuditAsync(id, "InvitationSent", currentUserId, null, invitation.Email, new
+            {
+                invitationId = invitation.Id,
+                role = invitation.Role,
+                invitation.ExpiresAt
+            });
 
             return Ok(new 
             { 
@@ -233,6 +261,11 @@ public class TeamsController : ControllerBase
             if (!success)
                 return NotFound(new { message = "Invitation not found or already accepted" });
 
+            await TryAuditAsync(id, "InvitationResent", currentUserId, null, null, new
+            {
+                invitationId
+            });
+
             return Ok(new { message = "Invitation resent successfully" });
         }
         catch (Exception ex)
@@ -262,6 +295,11 @@ public class TeamsController : ControllerBase
             var success = await _teamService.CancelInvitationAsync(invitationId);
             if (!success)
                 return NotFound(new { message = "Invitation not found or already accepted" });
+
+            await TryAuditAsync(id, "InvitationCancelled", currentUserId, null, null, new
+            {
+                invitationId
+            });
 
             return Ok(new { message = "Invitation cancelled successfully" });
         }
@@ -311,6 +349,11 @@ public class TeamsController : ControllerBase
         if (!success)
             return NotFound();
 
+        await TryAuditAsync(id, "MemberRoleUpdated", currentUserId, userId, null, new
+        {
+            role = request.Role
+        });
+
         return Ok();
     }
 
@@ -331,7 +374,35 @@ public class TeamsController : ControllerBase
         if (!success)
             return NotFound();
 
+        await TryAuditAsync(id, "MemberRemoved", currentUserId, userId, null, null);
+
         return NoContent();
+    }
+
+    private async Task TryAuditAsync(
+        string teamId,
+        string actionType,
+        string? actorUserId,
+        string? targetUserId,
+        string? targetEmail,
+        object? details)
+    {
+        try
+        {
+            await _accessAuditService.LogAsync(new AccessAuditLog
+            {
+                TeamId = teamId,
+                ActionType = actionType,
+                ActorUserId = actorUserId,
+                TargetUserId = targetUserId,
+                TargetEmail = targetEmail,
+                Details = details == null ? null : JsonSerializer.Serialize(details)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to record access audit entry for action {ActionType} on team {TeamId}", actionType, teamId);
+        }
     }
 }
 

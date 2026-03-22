@@ -169,21 +169,15 @@ export interface SmartCategoryReorderRequest {
   categories: SmartCategoryReorderEntry[];
 }
 
-export interface ShopLookup {
-  shopId: number;
+export interface LookupOption {
+  id: number;
   name: string;
   altName?: string | null;
+  code?: string | null;
 }
 
-export interface OrderChannelLookup {
-  orderChannelId: number;
-  name: string;
-  nameAlt?: string | null;
-  orderChannelCode?: string | null;
-}
-
-export interface SmartCategoryLookups {
+export interface LookupOptions {
   buttonStyles: ButtonStyle[];
-  shops: ShopLookup[];
-  orderChannels: OrderChannelLookup[];
+  shops: LookupOption[];
+  orderChannels: LookupOption[];
 }

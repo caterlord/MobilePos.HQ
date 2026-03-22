@@ -16,6 +16,7 @@ public class AdminDbContext : DbContext
     public DbSet<Team> Teams { get; set; }
     public DbSet<TeamMember> TeamMembers { get; set; }
     public DbSet<TeamInvitation> TeamInvitations { get; set; }
+    public DbSet<AccessAuditLog> AccessAuditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,6 +71,27 @@ public class AdminDbContext : DbContext
             entity.HasIndex(e => e.InvitationToken).IsUnique();
             entity.HasIndex(e => e.Email);
             entity.HasIndex(e => new { e.TeamId, e.Email });
+        });
+
+        // AccessAuditLog configuration
+        modelBuilder.Entity<AccessAuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(50);
+            entity.Property(e => e.TeamId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ActionType).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ActorUserId).HasMaxLength(450);
+            entity.Property(e => e.TargetUserId).HasMaxLength(450);
+            entity.Property(e => e.TargetEmail).HasMaxLength(256);
+            entity.Property(e => e.Details).HasMaxLength(2000);
+
+            entity.HasOne(e => e.Team)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeamId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.TeamId, e.CreatedAt });
+            entity.HasIndex(e => e.ActionType);
         });
     }
 }

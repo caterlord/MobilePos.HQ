@@ -24,6 +24,10 @@ export const ROUTE_CONFIG: RouteItem[] = [
     label: 'Home',
   },
   {
+    path: '/pos',
+    label: 'POS System',
+  },
+  {
     path: '/menus',
     label: 'Menu Management',
     children: [
@@ -58,6 +62,42 @@ export const ROUTE_CONFIG: RouteItem[] = [
       {
         path: '/menus/button-styles',
         label: 'Button Styles',
+      },
+    ],
+  },
+  {
+    path: '/store-settings',
+    label: 'Store Settings',
+    children: [
+      {
+        path: '/store-settings/info',
+        label: 'Info Settings',
+      },
+      {
+        path: '/store-settings/workday-schedule',
+        label: 'Workday Schedule',
+      },
+      {
+        path: '/store-settings/workday-periods',
+        label: 'Workday Periods',
+      },
+      {
+        path: '/store-settings/system-parameters',
+        label: 'System Parameters',
+      },
+      {
+        path: '/store-settings/tables',
+        label: 'Tables & Sections',
+      },
+    ],
+  },
+  {
+    path: '/integrations',
+    label: 'Integrations',
+    children: [
+      {
+        path: '/integrations/device-settings',
+        label: 'Device Settings',
       },
     ],
   },

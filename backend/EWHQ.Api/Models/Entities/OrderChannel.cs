@@ -10,10 +10,10 @@ public class OrderChannel
     public int OrderChannelId { get; set; }
 
     [MaxLength(200)]
-    public string OrderChannelName { get; set; }
+    public string? OrderChannelName { get; set; }
 
     [MaxLength(200)]
-    public string OrderChannelNameAlt { get; set; }
+    public string? OrderChannelNameAlt { get; set; }
 
     public bool Enabled { get; set; }
 
@@ -30,9 +30,9 @@ public class OrderChannel
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(20)]
-    public string ChannelTypeCode { get; set; }
+    public string? ChannelTypeCode { get; set; }
 
     [MaxLength(50)]
-    public string OrderChannelCode { get; set; }
+    public string? OrderChannelCode { get; set; }
 
 }

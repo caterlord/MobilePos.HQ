@@ -8,20 +8,54 @@ import { DashboardLayout } from './layouts/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { OrganizationManagementPage } from './pages/OrganizationManagementPage'
+import { IntegrationsPage } from './pages/IntegrationsPage'
+import { DeviceSettingsPage } from './pages/integrations/DeviceSettingsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
 import { MenuPage } from './pages/MenuPage'
+import { PosPage } from './pages/PosPage'
 import { MenuCategoriesPage } from './pages/operations/menu/MenuCategoriesPage'
 import ButtonStylesPage from './pages/operations/menu/ButtonStyles'
 import MenuItemsPage from './pages/operations/menu/MenuItems'
+import { ModifierGroupsPage } from './pages/operations/menu/ModifierGroupsPage'
+import { MealSetPage } from './pages/operations/menu/MealSetPage'
+import { PromotionsPage } from './pages/operations/menu/PromotionsPage'
+import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
 import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
+import { StoreSettingsOverviewPage } from './pages/operations/store-settings/StoreSettingsOverviewPage'
+import { StoreInfoSettingsPage } from './pages/operations/store-settings/StoreInfoSettingsPage'
+import { StoreWorkdaySchedulePage } from './pages/operations/store-settings/StoreWorkdaySchedulePage'
+import { StoreWorkdayPeriodsPage } from './pages/operations/store-settings/StoreWorkdayPeriodsPage'
+import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
+import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { LoadingSpinner } from './components/LoadingSpinner'
+import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useEffect } from 'react'
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth0();
-  const { user, isLoading: userLoading, hasTenantAssociation } = useAuth();
+  const {
+    user,
+    isLoading: userLoading,
+    hasTenantAssociation,
+    backendUnavailable,
+    backendError,
+    backendReconnectInProgress,
+    retryBackendConnection,
+    logout,
+  } = useAuth();
+
+  if (backendUnavailable) {
+    return (
+      <BackendConnectionOverlay
+        message={backendError}
+        reconnecting={backendReconnectInProgress}
+        onRetry={retryBackendConnection}
+        onLogout={logout}
+      />
+    );
+  }
 
   // Show loading while Auth0 or user profile is loading
   if (authLoading || userLoading) {
@@ -51,13 +85,26 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
 function CallbackPage() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth0();
-  const { user, isLoading: userLoading, hasTenantAssociation } = useAuth();
+  const {
+    user,
+    isLoading: userLoading,
+    hasTenantAssociation,
+    backendUnavailable,
+    backendError,
+    backendReconnectInProgress,
+    retryBackendConnection,
+    logout,
+  } = useAuth();
 
   useEffect(() => {
     // Wait for both Auth0 authentication and user profile sync
     if (!isLoading && !userLoading) {
       if (isAuthenticated && user) {
         // Check if user has tenant association
+        if (backendUnavailable) {
+          return;
+        }
+
         if (hasTenantAssociation()) {
           // Has tenant, go to dashboard
           navigate('/', { replace: true });
@@ -70,7 +117,18 @@ function CallbackPage() {
         navigate('/login', { replace: true });
       }
     }
-  }, [isAuthenticated, isLoading, user, userLoading, hasTenantAssociation, navigate]);
+  }, [isAuthenticated, isLoading, user, userLoading, hasTenantAssociation, navigate, backendUnavailable]);
+
+  if (backendUnavailable) {
+    return (
+      <BackendConnectionOverlay
+        message={backendError}
+        reconnecting={backendReconnectInProgress}
+        onRetry={retryBackendConnection}
+        onLogout={logout}
+      />
+    );
+  }
 
   return <LoadingSpinner message="Completing sign in..." />;
 }
@@ -94,12 +152,26 @@ function AppContent() {
         </ProtectedRoute>
       }>
         <Route index element={<DashboardPage />} />
+        <Route path="pos" element={<PosPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="organization-management" element={<OrganizationManagementPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="integrations/device-settings" element={<DeviceSettingsPage />} />
+        <Route path="store-settings" element={<StoreSettingsOverviewPage />} />
+        <Route path="store-settings/info" element={<StoreInfoSettingsPage />} />
+        <Route path="store-settings/workday-schedule" element={<StoreWorkdaySchedulePage />} />
+        <Route path="store-settings/workday-periods" element={<StoreWorkdayPeriodsPage />} />
+        <Route path="store-settings/system-parameters" element={<StoreSystemParametersPage />} />
+        <Route path="store-settings/tables" element={<StoreTableSettingsPage />} />
+        <Route path="settings" element={<Navigate to="/store-settings" replace />} />
         <Route path="menus" element={<MenuPage />} />
         <Route path="menus/categories" element={<MenuCategoriesPage />} />
         <Route path="menus/smart-categories" element={<SmartCategoriesPage />} />
         <Route path="menus/items" element={<MenuItemsPage />} />
+        <Route path="menus/modifiers" element={<ModifierGroupsPage />} />
+        <Route path="menus/meal-set" element={<MealSetPage />} />
+        <Route path="menus/promotions" element={<PromotionsPage />} />
+        <Route path="menus/discounts" element={<DiscountsPage />} />
         <Route path="menus/button-styles" element={<ButtonStylesPage />} />
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />

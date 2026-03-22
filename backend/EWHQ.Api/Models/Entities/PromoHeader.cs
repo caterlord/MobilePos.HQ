@@ -57,13 +57,13 @@ public class PromoHeader
     public bool? IsAmountDeductEvenly { get; set; }
 
     [MaxLength(100)]
-    public string DayOfWeeks { get; set; }
+    public string? DayOfWeeks { get; set; }
 
     [MaxLength(100)]
-    public string Months { get; set; }
+    public string? Months { get; set; }
 
     [MaxLength(150)]
-    public string Dates { get; set; }
+    public string? Dates { get; set; }
 
     public bool? IsPromoDetailMatchMustExist { get; set; }
 

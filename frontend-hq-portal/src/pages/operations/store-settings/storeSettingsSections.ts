@@ -1,0 +1,42 @@
+export const storeSettingsSections = [
+  {
+    id: 'info-settings',
+    title: 'Info Settings',
+    description: 'Shop basic information and identity settings',
+    stats: 'Store Profile',
+    color: 'blue',
+    path: '/store-settings/info',
+  },
+  {
+    id: 'workday-schedule',
+    title: 'Workday Schedule',
+    description: 'Daily open/close schedule and day delta',
+    stats: 'Weekly Schedule',
+    color: 'indigo',
+    path: '/store-settings/workday-schedule',
+  },
+  {
+    id: 'workday-periods',
+    title: 'Workday Periods',
+    description: 'Operational periods mapped to workday headers',
+    stats: 'Shift Periods',
+    color: 'teal',
+    path: '/store-settings/workday-periods',
+  },
+  {
+    id: 'system-parameters',
+    title: 'System Parameters',
+    description: 'Store-scoped POS runtime parameters',
+    stats: 'Runtime Config',
+    color: 'grape',
+    path: '/store-settings/system-parameters',
+  },
+  {
+    id: 'tables-sections',
+    title: 'Tables & Sections',
+    description: 'Dining sections, table codes, and per-table options',
+    stats: 'Floor Layout',
+    color: 'orange',
+    path: '/store-settings/tables',
+  },
+] as const;

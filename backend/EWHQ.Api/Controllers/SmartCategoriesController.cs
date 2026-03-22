@@ -137,14 +137,14 @@ public class SmartCategoriesController : ControllerBase
 
     [HttpGet("brand/{brandId}/lookups")]
     [RequireBrandView]
-    public async Task<ActionResult<SmartCategoryLookupsDto>> GetLookups(int brandId, CancellationToken cancellationToken)
+    public async Task<ActionResult<LookupOptionsDto>> GetLookups(int brandId, CancellationToken cancellationToken)
     {
         try
         {
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
 
             var buttonStyles = await context.ButtonStyleMasters
-                .Where(bs => bs.AccountId == accountId && bs.IsSystemUse != true)
+                .Where(bs => bs.AccountId == accountId && bs.IsSystemUse != true && bs.StyleName != null)
                 .AsNoTracking()
                 .OrderBy(bs => bs.StyleName)
                 .Select(bs => new ButtonStyleDto
@@ -177,27 +177,28 @@ public class SmartCategoriesController : ControllerBase
                 .Where(s => s.AccountId == accountId && s.Enabled)
                 .AsNoTracking()
                 .OrderBy(s => s.Name)
-                .Select(s => new ShopLookupDto
+                .Select(s => new LookupItemDto
                 {
-                    ShopId = s.ShopId,
+                    Id = s.ShopId,
                     Name = s.Name ?? string.Empty,
-                    AltName = s.AltName
+                    AltName = s.AltName,
+                    Code = s.ShopCode
                 })
                 .ToListAsync(cancellationToken);
 
             var orderChannels = await context.OrderChannels
                 .AsNoTracking()
                 .OrderBy(oc => oc.OrderChannelName)
-                .Select(oc => new OrderChannelLookupDto
+                .Select(oc => new LookupItemDto
                 {
-                    OrderChannelId = oc.OrderChannelId,
+                    Id = oc.OrderChannelId,
                     Name = oc.OrderChannelName ?? string.Empty,
-                    NameAlt = oc.OrderChannelNameAlt,
-                    OrderChannelCode = oc.OrderChannelCode
+                    AltName = oc.OrderChannelNameAlt,
+                    Code = oc.OrderChannelCode
                 })
                 .ToListAsync(cancellationToken);
 
-            return Ok(new SmartCategoryLookupsDto
+            return Ok(new LookupOptionsDto
             {
                 ButtonStyles = buttonStyles,
                 Shops = shops,

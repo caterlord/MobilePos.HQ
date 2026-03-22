@@ -22,6 +22,50 @@ namespace EWHQ.Api.Data.Migrations.Admin
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("EWHQ.Api.Models.AdminPortal.AccessAuditLog", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("TargetEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("TargetUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("TeamId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActionType");
+
+                    b.HasIndex("TeamId", "CreatedAt");
+
+                    b.ToTable("AccessAuditLogs");
+                });
+
             modelBuilder.Entity("EWHQ.Api.Models.AdminPortal.Team", b =>
                 {
                     b.Property<string>("Id")
@@ -160,6 +204,17 @@ namespace EWHQ.Api.Data.Migrations.Admin
                     b.HasIndex("UserId", "IsActive");
 
                     b.ToTable("TeamMembers");
+                });
+
+            modelBuilder.Entity("EWHQ.Api.Models.AdminPortal.AccessAuditLog", b =>
+                {
+                    b.HasOne("EWHQ.Api.Models.AdminPortal.Team", "Team")
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
                 });
 
             modelBuilder.Entity("EWHQ.Api.Models.AdminPortal.TeamInvitation", b =>

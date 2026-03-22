@@ -19,64 +19,64 @@ public class Shop
     public string Name { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string AltName { get; set; }
+    public string? AltName { get; set; }
 
     [MaxLength(500)]
-    public string Desc { get; set; }
+    public string? Desc { get; set; }
 
     [MaxLength(500)]
-    public string AltDesc { get; set; }
+    public string? AltDesc { get; set; }
 
     [MaxLength(500)]
-    public string AddressLine1 { get; set; }
+    public string? AddressLine1 { get; set; }
 
     [MaxLength(200)]
-    public string AddressLine2 { get; set; }
+    public string? AddressLine2 { get; set; }
 
     [MaxLength(200)]
-    public string AddressLine3 { get; set; }
+    public string? AddressLine3 { get; set; }
 
     [MaxLength(200)]
-    public string AddressLine4 { get; set; }
+    public string? AddressLine4 { get; set; }
 
     [MaxLength(500)]
-    public string AltAddressLine1 { get; set; }
+    public string? AltAddressLine1 { get; set; }
 
     [MaxLength(200)]
-    public string AltAddressLine2 { get; set; }
+    public string? AltAddressLine2 { get; set; }
 
     [MaxLength(200)]
-    public string AltAddressLine3 { get; set; }
+    public string? AltAddressLine3 { get; set; }
 
     [MaxLength(200)]
-    public string AltAddressLine4 { get; set; }
+    public string? AltAddressLine4 { get; set; }
 
     [MaxLength(50)]
-    public string District { get; set; }
+    public string? District { get; set; }
 
     [MaxLength(50)]
-    public string City { get; set; }
+    public string? City { get; set; }
 
     [MaxLength(50)]
-    public string Country { get; set; }
+    public string? Country { get; set; }
 
     [MaxLength(20)]
-    public string Telephone { get; set; }
+    public string? Telephone { get; set; }
 
     [MaxLength(20)]
-    public string Fax { get; set; }
+    public string? Fax { get; set; }
 
     [MaxLength(50)]
-    public string Contact1 { get; set; }
+    public string? Contact1 { get; set; }
 
     [MaxLength(50)]
-    public string ContactTitle1 { get; set; }
+    public string? ContactTitle1 { get; set; }
 
     [MaxLength(50)]
-    public string Contact2 { get; set; }
+    public string? Contact2 { get; set; }
 
     [MaxLength(50)]
-    public string ContactTitle2 { get; set; }
+    public string? ContactTitle2 { get; set; }
 
     public int ShopTypeId { get; set; }
 
@@ -105,19 +105,19 @@ public class Shop
     public bool? IsOclEnabled { get; set; }
 
     [MaxLength(200)]
-    public string SelfOrderingBackgroundImagePath { get; set; }
+    public string? SelfOrderingBackgroundImagePath { get; set; }
 
     [MaxLength(200)]
-    public string SelfOrderingBannerImagePath { get; set; }
+    public string? SelfOrderingBannerImagePath { get; set; }
 
     [MaxLength(200)]
-    public string SelfOrderingLogoImagePath { get; set; }
+    public string? SelfOrderingLogoImagePath { get; set; }
 
     [MaxLength(200)]
-    public string SelfOrderingSplashImagePath { get; set; }
+    public string? SelfOrderingSplashImagePath { get; set; }
 
     [MaxLength(200)]
-    public string SelfOrderingDisclaimer { get; set; }
+    public string? SelfOrderingDisclaimer { get; set; }
 
     public bool? IsOnlineStore { get; set; }
 
@@ -131,10 +131,10 @@ public class Shop
     public bool? IsSuspended { get; set; }
 
     [MaxLength(10)]
-    public string IntCallingCode { get; set; }
+    public string? IntCallingCode { get; set; }
 
     [MaxLength(1000)]
-    public string AddressForDelivery { get; set; }
+    public string? AddressForDelivery { get; set; }
 
     [Column(TypeName = "decimal(10, 7)")]
     public decimal? AddressLat { get; set; }
@@ -145,6 +145,6 @@ public class Shop
     public int? ShopGroupId { get; set; }
 
     [MaxLength(50)]
-    public string ShopCode { get; set; }
+    public string? ShopCode { get; set; }
 
 }

@@ -191,37 +191,82 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
   const columns = useMemo<ColumnDef<SmartCategoryItemAssignment>[]>(
     () => [
       {
-        accessorKey: 'displayIndex',
-        header: 'Display Index',
+        accessorKey: 'itemId',
+        header: 'Item ID',
         size: 120,
-        cell: ({ row }) => <Text size="sm">{row.original.displayIndex}</Text>,
+        enableHiding: false,
+        cell: ({ row }) => (
+          <Box style={{ minWidth: 0, width: '100%' }}>
+            <Text size="sm" fw={600} lineClamp={1} title={String(row.original.itemId)}>
+              {row.original.itemId}
+            </Text>
+          </Box>
+        ),
       },
       {
         accessorKey: 'itemCode',
         header: 'Code',
         size: 100,
         cell: ({ row }) => (
-          <Text size="sm" fw={500}>
-            {row.original.itemCode}
-          </Text>
+          <Box style={{ minWidth: 0, width: '100%' }}>
+            <Text size="sm" fw={500} lineClamp={1} title={row.original.itemCode}>
+              {row.original.itemCode}
+            </Text>
+          </Box>
         ),
+      },
+      {
+        accessorKey: 'displayIndex',
+        header: 'Display Index',
+        size: 140,
+        cell: ({ row }) => <Text size="sm">{row.original.displayIndex}</Text>,
       },
       {
         accessorKey: 'itemName',
         header: 'Item Name',
-        size: 250,
-        cell: ({ row }) => (
-          <Stack gap={0}>
-            <Text size="sm" fw={600} truncate>
-              {row.original.itemName || 'Untitled Item'}
-            </Text>
-            {row.original.itemNameAlt && (
-              <Text size="xs" c="dimmed" truncate>
-                {row.original.itemNameAlt}
+        size: 280,
+        cell: ({ row }) => {
+          const primaryName = row.original.itemName?.trim() || 'Untitled Item';
+          const altName = row.original.itemNameAlt?.trim();
+          const title = altName ? `${primaryName} (${altName})` : primaryName;
+          return (
+            <Box style={{ minWidth: 0, width: '100%' }}>
+              <Text size="sm" fw={600} truncate title={title} lineClamp={1}>
+                {primaryName}
               </Text>
-            )}
-          </Stack>
-        ),
+            </Box>
+          );
+        },
+      },
+      {
+        accessorKey: 'modifiedDate',
+        header: 'Last Updated',
+        size: 180,
+        cell: ({ row }) => {
+            const date = row.original.modifiedDate ? new Date(row.original.modifiedDate).toLocaleString() : '—';
+            return (
+                <Box style={{ minWidth: 0, width: '100%' }}>
+                  <Text size="sm" truncate title={date} lineClamp={1}>
+                      {date}
+                  </Text>
+                </Box>
+            );
+        },
+      },
+      {
+        accessorKey: 'modifiedBy',
+        header: 'Last Updated By',
+        size: 160,
+        cell: ({ row }) => {
+            const by = row.original.modifiedBy?.trim() || 'Unknown';
+            return (
+                <Box style={{ minWidth: 0, width: '100%' }}>
+                  <Text size="sm" truncate title={by} lineClamp={1}>
+                      {by}
+                  </Text>
+                </Box>
+            );
+        },
       },
       {
         accessorKey: 'enabled',
@@ -232,21 +277,6 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
             {row.original.enabled ? 'Yes' : 'No'}
           </Badge>
         ),
-      },
-      {
-        accessorKey: 'modifiedDate',
-        header: 'Last Updated',
-        size: 200,
-        cell: ({ row }) => {
-            const date = row.original.modifiedDate ? new Date(row.original.modifiedDate).toLocaleString() : '—';
-            const by = row.original.modifiedBy || 'Unknown';
-            return (
-                <Stack gap={0}>
-                    <Text size="sm">{date}</Text>
-                    <Text size="xs" c="dimmed">by {by}</Text>
-                </Stack>
-            );
-        },
       },
       {
         id: 'actions',
@@ -392,10 +422,21 @@ export const SmartCategoryItemsTab: FC<ItemsTabProps> = ({
   }, []);
 
   const sidebarIsCollapsed = Boolean(isSidebarCollapsed);
+  const toolbarHorizontalPadding = 'var(--mantine-spacing-md)';
 
   return (
     <Flex direction="column" gap="sm" style={{ flex: 1, minHeight: 0 }}>
-      <Group justify="space-between" align="center" gap="md" wrap="wrap">
+      <Group
+        justify="space-between"
+        align="center"
+        gap="md"
+        wrap="wrap"
+        style={{
+          width: '100%',
+          paddingLeft: toolbarHorizontalPadding,
+          paddingRight: toolbarHorizontalPadding,
+        }}
+      >
         <Group gap="xs" align="center" wrap="wrap">
           {onToggleSidebar && (
             <Tooltip

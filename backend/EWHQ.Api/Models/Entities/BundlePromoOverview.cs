@@ -15,15 +15,13 @@ public class BundlePromoOverview
     public int BundlePromoOverviewId { get; set; }
 
     [MaxLength(50)]
-    [Required]
-    public string BundlePromoCode { get; set; } = string.Empty;
+    public string? BundlePromoCode { get; set; }
 
     [MaxLength(500)]
-    [Required]
-    public string BundlePromoName { get; set; } = string.Empty;
+    public string? BundlePromoName { get; set; }
 
     [MaxLength(4000)]
-    public string BundlePromoDesc { get; set; }
+    public string? BundlePromoDesc { get; set; }
 
     public bool IsAvailable { get; set; }
 
@@ -34,14 +32,12 @@ public class BundlePromoOverview
     public DateTime ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    [Required]
-    public string ModifiedBy { get; set; } = string.Empty;
+    public string? ModifiedBy { get; set; }
 
     public DateTime CreatedDate { get; set; }
 
     [MaxLength(50)]
-    [Required]
-    public string CreatedBy { get; set; } = string.Empty;
+    public string? CreatedBy { get; set; }
 
     public int BundlePromoHeaderTypeId { get; set; }
 

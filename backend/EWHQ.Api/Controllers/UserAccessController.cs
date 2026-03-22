@@ -28,18 +28,82 @@ public class UserAccessController : ControllerBase
         _logger = logger;
     }
 
-    private async Task<string?> GetCurrentUserIdAsync()
+    private async Task<ApplicationUser?> GetCurrentUserAsync()
     {
-        // Get Auth0 user ID from token
         var auth0UserId = User.FindFirst("sub")?.Value
             ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-        if (string.IsNullOrEmpty(auth0UserId))
+        if (string.IsNullOrWhiteSpace(auth0UserId))
+        {
             return null;
+        }
 
-        // Get the actual user from database
-        var user = await _userContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+        return await _userContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+    }
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var user = await GetCurrentUserAsync();
         return user?.Id;
+    }
+
+    private static string GetDisplayName(ApplicationUser user)
+    {
+        var displayName = $"{user.FirstName} {user.LastName}".Trim();
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        return user.Email ?? user.Id;
+    }
+
+    private static string? NormalizeRequiredName(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private async Task<bool> HasCompanyWriteAccessAsync(string userId, int companyId)
+    {
+        return await _context.UserCompanies
+            .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == companyId && uc.IsActive &&
+                            (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
+    }
+
+    private async Task<bool> HasCompanyOwnerAccessAsync(string userId, int companyId)
+    {
+        return await _context.UserCompanies
+            .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == companyId && uc.IsActive &&
+                            uc.Role == UserRole.Owner);
+    }
+
+    private async Task<bool> HasBrandWriteAccessAsync(string userId, int brandId, int companyId)
+    {
+        var hasBrandAccess = await _context.UserBrands
+            .AnyAsync(ub => ub.UserId == userId && ub.BrandId == brandId && ub.IsActive &&
+                            ub.Role == UserRole.BrandAdmin);
+
+        if (hasBrandAccess)
+        {
+            return true;
+        }
+
+        return await HasCompanyWriteAccessAsync(userId, companyId);
+    }
+
+    private async Task<bool> HasShopWriteAccessAsync(string userId, int shopId, int brandId, int companyId)
+    {
+        var hasShopAccess = await _context.UserShops
+            .AnyAsync(us => us.UserId == userId && us.ShopId == shopId && us.IsActive &&
+                            us.Role == UserRole.ShopManager);
+
+        if (hasShopAccess)
+        {
+            return true;
+        }
+
+        return await HasBrandWriteAccessAsync(userId, brandId, companyId);
     }
 
     [HttpGet("companies-brands")]
@@ -319,17 +383,33 @@ public class UserAccessController : ControllerBase
     {
         try
         {
-            var userId = await GetCurrentUserIdAsync();
-            if (string.IsNullOrEmpty(userId))
+            var currentUser = await GetCurrentUserAsync();
+            if (currentUser == null)
             {
                 return Unauthorized("User not found");
+            }
+
+            var companyName = NormalizeRequiredName(request.Name);
+            if (companyName == null)
+            {
+                return BadRequest(new { Success = false, Message = "Company name is required" });
+            }
+
+            var companyNameLower = companyName.ToLower();
+            var companyNameExists = await _context.Companies
+                .AnyAsync(c => c.IsActive && c.Name.ToLower() == companyNameLower);
+            if (companyNameExists)
+            {
+                return Conflict(new { Success = false, Message = "A company with this name already exists" });
             }
 
             // Create new company
             var company = new Company
             {
-                Name = request.Name,
-                Description = request.Description,
+                Name = companyName,
+                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+                CreatedByUserId = currentUser.Id,
+                UpdatedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -340,9 +420,13 @@ public class UserAccessController : ControllerBase
             // Add user as company owner
             var userCompany = new UserCompany
             {
-                UserId = userId,
+                UserId = currentUser.Id,
+                UserEmail = currentUser.Email ?? string.Empty,
+                UserName = GetDisplayName(currentUser),
                 CompanyId = company.Id,
                 Role = UserRole.Owner,
+                AcceptedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 IsActive = true
             };
 
@@ -367,30 +451,50 @@ public class UserAccessController : ControllerBase
     {
         try
         {
-            var userId = await GetCurrentUserIdAsync();
-            if (string.IsNullOrEmpty(userId))
+            var currentUser = await GetCurrentUserAsync();
+            if (currentUser == null)
             {
                 return Unauthorized("User not found");
             }
 
+            var brandName = NormalizeRequiredName(request.Name);
+            if (brandName == null)
+            {
+                return BadRequest(new { Success = false, Message = "Brand name is required" });
+            }
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.Id == request.ParentId && c.IsActive);
+            if (company == null)
+            {
+                return NotFound("Company not found");
+            }
+
             // Verify user has company admin access
-            var hasAccess = await _context.UserCompanies
-                .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == request.ParentId &&
-                    uc.IsActive && (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
+            var hasAccess = await HasCompanyWriteAccessAsync(currentUser.Id, request.ParentId);
 
             if (!hasAccess)
             {
                 return Forbid("You don't have permission to create brands for this company");
             }
 
+            var brandNameLower = brandName.ToLower();
+            var brandNameExists = await _context.Brands
+                .AnyAsync(b => b.CompanyId == request.ParentId && b.IsActive && b.Name.ToLower() == brandNameLower);
+            if (brandNameExists)
+            {
+                return Conflict(new { Success = false, Message = "A brand with this name already exists under the company" });
+            }
+
             // Create new brand
             var brand = new Brand
             {
-                Name = request.Name,
-                Description = request.Description,
+                Name = brandName,
+                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
                 CompanyId = request.ParentId,
                 LegacyAccountId = request.LegacyAccountId,
                 UseLegacyPOS = request.UseLegacyPOS,
+                UpdatedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -401,9 +505,14 @@ public class UserAccessController : ControllerBase
             // Add user as brand admin
             var userBrand = new UserBrand
             {
-                UserId = userId,
+                UserId = currentUser.Id,
+                UserEmail = currentUser.Email ?? string.Empty,
+                UserName = GetDisplayName(currentUser),
                 BrandId = brand.Id,
                 Role = UserRole.BrandAdmin,
+                Source = PermissionSource.Direct,
+                CreatedBy = currentUser.Id,
+                UpdatedAt = DateTime.UtcNow,
                 IsActive = true
             };
 
@@ -428,16 +537,22 @@ public class UserAccessController : ControllerBase
     {
         try
         {
-            var userId = await GetCurrentUserIdAsync();
-            if (string.IsNullOrEmpty(userId))
+            var currentUser = await GetCurrentUserAsync();
+            if (currentUser == null)
             {
                 return Unauthorized("User not found");
+            }
+
+            var shopName = NormalizeRequiredName(request.Name);
+            if (shopName == null)
+            {
+                return BadRequest(new { Success = false, Message = "Shop name is required" });
             }
 
             // Get the brand to check company access
             var brand = await _context.Brands
                 .Include(b => b.Company)
-                .FirstOrDefaultAsync(b => b.Id == request.ParentId);
+                .FirstOrDefaultAsync(b => b.Id == request.ParentId && b.IsActive && b.Company.IsActive);
 
             if (brand == null)
             {
@@ -445,25 +560,29 @@ public class UserAccessController : ControllerBase
             }
 
             // Verify user has brand admin access or company admin access
-            var hasBrandAccess = await _context.UserBrands
-                .AnyAsync(ub => ub.UserId == userId && ub.BrandId == request.ParentId &&
-                    ub.IsActive && (ub.Role == UserRole.BrandAdmin));
-
-            var hasCompanyAccess = await _context.UserCompanies
-                .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == brand.CompanyId &&
-                    uc.IsActive && (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
-
-            if (!hasBrandAccess && !hasCompanyAccess)
+            var hasAccess = await HasBrandWriteAccessAsync(currentUser.Id, request.ParentId, brand.CompanyId);
+            if (!hasAccess)
             {
                 return Forbid("You don't have permission to create shops for this brand");
+            }
+
+            var shopNameLower = shopName.ToLower();
+            var shopNameExists = await _context.Shops
+                .AnyAsync(s => s.BrandId == request.ParentId && s.IsActive && s.Name.ToLower() == shopNameLower);
+            if (shopNameExists)
+            {
+                return Conflict(new { Success = false, Message = "A shop with this name already exists under the brand" });
             }
 
             // Create new shop
             var shop = new Shop
             {
-                Name = request.Name,
-                Address = request.Address,
+                Name = shopName,
+                Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim(),
                 BrandId = request.ParentId,
+                CreatedBy = currentUser.Id,
+                UpdatedBy = currentUser.Id,
+                UpdatedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };
@@ -474,9 +593,14 @@ public class UserAccessController : ControllerBase
             // Add user as shop manager
             var userShop = new UserShop
             {
-                UserId = userId,
+                UserId = currentUser.Id,
+                UserEmail = currentUser.Email ?? string.Empty,
+                UserName = GetDisplayName(currentUser),
                 ShopId = shop.Id,
                 Role = UserRole.ShopManager,
+                Source = PermissionSource.Direct,
+                CreatedBy = currentUser.Id,
+                UpdatedAt = DateTime.UtcNow,
                 IsActive = true
             };
 
@@ -507,25 +631,46 @@ public class UserAccessController : ControllerBase
                 return Unauthorized("User not found");
             }
 
-            var company = await _context.Companies.FindAsync(request.Id);
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.Id == request.Id && c.IsActive);
             if (company == null)
             {
                 return NotFound("Company not found");
             }
 
             // Verify user has company admin access
-            var hasAccess = await _context.UserCompanies
-                .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == request.Id &&
-                    uc.IsActive && (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
+            var hasAccess = await HasCompanyWriteAccessAsync(userId, request.Id);
 
             if (!hasAccess)
             {
                 return Forbid("You don't have permission to update this company");
             }
 
+            if (request.Name != null)
+            {
+                var normalizedName = NormalizeRequiredName(request.Name);
+                if (normalizedName == null)
+                {
+                    return BadRequest(new { Success = false, Message = "Company name cannot be empty" });
+                }
+
+                var normalizedNameLower = normalizedName.ToLower();
+                var nameExists = await _context.Companies
+                    .AnyAsync(c => c.Id != request.Id && c.IsActive && c.Name.ToLower() == normalizedNameLower);
+                if (nameExists)
+                {
+                    return Conflict(new { Success = false, Message = "A company with this name already exists" });
+                }
+
+                company.Name = normalizedName;
+            }
+
             // Update company
-            company.Name = request.Name ?? company.Name;
-            company.Description = request.Description ?? company.Description;
+            if (request.Description != null)
+            {
+                company.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+            }
+            company.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -551,7 +696,7 @@ public class UserAccessController : ControllerBase
 
             var brand = await _context.Brands
                 .Include(b => b.Company)
-                .FirstOrDefaultAsync(b => b.Id == request.Id);
+                .FirstOrDefaultAsync(b => b.Id == request.Id && b.IsActive && b.Company.IsActive);
 
             if (brand == null)
             {
@@ -559,26 +704,41 @@ public class UserAccessController : ControllerBase
             }
 
             // Verify user has brand admin or company admin access
-            var hasBrandAccess = await _context.UserBrands
-                .AnyAsync(ub => ub.UserId == userId && ub.BrandId == request.Id &&
-                    ub.IsActive && (ub.Role == UserRole.BrandAdmin));
-
-            var hasCompanyAccess = await _context.UserCompanies
-                .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == brand.CompanyId &&
-                    uc.IsActive && (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
-
-            if (!hasBrandAccess && !hasCompanyAccess)
+            var hasAccess = await HasBrandWriteAccessAsync(userId, request.Id, brand.CompanyId);
+            if (!hasAccess)
             {
                 return Forbid("You don't have permission to update this brand");
             }
 
+            if (request.Name != null)
+            {
+                var normalizedName = NormalizeRequiredName(request.Name);
+                if (normalizedName == null)
+                {
+                    return BadRequest(new { Success = false, Message = "Brand name cannot be empty" });
+                }
+
+                var normalizedNameLower = normalizedName.ToLower();
+                var nameExists = await _context.Brands
+                    .AnyAsync(b => b.Id != request.Id && b.CompanyId == brand.CompanyId && b.IsActive && b.Name.ToLower() == normalizedNameLower);
+                if (nameExists)
+                {
+                    return Conflict(new { Success = false, Message = "A brand with this name already exists under the company" });
+                }
+
+                brand.Name = normalizedName;
+            }
+
             // Update brand
-            brand.Name = request.Name ?? brand.Name;
-            brand.Description = request.Description ?? brand.Description;
+            if (request.Description != null)
+            {
+                brand.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+            }
             if (request.LegacyAccountIdSpecified)
                 brand.LegacyAccountId = request.LegacyAccountId;
             if (request.UseLegacyPOS.HasValue)
                 brand.UseLegacyPOS = request.UseLegacyPOS.Value;
+            brand.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
@@ -605,7 +765,7 @@ public class UserAccessController : ControllerBase
             var shop = await _context.Shops
                 .Include(s => s.Brand)
                     .ThenInclude(b => b.Company)
-                .FirstOrDefaultAsync(s => s.Id == request.Id);
+                .FirstOrDefaultAsync(s => s.Id == request.Id && s.IsActive && s.Brand.IsActive && s.Brand.Company.IsActive);
 
             if (shop == null)
             {
@@ -613,26 +773,38 @@ public class UserAccessController : ControllerBase
             }
 
             // Verify user has shop manager, brand admin, or company admin access
-            var hasShopAccess = await _context.UserShops
-                .AnyAsync(us => us.UserId == userId && us.ShopId == request.Id &&
-                    us.IsActive && (us.Role == UserRole.ShopManager));
-
-            var hasBrandAccess = await _context.UserBrands
-                .AnyAsync(ub => ub.UserId == userId && ub.BrandId == shop.BrandId &&
-                    ub.IsActive && (ub.Role == UserRole.BrandAdmin));
-
-            var hasCompanyAccess = await _context.UserCompanies
-                .AnyAsync(uc => uc.UserId == userId && uc.CompanyId == shop.Brand.CompanyId &&
-                    uc.IsActive && (uc.Role == UserRole.Owner || uc.Role == UserRole.CompanyAdmin));
-
-            if (!hasShopAccess && !hasBrandAccess && !hasCompanyAccess)
+            var hasAccess = await HasShopWriteAccessAsync(userId, request.Id, shop.BrandId, shop.Brand.CompanyId);
+            if (!hasAccess)
             {
                 return Forbid("You don't have permission to update this shop");
             }
 
+            if (request.Name != null)
+            {
+                var normalizedName = NormalizeRequiredName(request.Name);
+                if (normalizedName == null)
+                {
+                    return BadRequest(new { Success = false, Message = "Shop name cannot be empty" });
+                }
+
+                var normalizedNameLower = normalizedName.ToLower();
+                var nameExists = await _context.Shops
+                    .AnyAsync(s => s.Id != request.Id && s.BrandId == shop.BrandId && s.IsActive && s.Name.ToLower() == normalizedNameLower);
+                if (nameExists)
+                {
+                    return Conflict(new { Success = false, Message = "A shop with this name already exists under the brand" });
+                }
+
+                shop.Name = normalizedName;
+            }
+
             // Update shop
-            shop.Name = request.Name ?? shop.Name;
-            shop.Address = request.Address ?? shop.Address;
+            if (request.Address != null)
+            {
+                shop.Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
+            }
+            shop.UpdatedAt = DateTime.UtcNow;
+            shop.UpdatedBy = userId;
 
             await _context.SaveChangesAsync();
 
@@ -642,6 +814,221 @@ public class UserAccessController : ControllerBase
         {
             _logger.LogError(ex, "Error updating shop");
             return StatusCode(500, new { Success = false, Message = "An error occurred while updating shop" });
+        }
+    }
+
+    [HttpDelete("delete-shop/{id:int}")]
+    public async Task<IActionResult> DeleteShop(int id)
+    {
+        try
+        {
+            var userId = await GetCurrentUserIdAsync();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User not found");
+            }
+
+            var shop = await _context.Shops
+                .Include(s => s.Brand)
+                    .ThenInclude(b => b.Company)
+                .FirstOrDefaultAsync(s => s.Id == id && s.IsActive && s.Brand.IsActive && s.Brand.Company.IsActive);
+
+            if (shop == null)
+            {
+                return NotFound("Shop not found");
+            }
+
+            var hasAccess = await HasShopWriteAccessAsync(userId, id, shop.BrandId, shop.Brand.CompanyId);
+            if (!hasAccess)
+            {
+                return Forbid("You don't have permission to delete this shop");
+            }
+
+            shop.IsActive = false;
+            shop.UpdatedAt = DateTime.UtcNow;
+            shop.UpdatedBy = userId;
+
+            var userShops = await _context.UserShops
+                .Where(us => us.ShopId == id && us.IsActive)
+                .ToListAsync();
+            foreach (var userShop in userShops)
+            {
+                userShop.IsActive = false;
+                userShop.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting shop");
+            return StatusCode(500, new { Success = false, Message = "An error occurred while deleting shop" });
+        }
+    }
+
+    [HttpDelete("delete-brand/{id:int}")]
+    public async Task<IActionResult> DeleteBrand(int id)
+    {
+        try
+        {
+            var userId = await GetCurrentUserIdAsync();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User not found");
+            }
+
+            var brand = await _context.Brands
+                .Include(b => b.Company)
+                .FirstOrDefaultAsync(b => b.Id == id && b.IsActive && b.Company.IsActive);
+
+            if (brand == null)
+            {
+                return NotFound("Brand not found");
+            }
+
+            var hasAccess = await HasBrandWriteAccessAsync(userId, id, brand.CompanyId);
+            if (!hasAccess)
+            {
+                return Forbid("You don't have permission to delete this brand");
+            }
+
+            brand.IsActive = false;
+            brand.UpdatedAt = DateTime.UtcNow;
+
+            var shops = await _context.Shops
+                .Where(s => s.BrandId == id && s.IsActive)
+                .ToListAsync();
+            foreach (var shop in shops)
+            {
+                shop.IsActive = false;
+                shop.UpdatedAt = DateTime.UtcNow;
+                shop.UpdatedBy = userId;
+            }
+
+            var userBrands = await _context.UserBrands
+                .Where(ub => ub.BrandId == id && ub.IsActive)
+                .ToListAsync();
+            foreach (var userBrand in userBrands)
+            {
+                userBrand.IsActive = false;
+                userBrand.UpdatedAt = DateTime.UtcNow;
+            }
+
+            var shopIds = shops.Select(s => s.Id).ToList();
+            if (shopIds.Count > 0)
+            {
+                var userShops = await _context.UserShops
+                    .Where(us => shopIds.Contains(us.ShopId) && us.IsActive)
+                    .ToListAsync();
+                foreach (var userShop in userShops)
+                {
+                    userShop.IsActive = false;
+                    userShop.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting brand");
+            return StatusCode(500, new { Success = false, Message = "An error occurred while deleting brand" });
+        }
+    }
+
+    [HttpDelete("delete-company/{id:int}")]
+    public async Task<IActionResult> DeleteCompany(int id)
+    {
+        try
+        {
+            var userId = await GetCurrentUserIdAsync();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("User not found");
+            }
+
+            var company = await _context.Companies
+                .FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
+            if (company == null)
+            {
+                return NotFound("Company not found");
+            }
+
+            // Only company owner can delete company
+            var hasAccess = await HasCompanyOwnerAccessAsync(userId, id);
+            if (!hasAccess)
+            {
+                return Forbid("Only company owner can delete company");
+            }
+
+            company.IsActive = false;
+            company.UpdatedAt = DateTime.UtcNow;
+
+            var brands = await _context.Brands
+                .Where(b => b.CompanyId == id && b.IsActive)
+                .ToListAsync();
+            foreach (var brand in brands)
+            {
+                brand.IsActive = false;
+                brand.UpdatedAt = DateTime.UtcNow;
+            }
+
+            var brandIds = brands.Select(b => b.Id).ToList();
+            var shops = brandIds.Count == 0
+                ? new List<Shop>()
+                : await _context.Shops
+                    .Where(s => brandIds.Contains(s.BrandId) && s.IsActive)
+                    .ToListAsync();
+            foreach (var shop in shops)
+            {
+                shop.IsActive = false;
+                shop.UpdatedAt = DateTime.UtcNow;
+                shop.UpdatedBy = userId;
+            }
+
+            var userCompanies = await _context.UserCompanies
+                .Where(uc => uc.CompanyId == id && uc.IsActive)
+                .ToListAsync();
+            foreach (var userCompany in userCompanies)
+            {
+                userCompany.IsActive = false;
+                userCompany.UpdatedAt = DateTime.UtcNow;
+            }
+
+            if (brandIds.Count > 0)
+            {
+                var userBrands = await _context.UserBrands
+                    .Where(ub => brandIds.Contains(ub.BrandId) && ub.IsActive)
+                    .ToListAsync();
+                foreach (var userBrand in userBrands)
+                {
+                    userBrand.IsActive = false;
+                    userBrand.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            var shopIds = shops.Select(s => s.Id).ToList();
+            if (shopIds.Count > 0)
+            {
+                var userShops = await _context.UserShops
+                    .Where(us => shopIds.Contains(us.ShopId) && us.IsActive)
+                    .ToListAsync();
+                foreach (var userShop in userShops)
+                {
+                    userShop.IsActive = false;
+                    userShop.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { Success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting company");
+            return StatusCode(500, new { Success = false, Message = "An error occurred while deleting company" });
         }
     }
 }

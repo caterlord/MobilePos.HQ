@@ -2,6 +2,27 @@
 const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
 
 class ApiService {
+  private async buildError(response: Response): Promise<Error> {
+    let message = `API request failed: ${response.status} ${response.statusText}`.trim();
+
+    try {
+      const text = await response.text();
+      if (!text) {
+        return new Error(message);
+      }
+
+      const payload = JSON.parse(text) as { message?: string; Message?: string; error?: string };
+      const backendMessage = payload.message || payload.Message || payload.error;
+      if (backendMessage) {
+        message = backendMessage;
+      }
+    } catch {
+      // Ignore JSON parse errors and keep status-based message.
+    }
+
+    return new Error(message);
+  }
+
   private async getAuthHeader(): Promise<Record<string, string>> {
     const token = localStorage.getItem('auth0_token');
     const headers: Record<string, string> = {
@@ -21,7 +42,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      throw await this.buildError(response);
     }
 
     const data = await response.json();
@@ -37,7 +58,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      throw await this.buildError(response);
     }
 
     const responseData = await response.json();
@@ -53,7 +74,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      throw await this.buildError(response);
     }
 
     // PUT might not return content
@@ -69,7 +90,7 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.statusText}`);
+      throw await this.buildError(response);
     }
 
     // DELETE might not return content

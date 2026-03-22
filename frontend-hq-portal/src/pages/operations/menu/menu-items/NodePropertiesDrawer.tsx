@@ -10,6 +10,7 @@ import {
   Drawer,
   Group,
   Loader,
+  Modal,
   NumberInput,
   ScrollArea,
   Select,
@@ -23,6 +24,7 @@ import { notifications } from '@mantine/notifications';
 import {
   IconArrowDown,
   IconArrowUp,
+  IconCurrencyDollar,
   IconDeviceFloppy,
   IconPlus,
   IconRefresh,
@@ -41,6 +43,7 @@ import type {
   ModifierGroupHeader,
   ModifierGroupMember,
   ModifierGroupProperties,
+  ModifierGroupShopPricing,
 } from '../../../../types/modifierGroup';
 import { mapDetailToPayload, normalizePayload, formatDateTime } from './menuItemsUtils';
 import { CenterLoader } from '../../../../components/CenterLoader';
@@ -71,6 +74,14 @@ interface ModifierGroupPropertiesContentProps {
   originContext?: 'inStore' | 'online';
   onAfterSave: () => Promise<void>;
   onModifierGroupUpdated: (header: ModifierGroupHeader) => void;
+}
+
+interface ShopPricingDraftRow {
+  shopId: number;
+  shopName: string;
+  originalPrice: number;
+  enabled: boolean;
+  price: number | null;
 }
 
 const sortMembers = (members: ModifierGroupMember[]): ModifierGroupMember[] =>
@@ -290,10 +301,21 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
   const [groupName, setGroupName] = useState('');
   const [groupNameAlt, setGroupNameAlt] = useState('');
   const [enabled, setEnabled] = useState(true);
+  const [maxModifierSelectCount, setMaxModifierSelectCount] = useState(0);
+  const [minModifierSelectCount, setMinModifierSelectCount] = useState(0);
+  const [isOdoDisplay, setIsOdoDisplay] = useState(true);
+  const [isKioskDisplay, setIsKioskDisplay] = useState(true);
+  const [isTableOrderingDisplay, setIsTableOrderingDisplay] = useState(true);
+  const [isPosDisplay, setIsPosDisplay] = useState(true);
+  const [isSelfOrderingDisplay, setIsSelfOrderingDisplay] = useState(true);
   const [members, setMembers] = useState<ModifierGroupMember[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<MenuItemSummary[]>([]);
+  const [shopPricingItem, setShopPricingItem] = useState<ModifierGroupMember | null>(null);
+  const [shopPricingRows, setShopPricingRows] = useState<ShopPricingDraftRow[]>([]);
+  const [shopPricingLoading, setShopPricingLoading] = useState(false);
+  const [shopPricingSaving, setShopPricingSaving] = useState(false);
 
   const copy = useMemo(() => {
     if (mode === 'modifier') {
@@ -334,6 +356,111 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
     return originContext === 'inStore' ? 'POS flow' : 'Online flow';
   }, [originContext]);
 
+  const mapShopPricingRows = useCallback(
+    (rows: ModifierGroupShopPricing[]): ShopPricingDraftRow[] =>
+      rows.map((row) => ({
+        shopId: row.shopId,
+        shopName: row.shopName,
+        originalPrice: row.originalPrice,
+        enabled: row.enabled,
+        price: row.price,
+      })),
+    [],
+  );
+
+  const closeShopPricingModal = useCallback(() => {
+    setShopPricingItem(null);
+    setShopPricingRows([]);
+  }, []);
+
+  const handleOpenShopPricing = useCallback(
+    async (member: ModifierGroupMember) => {
+      setShopPricingItem(member);
+      setShopPricingLoading(true);
+
+      try {
+        const response = await modifierGroupService.getShopPricing(brandId, groupHeaderId, member.itemId);
+        setShopPricingRows(mapShopPricingRows(response));
+      } catch (err) {
+        console.error('Failed to load group shop pricing', err);
+        notifications.show({
+          color: 'red',
+          title: 'Unable to load shop pricing',
+          message: 'An error occurred while loading shop-level group pricing.',
+        });
+        closeShopPricingModal();
+      } finally {
+        setShopPricingLoading(false);
+      }
+    },
+    [brandId, closeShopPricingModal, groupHeaderId, mapShopPricingRows],
+  );
+
+  const handleShopPricingToggle = useCallback((shopId: number, checked: boolean) => {
+    setShopPricingRows((prev) =>
+      prev.map((row) => {
+        if (row.shopId !== shopId) {
+          return row;
+        }
+
+        if (!checked) {
+          return { ...row, enabled: false, price: null };
+        }
+
+        return { ...row, enabled: true, price: row.price ?? row.originalPrice };
+      }),
+    );
+  }, []);
+
+  const handleShopPricingValueChange = useCallback((shopId: number, value: string | number) => {
+    const parsed = Number(value);
+    setShopPricingRows((prev) =>
+      prev.map((row) => {
+        if (row.shopId !== shopId) {
+          return row;
+        }
+
+        if (!Number.isFinite(parsed) || parsed < 0) {
+          return row;
+        }
+
+        return { ...row, price: parsed };
+      }),
+    );
+  }, []);
+
+  const handleSaveShopPricing = useCallback(async () => {
+    if (!shopPricingItem) {
+      return;
+    }
+
+    setShopPricingSaving(true);
+    try {
+      const response = await modifierGroupService.updateShopPricing(brandId, groupHeaderId, shopPricingItem.itemId, {
+        entries: shopPricingRows.map((row) => ({
+          shopId: row.shopId,
+          price: row.enabled ? (row.price ?? row.originalPrice) : null,
+        })),
+      });
+
+      setShopPricingRows(mapShopPricingRows(response));
+      notifications.show({
+        color: 'green',
+        title: 'Shop pricing updated',
+        message: 'Group item shop pricing has been saved.',
+      });
+    } catch (err) {
+      console.error('Failed to update group shop pricing', err);
+      notifications.show({
+        color: 'red',
+        title: 'Unable to save shop pricing',
+        message: 'An error occurred while saving shop pricing.',
+      });
+    } finally {
+      setShopPricingSaving(false);
+    }
+  }, [brandId, groupHeaderId, mapShopPricingRows, shopPricingItem, shopPricingRows]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -342,6 +469,13 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
       setGroupName(data.groupBatchName);
       setGroupNameAlt(data.groupBatchNameAlt ?? '');
       setEnabled(data.enabled);
+      setMaxModifierSelectCount(data.maxModifierSelectCount ?? 0);
+      setMinModifierSelectCount(data.minModifierSelectCount ?? 0);
+      setIsOdoDisplay(data.isOdoDisplay ?? true);
+      setIsKioskDisplay(data.isKioskDisplay ?? true);
+      setIsTableOrderingDisplay(data.isTableOrderingDisplay ?? true);
+      setIsPosDisplay(data.isPosDisplay ?? true);
+      setIsSelfOrderingDisplay(data.isSelfOrderingDisplay ?? true);
       setMembers(sortMembers(data.items));
     } catch (err) {
       console.error('Failed to load modifier group properties', err);
@@ -454,6 +588,13 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
         groupBatchName: groupName.trim(),
         groupBatchNameAlt: groupNameAlt.trim() ? groupNameAlt.trim() : null,
         enabled,
+        maxModifierSelectCount,
+        minModifierSelectCount,
+        isOdoDisplay,
+        isKioskDisplay,
+        isTableOrderingDisplay,
+        isPosDisplay,
+        isSelfOrderingDisplay,
         items: members.map((member, index) => ({
           itemId: member.itemId,
           enabled: member.enabled,
@@ -489,6 +630,13 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
     groupHeaderId,
     groupName,
     groupNameAlt,
+    isKioskDisplay,
+    isOdoDisplay,
+    isPosDisplay,
+    isSelfOrderingDisplay,
+    isTableOrderingDisplay,
+    maxModifierSelectCount,
+    minModifierSelectCount,
     members,
     onAfterSave,
     onModifierGroupUpdated,
@@ -553,7 +701,46 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
           value={groupNameAlt}
           onChange={(event) => setGroupNameAlt(event.currentTarget.value)}
         />
+        <Group gap="sm" grow>
+          <NumberInput
+            label="Max selection"
+            min={0}
+            value={maxModifierSelectCount}
+            onChange={(value) => setMaxModifierSelectCount(Math.max(Number(value) || 0, 0))}
+          />
+          <NumberInput
+            label="Min selection"
+            min={0}
+            value={minModifierSelectCount}
+            onChange={(value) => setMinModifierSelectCount(Math.max(Number(value) || 0, 0))}
+          />
+        </Group>
         <Switch label="Enabled" checked={enabled} onChange={(event) => setEnabled(event.currentTarget.checked)} />
+        <Switch
+          label="Display in POS"
+          checked={isPosDisplay}
+          onChange={(event) => setIsPosDisplay(event.currentTarget.checked)}
+        />
+        <Switch
+          label="Display in Self Ordering"
+          checked={isSelfOrderingDisplay}
+          onChange={(event) => setIsSelfOrderingDisplay(event.currentTarget.checked)}
+        />
+        <Switch
+          label="Display in Kiosk"
+          checked={isKioskDisplay}
+          onChange={(event) => setIsKioskDisplay(event.currentTarget.checked)}
+        />
+        <Switch
+          label="Display in Table Ordering"
+          checked={isTableOrderingDisplay}
+          onChange={(event) => setIsTableOrderingDisplay(event.currentTarget.checked)}
+        />
+        <Switch
+          label="Display in ODO"
+          checked={isOdoDisplay}
+          onChange={(event) => setIsOdoDisplay(event.currentTarget.checked)}
+        />
       </Stack>
 
       <Divider label={copy.membersDividerLabel} labelPosition="center" />
@@ -639,6 +826,7 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
                 <Table.Th>{copy.tableItemHeader}</Table.Th>
                 <Table.Th style={{ width: 100 }}>Enabled</Table.Th>
                 <Table.Th style={{ width: 120 }}>Reorder</Table.Th>
+                <Table.Th style={{ width: 120 }}>Shop Pricing</Table.Th>
                 <Table.Th style={{ width: 80 }}>Remove</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -691,6 +879,17 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
                   </Table.Td>
                   <Table.Td>
                     <ActionIcon
+                      aria-label="Edit shop pricing"
+                      variant="light"
+                      color="teal"
+                      size="sm"
+                      onClick={() => void handleOpenShopPricing(member)}
+                    >
+                      <IconCurrencyDollar size={14} />
+                    </ActionIcon>
+                  </Table.Td>
+                  <Table.Td>
+                    <ActionIcon
                       aria-label="Remove"
                       color="red"
                       variant="light"
@@ -725,6 +924,72 @@ const ModifierGroupPropertiesContent: FC<ModifierGroupPropertiesContentProps> = 
           Save group
         </Button>
       </Group>
+
+      <Modal
+        opened={shopPricingItem !== null}
+        onClose={closeShopPricingModal}
+        title={`Shop pricing · ${shopPricingItem?.item.itemName ?? shopPricingItem?.item.itemCode ?? ''}`}
+        size="lg"
+      >
+        <Stack gap="md">
+          {shopPricingLoading ? (
+            <CenterLoader message="Loading shop pricing" />
+          ) : shopPricingRows.length === 0 ? (
+            <Alert color="yellow" title="No shop pricing rows">
+              No active shop prices were found for this item.
+            </Alert>
+          ) : (
+            <Table striped withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Shop</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Base Price</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Override</Table.Th>
+                  <Table.Th style={{ width: 160 }}>Custom Price</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {shopPricingRows.map((row) => (
+                  <Table.Tr key={row.shopId}>
+                    <Table.Td>{row.shopName}</Table.Td>
+                    <Table.Td>{row.originalPrice.toFixed(2)}</Table.Td>
+                    <Table.Td>
+                      <Switch
+                        size="xs"
+                        checked={row.enabled}
+                        onChange={(event) => handleShopPricingToggle(row.shopId, event.currentTarget.checked)}
+                      />
+                    </Table.Td>
+                    <Table.Td>
+                      <NumberInput
+                        min={0}
+                        decimalScale={2}
+                        fixedDecimalScale
+                        value={row.enabled ? (row.price ?? row.originalPrice) : undefined}
+                        disabled={!row.enabled}
+                        onChange={(value) => handleShopPricingValueChange(row.shopId, value)}
+                      />
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+
+          <Group justify="flex-end">
+            <Button variant="light" onClick={closeShopPricingModal}>
+              Close
+            </Button>
+            <Button
+              onClick={() => void handleSaveShopPricing()}
+              loading={shopPricingSaving}
+              disabled={shopPricingLoading || shopPricingRows.length === 0}
+            >
+              Save pricing
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 };

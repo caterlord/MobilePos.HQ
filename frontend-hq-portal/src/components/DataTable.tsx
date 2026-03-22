@@ -217,7 +217,7 @@ export const DataTable = <TData,>({
     }
   };
 
-  const headerHeight = 40;
+  const headerHeight = 48;
 
   return (
     <Paper shadow="none" p={0} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 
 interface UserProfile {
@@ -28,6 +28,10 @@ interface Auth0ContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: UserProfile | null;
+  backendUnavailable: boolean;
+  backendError: string | null;
+  backendReconnectInProgress: boolean;
+  retryBackendConnection: () => Promise<void>;
   loginWithRedirect: (options?: LoginOptions) => void;
   loginWithSocial: (connection: string) => void;
   logout: () => void;
@@ -65,6 +69,22 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoadAttempted, setProfileLoadAttempted] = useState(false);
+  const [backendUnavailable, setBackendUnavailable] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [backendReconnectInProgress, setBackendReconnectInProgress] = useState(false);
+  const syncInProgressRef = useRef(false);
+
+  const isBackendUnavailableError = (error: unknown): boolean => {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const normalized = error.message.toLowerCase();
+    return normalized.startsWith('backend_unavailable')
+      || normalized.includes('failed to fetch')
+      || normalized.includes('networkerror')
+      || normalized.includes('network request failed');
+  };
 
   // Cache the Auth0 token for API calls
   useEffect(() => {
@@ -91,76 +111,113 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     cacheAuth0Token();
   }, [isAuthenticated, getAccessTokenSilently]);
 
-  useEffect(() => {
-    const syncUserProfile = async () => {
-      if (isAuthenticated && auth0User) {
-        setProfileLoadAttempted(false);
-        try {
-          const token = await getAccessTokenSilently();
+  const syncUserProfile = useCallback(async () => {
+    if (!isAuthenticated || !auth0User || syncInProgressRef.current) {
+      return;
+    }
 
-          // Sync user with backend
-          const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
-          const syncResponse = await fetch(`${apiUrl}/api/auth0/sync-user`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
+    syncInProgressRef.current = true;
+    setProfileLoadAttempted(false);
+    setBackendReconnectInProgress(true);
 
-          if (syncResponse.ok) {
-            await syncResponse.json();
+    try {
+      const token = await getAccessTokenSilently();
+      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
 
-            // Get full profile
-            const profileResponse = await fetch(`${apiUrl}/api/auth0/profile`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-            });
+      const syncResponse = await fetch(`${apiUrl}/api/auth0/sync-user`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-            if (profileResponse.ok) {
-              const profileData = await profileResponse.json();
-              setUserProfile({
-                userId: profileData.userId,
-                email: profileData.email,
-                firstName: profileData.firstName,
-                lastName: profileData.lastName,
-                roles: profileData.roles || [],
-                accountId: profileData.accountId,
-                shopId: profileData.shopId,
-                identityProvider: profileData.identityProvider,
-                companies: profileData.companies || [],
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Error syncing user profile:', error);
-          // Fallback to auth0User data when sync fails
-          if (auth0User) {
-            const fallbackProfile: UserProfile = {
-              userId: auth0User.sub || '',
-              email: auth0User.email || '',
-              firstName: auth0User.given_name || auth0User.nickname || '',
-              lastName: auth0User.family_name || '',
-              roles: [],
-              accountId: undefined,
-              shopId: undefined,
-              identityProvider: auth0User.sub?.split('|')[0] || '',
-            };
-            setUserProfile(fallbackProfile);
-          }
-        } finally {
-          setProfileLoadAttempted(true);
+      if (!syncResponse.ok) {
+        if (syncResponse.status >= 500) {
+          throw new Error(`BACKEND_UNAVAILABLE:${syncResponse.status}`);
         }
-      } else if (!auth0Loading && !isAuthenticated) {
-        // Auth0 has finished loading and user is not authenticated
-        setUserProfile(null);
-        setProfileLoadAttempted(true);
+        throw new Error(`Failed to sync user profile: ${syncResponse.status}`);
       }
-    };
 
-    syncUserProfile();
-  }, [isAuthenticated, auth0User, getAccessTokenSilently, auth0Loading]);
+      await syncResponse.json();
+
+      const profileResponse = await fetch(`${apiUrl}/api/auth0/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!profileResponse.ok) {
+        if (profileResponse.status >= 500) {
+          throw new Error(`BACKEND_UNAVAILABLE:${profileResponse.status}`);
+        }
+        throw new Error(`Failed to load user profile: ${profileResponse.status}`);
+      }
+
+      const profileData = await profileResponse.json();
+      setUserProfile({
+        userId: profileData.userId,
+        email: profileData.email,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        roles: profileData.roles || [],
+        accountId: profileData.accountId,
+        shopId: profileData.shopId,
+        identityProvider: profileData.identityProvider,
+        companies: profileData.companies || [],
+      });
+      setBackendUnavailable(false);
+      setBackendError(null);
+    } catch (error) {
+      console.error('Error syncing user profile:', error);
+
+      if (isBackendUnavailableError(error)) {
+        setBackendUnavailable(true);
+        setBackendError('Cannot reach backend service. Trying to reconnect automatically.');
+      } else if (auth0User) {
+        const fallbackProfile: UserProfile = {
+          userId: auth0User.sub || '',
+          email: auth0User.email || '',
+          firstName: auth0User.given_name || auth0User.nickname || '',
+          lastName: auth0User.family_name || '',
+          roles: [],
+          accountId: undefined,
+          shopId: undefined,
+          identityProvider: auth0User.sub?.split('|')[0] || '',
+        };
+        setUserProfile(fallbackProfile);
+        setBackendUnavailable(false);
+        setBackendError(null);
+      }
+    } finally {
+      setProfileLoadAttempted(true);
+      setBackendReconnectInProgress(false);
+      syncInProgressRef.current = false;
+    }
+  }, [auth0User, getAccessTokenSilently, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && auth0User) {
+      void syncUserProfile();
+    } else if (!auth0Loading && !isAuthenticated) {
+      setUserProfile(null);
+      setBackendUnavailable(false);
+      setBackendError(null);
+      setProfileLoadAttempted(true);
+    }
+  }, [isAuthenticated, auth0User, auth0Loading, syncUserProfile]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !backendUnavailable) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void syncUserProfile();
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [backendUnavailable, isAuthenticated, syncUserProfile]);
 
   const loginWithRedirect = (options?: LoginOptions) => {
     auth0LoginWithRedirect({
@@ -194,6 +251,8 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     localStorage.removeItem('user_info');
     auth0Logout({ logoutParams: { returnTo: window.location.origin } });
     setUserProfile(null);
+    setBackendUnavailable(false);
+    setBackendError(null);
   };
 
   const getAccessToken = async (): Promise<string> => {
@@ -239,6 +298,10 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     // This ensures we don't prematurely show content before profile is ready
     isLoading: auth0Loading || (isAuthenticated && !profileLoadAttempted),
     user: userProfile,
+    backendUnavailable,
+    backendError,
+    backendReconnectInProgress,
+    retryBackendConnection: syncUserProfile,
     loginWithRedirect,
     loginWithSocial,
     logout,

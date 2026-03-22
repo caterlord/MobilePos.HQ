@@ -1,0 +1,71 @@
+using System.Collections.Generic;
+
+namespace EWHQ.Api.DTOs;
+
+public class TableSectionDto
+{
+    public int SectionId { get; set; }
+    public string SectionName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool Enabled { get; set; }
+    public int TableCount { get; set; }
+}
+
+public class UpsertTableSectionRequestDto
+{
+    public string SectionName { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
+
+public class TableTypeOptionDto
+{
+    public int TableTypeId { get; set; }
+    public string TypeName { get; set; } = string.Empty;
+}
+
+public class TableStatusOptionDto
+{
+    public int TableStatusId { get; set; }
+    public string StatusName { get; set; } = string.Empty;
+}
+
+public class TablePrinterOptionDto
+{
+    public int ShopPrinterMasterId { get; set; }
+    public string PrinterName { get; set; } = string.Empty;
+}
+
+public class TableSettingsMetadataDto
+{
+    public IReadOnlyList<TableTypeOptionDto> TableTypes { get; set; } = [];
+    public IReadOnlyList<TableStatusOptionDto> TableStatuses { get; set; } = [];
+    public IReadOnlyList<TablePrinterOptionDto> Printers { get; set; } = [];
+}
+
+public class TableMasterDto
+{
+    public int TableId { get; set; }
+    public int ShopId { get; set; }
+    public string TableCode { get; set; } = string.Empty;
+    public int SectionId { get; set; }
+    public string SectionName { get; set; } = string.Empty;
+    public int TableTypeId { get; set; }
+    public string TableTypeName { get; set; } = string.Empty;
+    public int? DisplayIndex { get; set; }
+    public bool IsTakeAway { get; set; }
+    public int? SeatNum { get; set; }
+    public int? ShopPrinterMasterId { get; set; }
+    public string ShopPrinterName { get; set; } = string.Empty;
+    public bool Enabled { get; set; }
+}
+
+public class UpsertTableMasterRequestDto
+{
+    public string TableCode { get; set; } = string.Empty;
+    public int SectionId { get; set; }
+    public int TableTypeId { get; set; }
+    public int? DisplayIndex { get; set; }
+    public bool IsTakeAway { get; set; }
+    public int? SeatNum { get; set; }
+    public int? ShopPrinterMasterId { get; set; }
+}

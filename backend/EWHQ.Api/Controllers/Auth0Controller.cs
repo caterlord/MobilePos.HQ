@@ -7,6 +7,7 @@ using EWHQ.Api.Models.DTOs;
 using System.Security.Claims;
 using Newtonsoft.Json;
 using System.Net.Http.Headers;
+using System.Text;
 using EWHQ.Api.Services;
 
 namespace EWHQ.Api.Controllers;
@@ -395,6 +396,69 @@ public class Auth0Controller : ControllerBase
         });
     }
 
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto _)
+    {
+        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(auth0UserId))
+        {
+            return BadRequest(new { message = "User ID not found in token" });
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+        if (user == null || string.IsNullOrWhiteSpace(user.Email))
+        {
+            return NotFound(new { message = "User profile not found or missing email" });
+        }
+
+        var identityProvider = user.IdentityProvider?.ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(identityProvider) && identityProvider != "auth0")
+        {
+            return BadRequest(new
+            {
+                message = "Password management is handled by your identity provider"
+            });
+        }
+
+        var auth0Domain = Environment.GetEnvironmentVariable("AUTH0_DOMAIN") ?? _configuration["Auth0:Domain"];
+        var auth0ClientId = Environment.GetEnvironmentVariable("AUTH0_ADMIN_CLIENT_ID")
+                            ?? Environment.GetEnvironmentVariable("AUTH0_CLIENT_ID")
+                            ?? _configuration["Auth0:AdminClientId"]
+                            ?? _configuration["Auth0:ClientId"];
+        var dbConnection = Environment.GetEnvironmentVariable("AUTH0_DB_CONNECTION")
+                           ?? _configuration["Auth0:DbConnection"]
+                           ?? "Username-Password-Authentication";
+
+        if (string.IsNullOrWhiteSpace(auth0Domain) || string.IsNullOrWhiteSpace(auth0ClientId))
+        {
+            _logger.LogError("Auth0 password reset settings are not configured properly");
+            return StatusCode(500, new { message = "Password reset is not configured" });
+        }
+
+        var httpClient = _httpClientFactory.CreateClient();
+        var payload = new
+        {
+            client_id = auth0ClientId,
+            email = user.Email,
+            connection = dbConnection
+        };
+
+        var response = await httpClient.PostAsync(
+            $"https://{auth0Domain}/dbconnections/change_password",
+            new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json"));
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("Failed to trigger Auth0 password reset for {Email}: {StatusCode} - {Error}",
+                user.Email, response.StatusCode, errorContent);
+            return StatusCode((int)response.StatusCode, new { message = "Failed to initiate password reset" });
+        }
+
+        return Ok(new { message = "Password reset email sent successfully" });
+    }
+
     private string ExtractIdentityProvider(string? auth0UserId)
     {
         if (string.IsNullOrEmpty(auth0UserId))
@@ -591,4 +655,10 @@ public class UpdateAdminUserDto
     public string? FirstName { get; set; }
     public string? LastName { get; set; }
     public string? UserType { get; set; }
+}
+
+public class ChangePasswordRequestDto
+{
+    public string? CurrentPassword { get; set; }
+    public string? NewPassword { get; set; }
 }

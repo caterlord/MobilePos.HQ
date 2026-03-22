@@ -75,79 +75,116 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     logout()
   }
 
+  const availablePaths = useMemo(
+    () =>
+      new Set([
+        '/',
+        '/pos',
+        '/menus',
+        '/menus/categories',
+        '/menus/smart-categories',
+        '/menus/items',
+        '/menus/modifiers',
+        '/menus/meal-set',
+        '/menus/promotions',
+        '/menus/discounts',
+        '/menus/button-styles',
+        '/store-settings',
+        '/integrations',
+        '/integrations/device-settings',
+        '/profile',
+        '/organization-management',
+      ]),
+    [],
+  )
+
   // Section 1: Common items (always visible)
-  const commonItems = [
-    { icon: IconHome, label: 'Home', path: '/' },
-    { icon: IconCashRegister, label: 'POS System', path: '/pos' },
-    { icon: IconReceipt, label: 'Orders', path: '/orders' },
-    { icon: IconPackage, label: 'Products', path: '/products' },
-    { icon: IconChartBar, label: 'Reports', path: '/reports' },
-  ]
+  const commonItems = useMemo(
+    () =>
+      [
+        { icon: IconHome, label: 'Home', path: '/' },
+        { icon: IconCashRegister, label: 'POS System', path: '/pos' },
+        { icon: IconReceipt, label: 'Orders', path: '/orders' },
+        { icon: IconPackage, label: 'Products', path: '/products' },
+        { icon: IconChartBar, label: 'Reports', path: '/reports' },
+      ].filter((item) => availablePaths.has(item.path)),
+    [availablePaths],
+  )
 
   // Section 3: Full menu items (expandable)
-  const fullMenuSections = useMemo(() => [
-    {
-      key: 'operations',
-      label: 'Operations',
-      items: [
-        { icon: IconBuildingStore, label: 'Stores', path: '/stores' },
-        { icon: IconMenu2, label: 'Menus', path: '/menus' },
-        { icon: IconTable, label: 'Tables', path: '/tables' },
-        { icon: IconUserCheck, label: 'Staff', path: '/staff' },
-        { icon: IconClock, label: 'Shifts', path: '/shifts' },
+  const fullMenuSections = useMemo(
+    () =>
+      [
+        {
+          key: 'operations',
+          label: 'Operations',
+          items: [
+            { icon: IconBuildingStore, label: 'Stores', path: '/stores' },
+            { icon: IconMenu2, label: 'Menus', path: '/menus' },
+            { icon: IconAdjustments, label: 'Store Settings', path: '/store-settings' },
+            { icon: IconTable, label: 'Tables', path: '/tables' },
+            { icon: IconUserCheck, label: 'Staff', path: '/staff' },
+            { icon: IconClock, label: 'Shifts', path: '/shifts' },
+          ],
+        },
+        {
+          key: 'finance',
+          label: 'Finance',
+          items: [
+            { icon: IconWallet, label: 'Payments', path: '/payments' },
+            { icon: IconFileInvoice, label: 'Invoices', path: '/invoices' },
+            { icon: IconReceiptTax, label: 'Taxation', path: '/taxation' },
+            { icon: IconPigMoney, label: 'Cash Management', path: '/cash-management' },
+          ],
+        },
+        {
+          key: 'inventory',
+          label: 'Inventory',
+          items: [
+            { icon: IconBoxSeam, label: 'Inventory Overview', path: '/inventory' },
+            { icon: IconTruckDelivery, label: 'Stock Orders', path: '/stock-orders' },
+            { icon: IconPackage, label: 'Raw Materials', path: '/raw-materials' },
+            { icon: IconUsers, label: 'Suppliers', path: '/suppliers' },
+          ],
+        },
+        {
+          key: 'customers',
+          label: 'Customer Relations',
+          items: [
+            { icon: IconUsers, label: 'Customers', path: '/customers' },
+            { icon: IconUsersGroup, label: 'Members', path: '/members' },
+            { icon: IconTicket, label: 'Coupons', path: '/coupons' },
+            { icon: IconPercentage, label: 'Promotions', path: '/promotions' },
+          ],
+        },
+        {
+          key: 'delivery',
+          label: 'Delivery & Takeaway',
+          items: [
+            { icon: IconMotorbike, label: 'Delivery', path: '/delivery' },
+            { icon: IconSoup, label: 'Kitchen Display', path: '/kitchen' },
+            { icon: IconCloudComputing, label: 'Online Orders', path: '/online-orders' },
+            { icon: IconDevices, label: 'Self-Ordering', path: '/self-ordering' },
+          ],
+        },
+        {
+          key: 'integrations',
+          label: 'Integrations',
+          items: [
+            { icon: IconLink, label: 'Integrations', path: '/integrations' },
+            { icon: IconDevices, label: 'Device Settings', path: '/integrations/device-settings' },
+            { icon: IconBuildingBank, label: 'Payment Gateway', path: '/payment-gateway' },
+            { icon: IconBrandSlack, label: 'Brand Management', path: '/brand-management' },
+          ],
+        },
       ]
-    },
-    {
-      key: 'finance',
-      label: 'Finance',
-      items: [
-        { icon: IconWallet, label: 'Payments', path: '/payments' },
-        { icon: IconFileInvoice, label: 'Invoices', path: '/invoices' },
-        { icon: IconReceiptTax, label: 'Taxation', path: '/taxation' },
-        { icon: IconPigMoney, label: 'Cash Management', path: '/cash-management' },
-      ]
-    },
-    {
-      key: 'inventory',
-      label: 'Inventory',
-      items: [
-        { icon: IconBoxSeam, label: 'Inventory Overview', path: '/inventory' },
-        { icon: IconTruckDelivery, label: 'Stock Orders', path: '/stock-orders' },
-        { icon: IconPackage, label: 'Raw Materials', path: '/raw-materials' },
-        { icon: IconUsers, label: 'Suppliers', path: '/suppliers' },
-      ]
-    },
-    {
-      key: 'customers',
-      label: 'Customer Relations',
-      items: [
-        { icon: IconUsers, label: 'Customers', path: '/customers' },
-        { icon: IconUsersGroup, label: 'Members', path: '/members' },
-        { icon: IconTicket, label: 'Coupons', path: '/coupons' },
-        { icon: IconPercentage, label: 'Promotions', path: '/promotions' },
-      ]
-    },
-    {
-      key: 'delivery',
-      label: 'Delivery & Takeaway',
-      items: [
-        { icon: IconMotorbike, label: 'Delivery', path: '/delivery' },
-        { icon: IconSoup, label: 'Kitchen Display', path: '/kitchen' },
-        { icon: IconCloudComputing, label: 'Online Orders', path: '/online-orders' },
-        { icon: IconDevices, label: 'Self-Ordering', path: '/self-ordering' },
-      ]
-    },
-    {
-      key: 'integrations',
-      label: 'Integrations & Settings',
-      items: [
-        { icon: IconLink, label: 'Integrations', path: '/integrations' },
-        { icon: IconBuildingBank, label: 'Payment Gateway', path: '/payment-gateway' },
-        { icon: IconBrandSlack, label: 'Brand Management', path: '/brand-management' },
-        { icon: IconAdjustments, label: 'Settings', path: '/settings' },
-      ]
-    },
-  ], [])
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => availablePaths.has(item.path)),
+        }))
+        .filter((section) => section.items.length > 0),
+    [availablePaths],
+  )
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev =>

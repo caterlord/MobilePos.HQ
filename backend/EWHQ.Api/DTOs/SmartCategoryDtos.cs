@@ -226,25 +226,3 @@ public class SmartCategoryReorderRequestDto
     [MinLength(1)]
     public IReadOnlyList<SmartCategoryReorderEntryDto> Categories { get; set; } = Array.Empty<SmartCategoryReorderEntryDto>();
 }
-
-public class SmartCategoryLookupsDto
-{
-    public IReadOnlyList<ButtonStyleDto> ButtonStyles { get; set; } = Array.Empty<ButtonStyleDto>();
-    public IReadOnlyList<ShopLookupDto> Shops { get; set; } = Array.Empty<ShopLookupDto>();
-    public IReadOnlyList<OrderChannelLookupDto> OrderChannels { get; set; } = Array.Empty<OrderChannelLookupDto>();
-}
-
-public class ShopLookupDto
-{
-    public int ShopId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? AltName { get; set; }
-}
-
-public class OrderChannelLookupDto
-{
-    public int OrderChannelId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? NameAlt { get; set; }
-    public string? OrderChannelCode { get; set; }
-}
