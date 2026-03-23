@@ -1,15 +1,13 @@
-# Authentication Setup (Auth0)
+# Authentication Setup (Clerk)
 
-This backend uses Auth0 as the only authentication provider.  
-Local `/api/auth/login` and Identity/JWT-secret login flows are not used.
+This backend uses Clerk as the authentication provider.  
+Local `/api/auth/login` and custom JWT-secret login flows are not used.
 
 ## Runtime Model
-- User authenticates in Auth0 (frontend Universal Login).
-- Frontend calls backend with `Authorization: Bearer <auth0_access_token>`.
-- Backend validates token using:
-  - `AUTH0_DOMAIN` as issuer authority
-  - `AUTH0_AUDIENCE` as API audience
-- Backend syncs and reads local user profile via `api/auth0/*`.
+- User authenticates with Clerk in the frontend.
+- Frontend calls backend with `Authorization: Bearer <clerk_session_token>`.
+- Backend validates the request with `Clerk.BackendAPI` request authentication.
+- Backend syncs and reads the local HQ user profile via `api/auth/*`.
 
 ## Required Environment Variables
 
@@ -17,13 +15,16 @@ Create `/backend/EWHQ.Api/.env` based on `.env.example`.
 
 ### Authentication
 ```env
-AUTH0_DOMAIN=your-tenant.auth0.com
-AUTH0_AUDIENCE=https://your-api-audience
-AUTH0_ADMIN_CLIENT_ID=your-admin-application-client-id
-AUTH0_CLIENT_ID=optional-fallback-client-id
-AUTH0_DB_CONNECTION=Username-Password-Authentication
-AUTH0_MANAGEMENT_API_ID=your-m2m-client-id
-AUTH0_MANAGEMENT_API_SECRET=your-m2m-client-secret
+CLERK_SECRET_KEY=sk_test_your_secret_key
+CLERK_ALLOWED_PARTIES=http://localhost:5173,http://localhost:5174
+```
+
+Optional:
+```env
+CLERK_JWT_KEY=
+CLERK_MACHINE_SECRET_KEY=
+CLERK_AUDIENCES=
+CLERK_INVITATION_REDIRECT_URL=http://localhost:5173/sign-up
 ```
 
 ### Email
@@ -45,14 +46,14 @@ Use the DB variables from `.env.example` (`DB_*`, `ADMIN_DB_*`, and provider-spe
 
 ## Key Endpoints
 
-### Auth0 profile sync/read
-- `POST /api/auth0/sync-user` (authorized)
-- `GET /api/auth0/profile` (authorized)
-- `PUT /api/auth0/profile` (authorized)
+### Profile sync/read
+- `POST /api/auth/sync-user` (authorized)
+- `GET /api/auth/profile` (authorized)
+- `PUT /api/auth/profile` (authorized)
 
-### Password reset email
-- `POST /api/auth0/change-password` (authorized)
-- Triggers Auth0 `dbconnections/change_password` flow for Auth0 DB users.
+### Account management
+- `POST /api/auth/change-password` (authorized)
+- Returns a Clerk-directed message; password changes happen in Clerk account settings.
 
 ### Invitations
 - `GET /api/invitations/validate/{token}` (anonymous)
@@ -66,13 +67,13 @@ Run backend:
 dotnet run --project backend/EWHQ.Api
 ```
 
-Use Auth0 bearer token checks:
+Use bearer token checks:
 ```bash
 cd backend/EWHQ.Api
-AUTH0_TOKEN="<access-token>" ./test-auth.sh
+API_TOKEN="<access-token>" ./test-auth.sh
 ```
 
 ## Troubleshooting
-- `401 Unauthorized`: verify token audience/issuer match `AUTH0_AUDIENCE` and `AUTH0_DOMAIN`.
-- `500 Password reset is not configured`: set `AUTH0_ADMIN_CLIENT_ID` (or `AUTH0_CLIENT_ID`) and `AUTH0_DOMAIN`.
-- `sync-user` failures: verify Auth0 Management API credentials are valid and have required scopes.
+- `401 Unauthorized`: verify `CLERK_SECRET_KEY`, `CLERK_ALLOWED_PARTIES`, and frontend publishable key configuration.
+- Invitation emails landing outside the app: set `CLERK_INVITATION_REDIRECT_URL` or `APP_BASE_URL`.
+- `sync-user` failures: verify the Clerk secret key belongs to the same instance as the frontend publishable key.

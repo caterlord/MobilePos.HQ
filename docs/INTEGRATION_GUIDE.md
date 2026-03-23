@@ -5,24 +5,24 @@
 - Backend: `backend/EWHQ.Api` on `http://localhost:5125`
 - Frontend: `frontend-hq-portal` (Vite, React) on `http://localhost:5173`
 
-Authentication is Auth0-only.  
+Authentication is Clerk-based.  
 Do not use or document `/api/auth/login` in this repo.
 
 ## Architecture
 
 ```
-Auth0 Universal Login
+Clerk Hosted/Auth Components
         |
         v
 Frontend HQ Portal (5173)
-  - @auth0/auth0-react
-  - localStorage auth0_token cache
+  - @clerk/react
+  - on-demand Clerk session token retrieval
   - fetch API clients
         |
         v
 Backend API (5125)
-  - JwtBearer Auth0 validation
-  - /api/auth0/sync-user + /api/auth0/profile
+  - Clerk.BackendAPI request authentication
+  - /api/auth/sync-user + /api/auth/profile
   - tenant/invitation/user-access APIs
 ```
 
@@ -44,35 +44,38 @@ npm run dev
 ## Required Config
 
 ### Backend (`backend/EWHQ.Api/.env`)
-- `AUTH0_DOMAIN`
-- `AUTH0_AUDIENCE`
-- `AUTH0_ADMIN_CLIENT_ID`
-- `AUTH0_MANAGEMENT_API_ID`
-- `AUTH0_MANAGEMENT_API_SECRET`
+- `CLERK_SECRET_KEY`
+- `CLERK_ALLOWED_PARTIES`
 - database vars (`DB_*`, `ADMIN_DB_*`)
+- `SENDGRID_API_KEY`
+
+Optional backend auth extras:
+- `CLERK_JWT_KEY`
+- `CLERK_MACHINE_SECRET_KEY`
+- `CLERK_AUDIENCES`
+- `CLERK_INVITATION_REDIRECT_URL`
 
 ### Frontend (`frontend-hq-portal/.env`)
 - `VITE_API_URL=http://localhost:5125/api`
-- `VITE_AUTH0_DOMAIN=<tenant-domain>`
-- `VITE_AUTH0_CLIENT_ID=<spa-client-id>`
-- `VITE_AUTH0_AUDIENCE=<api-audience>`
-- `VITE_AUTH0_REDIRECT_URI=http://localhost:5173/callback`
+- `VITE_CLERK_PUBLISHABLE_KEY=<clerk-publishable-key>`
+- `VITE_APP_NAME` (optional branding)
 
-## Auth Flow (Current)
+## Auth Flow
 
-1. User opens `/login` and authenticates via Auth0 Universal Login.
-2. Frontend receives Auth0 access token.
+1. User opens `/login` and authenticates with Clerk.
+2. Frontend requests a Clerk session token when calling the API.
 3. Frontend calls:
-   - `POST /api/auth0/sync-user`
-   - `GET /api/auth0/profile`
-4. `ProtectedRoute` checks profile and tenant association.
-5. If no tenant association, user is redirected to `/onboarding`.
+   - `POST /api/auth/sync-user`
+   - `GET /api/auth/profile`
+4. Backend verifies the Clerk token, syncs the local HQ profile, and adds local role claims.
+5. `ProtectedRoute` checks profile and tenant association.
+6. If no tenant association, user is redirected to `/onboarding`.
 
 ## Core Integration Endpoints
-- `POST /api/auth0/sync-user`
-- `GET /api/auth0/profile`
-- `PUT /api/auth0/profile`
-- `POST /api/auth0/change-password`
+- `POST /api/auth/sync-user`
+- `GET /api/auth/profile`
+- `PUT /api/auth/profile`
+- `POST /api/auth/change-password`
 - `GET /api/tenants/check-setup`
 - `POST /api/tenants/setup`
 - `GET /api/invitations/validate/{token}` (also `/api/invitation/validate/{token}`)
@@ -85,10 +88,10 @@ npm run dev
 Backend auth probe:
 ```bash
 cd backend/EWHQ.Api
-AUTH0_TOKEN="<access-token>" ./test-auth.sh
+API_TOKEN="<access-token>" ./test-auth.sh
 ```
 
 ## Troubleshooting
-- `401` on API calls: check Auth0 audience/domain values on both backend and frontend.
-- Redirect loop `/login` <-> `/callback`: confirm `VITE_AUTH0_REDIRECT_URI` matches Auth0 app config.
-- `/onboarding` after successful login: check `GET /api/auth0/profile` and tenant associations.
+- `401` on API calls: confirm `CLERK_SECRET_KEY`, `CLERK_ALLOWED_PARTIES`, and the frontend publishable key belong to the same Clerk instance.
+- Invite links not landing in the app: confirm `CLERK_INVITATION_REDIRECT_URL` or `APP_BASE_URL` is correct.
+- `/onboarding` after successful login: check `GET /api/auth/profile` and tenant associations.

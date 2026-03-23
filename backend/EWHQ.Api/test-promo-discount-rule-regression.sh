@@ -2,9 +2,9 @@
 
 # Sprint 4 advanced promotion/discount rule regression checks (WP-052)
 # Usage:
-#   AUTH0_TOKEN=<bearer-token> BRAND_ID=<brand-id> ./test-promo-discount-rule-regression.sh
+#   API_TOKEN=<bearer-token> BRAND_ID=<brand-id> ./test-promo-discount-rule-regression.sh
 # Optional:
-#   API_URL=http://localhost:5125/api AUTH0_TOKEN=<token> BRAND_ID=<id> ./test-promo-discount-rule-regression.sh
+#   API_URL=http://localhost:5125/api API_TOKEN=<token> BRAND_ID=<id> ./test-promo-discount-rule-regression.sh
 
 set -u
 
@@ -14,7 +14,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 API_URL="${API_URL:-http://localhost:5125/api}"
-TOKEN="${AUTH0_TOKEN:-}"
+TOKEN="${API_TOKEN:-}"
 BRAND_ID="${BRAND_ID:-}"
 TMP_BODY="/tmp/ewhq-rule-regression-response-$$.json"
 
@@ -24,8 +24,8 @@ PROMO_ID=""
 DISCOUNT_ID=""
 
 if [ -z "$TOKEN" ]; then
-  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
-  echo "  export AUTH0_TOKEN='<access-token>'"
+  echo -e "${YELLOW}API_TOKEN is not set.${NC}"
+  echo "  export API_TOKEN='<access-token>'"
   exit 1
 fi
 

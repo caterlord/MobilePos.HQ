@@ -2,7 +2,7 @@
 
 # API contract baseline checks for Sprint 1 (WP-005)
 # Usage:
-#   AUTH0_TOKEN=<bearer-token> ./test-api-contracts.sh
+#   API_TOKEN=<bearer-token> ./test-api-contracts.sh
 
 set -u
 
@@ -12,13 +12,13 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 API_URL="${API_URL:-http://localhost:5125/api}"
-TOKEN="${AUTH0_TOKEN:-}"
+TOKEN="${API_TOKEN:-}"
 TMP_BODY="/tmp/ewhq-contract-body.json"
 
 if [ -z "$TOKEN" ]; then
-  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
-  echo "Set a valid Auth0 bearer token first:"
-  echo "  export AUTH0_TOKEN='<access-token>'"
+  echo -e "${YELLOW}API_TOKEN is not set.${NC}"
+  echo "Set a valid bearer token first:"
+  echo "  export API_TOKEN='<access-token>'"
   exit 1
 fi
 
@@ -101,12 +101,12 @@ dump_body() {
 echo "API contract checks against $API_URL"
 echo "========================================"
 
-# 1) Auth0 profile contract
-request "GET" "/auth0/profile"
-assert_status "GET /auth0/profile" 200
-assert_json_has_key "GET /auth0/profile" "userId"
-assert_json_has_key "GET /auth0/profile" "email"
-assert_json_has_key "GET /auth0/profile" "roles"
+# 1) Auth profile contract
+request "GET" "/auth/profile"
+assert_status "GET /auth/profile" 200
+assert_json_has_key "GET /auth/profile" "userId"
+assert_json_has_key "GET /auth/profile" "email"
+assert_json_has_key "GET /auth/profile" "roles"
 
 # 2) Tenant setup status contract
 request "GET" "/tenants/check-setup"

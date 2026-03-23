@@ -38,7 +38,7 @@ import {
 } from '@tabler/icons-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useMemo } from 'react'
-import { useAuth } from '../contexts/Auth0Context'
+import { useAuth } from '../contexts/AuthContext'
 import { useBookmarks } from '../contexts/BookmarkContext'
 import { TenantSelector } from './TenantSelector'
 

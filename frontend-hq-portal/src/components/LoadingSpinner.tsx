@@ -9,7 +9,7 @@ export function LoadingSpinner({ message = 'Loading...' }: LoadingSpinnerProps) 
     <Box
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

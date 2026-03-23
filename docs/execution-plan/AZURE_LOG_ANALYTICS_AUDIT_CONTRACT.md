@@ -36,7 +36,7 @@
 | `trace_id` | string | yes | 32-hex trace id |
 | `operation_id` | string | yes | correlation operation |
 | `request_id` | string | yes | HTTP request id |
-| `auth0_user_id` | string | no | if authenticated |
+| `external_user_id` | string | no | if authenticated |
 | `user_email_hash` | string | no | SHA-256 lowercase email |
 | `brand_id` | int | no | app brand context |
 | `company_id` | int | no | if available |
@@ -113,7 +113,7 @@ Target table: `HqDataMutationAudit_CL`
   "status_code": 200,
   "duration_ms": 86.3,
   "is_authenticated": true,
-  "auth0_user_id": "google-oauth2|12345",
+  "external_user_id": "user_12345",
   "brand_id": 1,
   "shop_id": 101
 }

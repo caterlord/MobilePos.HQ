@@ -161,15 +161,20 @@ public static class ClaimsPrincipalExtensions
 {
     public static async Task<string?> GetUserIdAsync(this ClaimsPrincipal user, UserProfileDbContext userContext)
     {
-        var auth0UserId = user.FindFirst("sub")?.Value
-            ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var localUserId = user.GetLocalUserId();
+        if (!string.IsNullOrWhiteSpace(localUserId))
+        {
+            return localUserId;
+        }
 
-        if (string.IsNullOrEmpty(auth0UserId))
+        var externalUserId = user.GetExternalUserId();
+
+        if (string.IsNullOrEmpty(externalUserId))
             return null;
 
         var appUser = await userContext.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+            .FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
 
         return appUser?.Id;
     }

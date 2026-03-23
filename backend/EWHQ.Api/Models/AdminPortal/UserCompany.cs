@@ -7,7 +7,7 @@ public class UserCompany
 {
     public int Id { get; set; }
 
-    // User reference (from Auth0/Identity)
+    // User reference (from external identity/local profile sync)
     public string UserId { get; set; } = string.Empty;
     public string UserEmail { get; set; } = string.Empty; // Denormalized for quick access
     public string UserName { get; set; } = string.Empty; // Denormalized for display

@@ -152,19 +152,20 @@ public class TeamService : ITeamService
             .FirstOrDefaultAsync(tm => tm.TeamId == teamId && tm.UserId == userId && tm.IsActive);
     }
 
-    public async Task<bool> AddTeamMemberAsync(string teamId, string userIdOrAuth0Id, TeamRole role, string invitedByUserId)
+    public async Task<bool> AddTeamMemberAsync(string teamId, string userIdOrExternalId, TeamRole role, string invitedByUserId)
     {
-        // Check if the provided ID is an Auth0 ID (contains | or starts with auth0/google-oauth2)
-        string actualUserId = userIdOrAuth0Id;
-        if (userIdOrAuth0Id.Contains("|") || userIdOrAuth0Id.StartsWith("auth0") || userIdOrAuth0Id.StartsWith("google-oauth2"))
+        string actualUserId = userIdOrExternalId;
+
+        var localUserExists = await _identityContext.Users.AnyAsync(u => u.Id == userIdOrExternalId);
+        if (!localUserExists)
         {
-            // Look up the user by Auth0 ID
-            var user = await _identityContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == userIdOrAuth0Id);
+            var user = await _identityContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == userIdOrExternalId);
             if (user == null)
             {
-                _logger.LogError($"User with Auth0 ID {userIdOrAuth0Id} not found in database");
+                _logger.LogError("User with external identity ID {ExternalUserId} not found in database", userIdOrExternalId);
                 return false;
             }
+
             actualUserId = user.Id;
         }
 
@@ -198,7 +199,7 @@ public class TeamService : ITeamService
             var existingMember = await GetTeamMemberAsync(teamId, existingUser.Id);
             if (existingMember != null)
             {
-                _logger.LogWarning($"User {email} (Auth0UserId: {existingUser.Auth0UserId}) is already a member of team {teamId}");
+                _logger.LogWarning("User {Email} (ExternalUserId: {ExternalUserId}) is already a member of team {TeamId}", email, existingUser.ExternalUserId, teamId);
                 return null;
             }
         }
@@ -305,9 +306,7 @@ public class TeamService : ITeamService
         var user = await _identityContext.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user == null)
         {
-            // With Auth0, users must exist before accepting invitations
-            // They need to sign up through Auth0 first
-            _logger.LogError($"User {email} not found. User must sign up through Auth0 first.");
+            _logger.LogError("User {Email} not found. User must sign up through Clerk before accepting the invitation.", email);
             return (false, null);
         }
 

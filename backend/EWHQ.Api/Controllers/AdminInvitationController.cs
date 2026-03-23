@@ -9,25 +9,30 @@ namespace EWHQ.Api.Controllers;
 [Authorize]
 public class AdminInvitationController : ControllerBase
 {
-    private readonly IAuth0ManagementService _auth0ManagementService;
+    private readonly IClerkUserService _clerkUserService;
     private readonly ILogger<AdminInvitationController> _logger;
 
     public AdminInvitationController(
-        IAuth0ManagementService auth0ManagementService,
+        IClerkUserService clerkUserService,
         ILogger<AdminInvitationController> logger)
     {
-        _auth0ManagementService = auth0ManagementService;
+        _clerkUserService = clerkUserService;
         _logger = logger;
     }
 
     [HttpPost("invite")]
     public async Task<IActionResult> InviteAdminUser([FromBody] InviteAdminUserRequest request)
     {
+        if (!User.IsInRole("SuperAdmin") && !User.IsInRole("Admin"))
+        {
+            return Forbid();
+        }
+
         try
         {
             _logger.LogInformation($"Inviting admin user: {request.Email}");
 
-            var userId = await _auth0ManagementService.InviteAdminUserAsync(
+            var invitation = await _clerkUserService.InviteUserAsync(
                 request.Email,
                 request.FirstName,
                 request.LastName,
@@ -36,8 +41,9 @@ public class AdminInvitationController : ControllerBase
             return Ok(new
             {
                 success = true,
-                message = $"Invitation sent to {request.Email}. They will receive a password reset email to set their password.",
-                userId = userId
+                message = $"Invitation sent to {request.Email}. They will receive a Clerk invitation email to create their account.",
+                invitationId = invitation.InvitationId,
+                invitationUrl = invitation.InvitationUrl
             });
         }
         catch (Exception ex)

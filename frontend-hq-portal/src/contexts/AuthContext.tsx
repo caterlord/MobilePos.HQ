@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useAuth as useClerkAuth, useClerk, useUser } from '@clerk/react';
+import { registerAccessTokenProvider } from '../lib/authToken';
 
 interface UserProfile {
   userId: string;
@@ -19,12 +20,7 @@ interface UserProfile {
   }>;
 }
 
-interface LoginOptions {
-  screen_hint?: string;
-  login_hint?: string;
-}
-
-interface Auth0ContextType {
+interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: UserProfile | null;
@@ -32,9 +28,7 @@ interface Auth0ContextType {
   backendError: string | null;
   backendReconnectInProgress: boolean;
   retryBackendConnection: () => Promise<void>;
-  loginWithRedirect: (options?: LoginOptions) => void;
-  loginWithSocial: (connection: string) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   getAccessToken: () => Promise<string>;
   isAdmin: () => boolean;
   hasRole: (role: string) => boolean;
@@ -42,30 +36,25 @@ interface Auth0ContextType {
   updateUserProfile: (firstName: string, lastName: string) => void;
 }
 
-const Auth0Context = createContext<Auth0ContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
-  const context = useContext(Auth0Context);
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an Auth0Provider');
+    throw new Error('useAuth must be used within an AuthContext provider');
   }
   return context;
 };
 
-interface Auth0ContextProviderProps {
+interface AuthContextProviderProps {
   children: React.ReactNode;
 }
 
-export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ children }) => {
-  const {
-    isAuthenticated,
-    isLoading: auth0Loading,
-    loginWithRedirect: auth0LoginWithRedirect,
-    logout: auth0Logout,
-    getAccessTokenSilently,
-    user: auth0User,
-  } = useAuth0();
+export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ children }) => {
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useClerkAuth();
+  const { user: clerkUser, isLoaded: userLoaded } = useUser();
+  const { signOut } = useClerk();
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoadAttempted, setProfileLoadAttempted] = useState(false);
@@ -73,6 +62,8 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
   const [backendError, setBackendError] = useState<string | null>(null);
   const [backendReconnectInProgress, setBackendReconnectInProgress] = useState(false);
   const syncInProgressRef = useRef(false);
+
+  const isAuthenticated = authLoaded && !!isSignedIn;
 
   const isBackendUnavailableError = (error: unknown): boolean => {
     if (!(error instanceof Error)) {
@@ -86,33 +77,43 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
       || normalized.includes('network request failed');
   };
 
-  // Cache the Auth0 token for API calls
   useEffect(() => {
-    const cacheAuth0Token = async () => {
-      if (isAuthenticated) {
-        try {
-          const token = await getAccessTokenSilently();
-          if (token) {
-            // Cache the token for synchronous use in API interceptor
-            localStorage.setItem('auth0_token', token);
-          }
-        } catch (error) {
-          console.error('Error caching Auth0 token:', error);
-        }
-      } else {
-        // Clear old tokens
-        localStorage.removeItem('auth0_token');
-        localStorage.removeItem('admin_auth_token');
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('user_info');
-      }
-    };
+    if (!authLoaded) {
+      return;
+    }
 
-    cacheAuth0Token();
-  }, [isAuthenticated, getAccessTokenSilently]);
+    registerAccessTokenProvider(
+      isSignedIn
+        ? async () => (await getToken()) ?? null
+        : null,
+    );
+
+    return () => {
+      registerAccessTokenProvider(null);
+    };
+  }, [authLoaded, getToken, isSignedIn]);
+
+  const buildFallbackProfile = useCallback((): UserProfile | null => {
+    if (!clerkUser) {
+      return null;
+    }
+
+    const email = clerkUser.primaryEmailAddress?.emailAddress
+      ?? clerkUser.emailAddresses[0]?.emailAddress
+      ?? '';
+
+    return {
+      userId: clerkUser.id,
+      email,
+      firstName: clerkUser.firstName ?? '',
+      lastName: clerkUser.lastName ?? '',
+      roles: [],
+      identityProvider: 'clerk',
+    };
+  }, [clerkUser]);
 
   const syncUserProfile = useCallback(async () => {
-    if (!isAuthenticated || !auth0User || syncInProgressRef.current) {
+    if (!isAuthenticated || !clerkUser || syncInProgressRef.current) {
       return;
     }
 
@@ -121,10 +122,14 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     setBackendReconnectInProgress(true);
 
     try {
-      const token = await getAccessTokenSilently();
-      const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Missing Clerk session token');
+      }
 
-      const syncResponse = await fetch(`${apiUrl}/api/auth0/sync-user`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5125/api';
+
+      const syncResponse = await fetch(`${apiUrl}/auth/sync-user`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -141,7 +146,7 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
 
       await syncResponse.json();
 
-      const profileResponse = await fetch(`${apiUrl}/api/auth0/profile`, {
+      const profileResponse = await fetch(`${apiUrl}/auth/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -174,38 +179,35 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
       if (isBackendUnavailableError(error)) {
         setBackendUnavailable(true);
         setBackendError('Cannot reach backend service. Trying to reconnect automatically.');
-      } else if (auth0User) {
-        const fallbackProfile: UserProfile = {
-          userId: auth0User.sub || '',
-          email: auth0User.email || '',
-          firstName: auth0User.given_name || auth0User.nickname || '',
-          lastName: auth0User.family_name || '',
-          roles: [],
-          accountId: undefined,
-          shopId: undefined,
-          identityProvider: auth0User.sub?.split('|')[0] || '',
-        };
-        setUserProfile(fallbackProfile);
-        setBackendUnavailable(false);
-        setBackendError(null);
+      } else {
+        const fallbackProfile = buildFallbackProfile();
+        if (fallbackProfile) {
+          setUserProfile(fallbackProfile);
+          setBackendUnavailable(false);
+          setBackendError(null);
+        }
       }
     } finally {
       setProfileLoadAttempted(true);
       setBackendReconnectInProgress(false);
       syncInProgressRef.current = false;
     }
-  }, [auth0User, getAccessTokenSilently, isAuthenticated]);
+  }, [buildFallbackProfile, clerkUser, getToken, isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && auth0User) {
+    if (!authLoaded || !userLoaded) {
+      return;
+    }
+
+    if (isAuthenticated && clerkUser) {
       void syncUserProfile();
-    } else if (!auth0Loading && !isAuthenticated) {
+    } else {
       setUserProfile(null);
       setBackendUnavailable(false);
       setBackendError(null);
       setProfileLoadAttempted(true);
     }
-  }, [isAuthenticated, auth0User, auth0Loading, syncUserProfile]);
+  }, [authLoaded, clerkUser, isAuthenticated, syncUserProfile, userLoaded]);
 
   useEffect(() => {
     if (!isAuthenticated || !backendUnavailable) {
@@ -219,49 +221,23 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     return () => window.clearInterval(timer);
   }, [backendUnavailable, isAuthenticated, syncUserProfile]);
 
-  const loginWithRedirect = (options?: LoginOptions) => {
-    auth0LoginWithRedirect({
-      authorizationParams: {
-        screen_hint: options?.screen_hint,
-        login_hint: options?.login_hint,
-      },
-      appState: {
-        returnTo: window.location.pathname,
-      },
-    });
-  };
-
-  const loginWithSocial = (connection: string) => {
-    // Social login with specific connection
-    auth0LoginWithRedirect({
-      authorizationParams: {
-        connection: connection,
-      },
-      appState: {
-        returnTo: window.location.pathname,
-      },
-    });
-  };
-
-  const logout = () => {
-    // Clear all auth-related storage
-    localStorage.removeItem('auth0_token');
+  const logout = async () => {
     localStorage.removeItem('admin_auth_token');
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_info');
-    auth0Logout({ logoutParams: { returnTo: window.location.origin } });
     setUserProfile(null);
     setBackendUnavailable(false);
     setBackendError(null);
+    await signOut({ redirectUrl: `${window.location.origin}/login` });
   };
 
   const getAccessToken = async (): Promise<string> => {
-    try {
-      return await getAccessTokenSilently();
-    } catch (error) {
-      console.error('Error getting access token:', error);
-      throw error;
+    const token = await getToken();
+    if (!token) {
+      throw new Error('No Clerk session token available');
     }
+
+    return token;
   };
 
   const isAdmin = (): boolean => {
@@ -273,15 +249,13 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
   };
 
   const hasTenantAssociation = (): boolean => {
-    // Check if user has any tenant associations (company/brand/shop)
     return !!(
-      userProfile?.accountId ||
-      userProfile?.shopId ||
-      (userProfile?.companies && userProfile.companies.length > 0)
+      userProfile?.accountId
+      || userProfile?.shopId
+      || (userProfile?.companies && userProfile.companies.length > 0)
     );
   };
 
-  // Function to update user profile locally after successful API update
   const updateUserProfile = (firstName: string, lastName: string) => {
     if (userProfile) {
       setUserProfile({
@@ -292,18 +266,14 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     }
   };
 
-  const value: Auth0ContextType = {
+  const value: AuthContextType = {
     isAuthenticated,
-    // Only show loading while Auth0 is loading OR while we're authenticated and loading the profile
-    // This ensures we don't prematurely show content before profile is ready
-    isLoading: auth0Loading || (isAuthenticated && !profileLoadAttempted),
+    isLoading: !authLoaded || !userLoaded || (isAuthenticated && !profileLoadAttempted),
     user: userProfile,
     backendUnavailable,
     backendError,
     backendReconnectInProgress,
     retryBackendConnection: syncUserProfile,
-    loginWithRedirect,
-    loginWithSocial,
     logout,
     getAccessToken,
     isAdmin,
@@ -312,5 +282,5 @@ export const Auth0ContextProvider: React.FC<Auth0ContextProviderProps> = ({ chil
     updateUserProfile,
   };
 
-  return <Auth0Context.Provider value={value}>{children}</Auth0Context.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

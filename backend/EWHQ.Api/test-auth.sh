@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Auth0-protected API smoke checks
+# Auth-protected API smoke checks
 # Usage:
-#   AUTH0_TOKEN=<bearer-token> ./test-auth.sh
+#   API_TOKEN=<bearer-token> ./test-auth.sh
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -10,15 +10,15 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 API_URL="http://localhost:5125/api"
-TOKEN="${AUTH0_TOKEN:-}"
+TOKEN="${API_TOKEN:-}"
 
-echo "Testing EWHQ API Authentication (Auth0)"
+echo "Testing EWHQ API Authentication"
 echo "========================================"
 
 if [ -z "$TOKEN" ]; then
-  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
-  echo "Get a token via Auth0 login and export it first:"
-  echo "  export AUTH0_TOKEN='<your-bearer-token>'"
+  echo -e "${YELLOW}API_TOKEN is not set.${NC}"
+  echo "Get a valid bearer token and export it first:"
+  echo "  export API_TOKEN='<your-bearer-token>'"
   exit 1
 fi
 
@@ -48,7 +48,7 @@ auth_get() {
   fi
 }
 
-auth_get "/auth0/profile" "Test 1: Fetch current Auth0-synced profile"
+auth_get "/auth/profile" "Test 1: Fetch current Clerk-synced profile"
 auth_get "/tenants/check-setup" "Test 2: Check tenant setup status"
 auth_get "/user-access/companies-brands" "Test 3: Fetch companies/brands access"
 

@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using EWHQ.Api.Data;
 using EWHQ.Api.Identity;
 using EWHQ.Api.Models.AdminPortal;
-using System.Security.Claims;
 using System.Text.Json.Serialization;
 
 namespace EWHQ.Api.Controllers;
@@ -30,15 +29,20 @@ public class UserAccessController : ControllerBase
 
     private async Task<ApplicationUser?> GetCurrentUserAsync()
     {
-        var auth0UserId = User.FindFirst("sub")?.Value
-            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var localUserId = User.GetLocalUserId();
+        if (!string.IsNullOrWhiteSpace(localUserId))
+        {
+            return await _userContext.Users.FirstOrDefaultAsync(u => u.Id == localUserId);
+        }
 
-        if (string.IsNullOrWhiteSpace(auth0UserId))
+        var externalUserId = User.GetExternalUserId();
+
+        if (string.IsNullOrWhiteSpace(externalUserId))
         {
             return null;
         }
 
-        return await _userContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+        return await _userContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
     }
 
     private async Task<string?> GetCurrentUserIdAsync()

@@ -29,12 +29,12 @@
 | WP | Title | Status | Owner | Updated | Evidence |
 |---|---|---|---|---|---|
 | WP-001 | Contract Alignment: Invitations | done | codex | 2026-02-24 | Added invitation route aliases, token/inviteCode compatibility, and response alias (`organizationName`) |
-| WP-002 | Contract Alignment: Profile Security API | done | codex | 2026-02-24 | Implemented `POST /api/auth0/change-password` reset-email flow and updated profile security UI |
+| WP-002 | Contract Alignment: Profile Security API | done | codex | 2026-02-24 | Implemented `POST /api/auth/change-password` account-settings handoff and updated profile security UI |
 | WP-003 | Route Integrity Cleanup | done | codex | 2026-02-24 | Fixed onboarding redirect to `/`, removed dead sidebar/route-config links to non-existent pages |
-| WP-004 | Legacy Auth Artifact Cleanup | done | codex | 2026-02-24 | Rewrote auth docs for Auth0-only flow, archived stale legacy admin plan doc, and updated `backend/EWHQ.Api/test-auth.sh` |
-| WP-005 | API Contract Test Baseline | done | codex | 2026-02-24 | Added `backend/EWHQ.Api/test-api-contracts.sh`; user-confirmed runtime pass with Auth0 token |
+| WP-004 | Legacy Auth Artifact Cleanup | done | codex | 2026-02-24 | Rewrote auth docs for the hosted auth flow, archived stale legacy admin plan doc, and updated `backend/EWHQ.Api/test-auth.sh` |
+| WP-005 | API Contract Test Baseline | done | codex | 2026-02-24 | Added `backend/EWHQ.Api/test-api-contracts.sh`; user-confirmed runtime pass with a bearer token |
 | WP-006 | Environment Template Standardization | done | codex | 2026-02-24 | Added `frontend-hq-portal/.env.example`, expanded `backend/EWHQ.Api/.env.example`, and added `docs/ENVIRONMENT_SETUP.md` |
-| WP-007 | P0 Smoke Suite | done | codex | 2026-02-24 | Added `backend/EWHQ.Api/test-smoke-onboarding-brand.sh`; user-confirmed runtime pass with Auth0 + invitation token |
+| WP-007 | P0 Smoke Suite | done | codex | 2026-02-24 | Added `backend/EWHQ.Api/test-smoke-onboarding-brand.sh`; user-confirmed runtime pass with auth + invitation token |
 
 ### S02
 | WP | Title | Status | Owner | Updated | Evidence |

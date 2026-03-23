@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using EWHQ.Api.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
@@ -53,8 +54,8 @@ public class RequestAuditMiddleware
                         ? routeEndpoint.RoutePattern.RawText ?? string.Empty
                         : endpoint?.DisplayName ?? context.Request.Path.Value ?? string.Empty;
 
-                    var auth0UserId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
-                    var email = context.User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+                    var externalUserId = context.User.GetExternalUserId() ?? string.Empty;
+                    var email = context.User.GetEmailAddress() ?? string.Empty;
                     var emailHash = HashEmail(email);
 
                     var requestAuditEvent = new RequestAuditEvent
@@ -65,7 +66,7 @@ public class RequestAuditMiddleware
                         TraceId = Activity.Current?.TraceId.ToString() ?? string.Empty,
                         OperationId = Activity.Current?.RootId ?? string.Empty,
                         RequestId = context.TraceIdentifier,
-                        Auth0UserId = auth0UserId,
+                        ExternalUserId = externalUserId,
                         UserEmailHash = emailHash,
                         BrandId = ParseRouteInt(context, "brandId"),
                         CompanyId = ParseRouteInt(context, "companyId"),

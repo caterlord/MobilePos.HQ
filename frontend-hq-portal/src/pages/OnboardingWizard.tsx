@@ -20,7 +20,7 @@ import {
   Flex,
 } from '@mantine/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/Auth0Context';
+import { useAuth } from '../contexts/AuthContext';
 import {
   IconBuilding,
   IconBuildingStore,
@@ -492,7 +492,7 @@ export default function OnboardingWizard() {
                   <Alert color="yellow" title="Email Verification Required">
                     <Stack gap="sm">
                       <Text size="sm">
-                        {verificationInfo || 'Your Auth0 email does not match the invited email. Enter the verification code to continue.'}
+                        {verificationInfo || 'Your signed-in email does not match the invited email. Enter the verification code to continue.'}
                       </Text>
                       <TextInput
                         label="Verification Code"
@@ -595,7 +595,7 @@ export default function OnboardingWizard() {
     <Box
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

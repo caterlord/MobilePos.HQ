@@ -5,7 +5,6 @@ using EWHQ.Api.Models.AdminPortal;
 using EWHQ.Api.Models.DTOs;
 using EWHQ.Api.Services;
 using EWHQ.Api.Identity;
-using System.Security.Claims;
 using System.Text.Json;
 
 namespace EWHQ.Api.Controllers;
@@ -34,11 +33,17 @@ public class TeamsController : ControllerBase
 
     private async Task<string> GetCurrentUserIdAsync()
     {
-        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
-        if (string.IsNullOrEmpty(auth0UserId))
+        var localUserId = User.GetLocalUserId();
+        if (!string.IsNullOrWhiteSpace(localUserId))
+        {
+            return localUserId;
+        }
+
+        var externalUserId = User.GetExternalUserId();
+        if (string.IsNullOrEmpty(externalUserId))
             return string.Empty;
 
-        var user = await _identityContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+        var user = await _identityContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
         return user?.Id ?? string.Empty;
     }
 

@@ -29,7 +29,7 @@ import {
   IconX,
   IconAlertCircle,
 } from '@tabler/icons-react';
-import { useAuth } from '../contexts/Auth0Context';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export function ProfilePage() {
@@ -55,7 +55,7 @@ export function ProfilePage() {
       const token = await getAccessToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5125/api';
 
-      const response = await fetch(`${apiUrl}/auth0/profile`, {
+      const response = await fetch(`${apiUrl}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -64,7 +64,7 @@ export function ProfilePage() {
         body: JSON.stringify({
           firstName: profileForm.firstName,
           lastName: profileForm.lastName,
-          // Email update might require Auth0 verification
+          // Email updates remain out of band for now.
         }),
       });
 
@@ -92,38 +92,8 @@ export function ProfilePage() {
     }
   };
 
-  const handlePasswordChange = async () => {
-    if (!user?.email) {
-      setMessage({ type: 'error', text: 'Unable to find your email address for password reset.' });
-      return;
-    }
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const token = await getAccessToken();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5125/api';
-
-      const response = await fetch(`${apiUrl}/auth0/change-password`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: 'Password reset email sent. Please check your inbox.' });
-      } else {
-        throw new Error('Failed to change password');
-      }
-    } catch {
-      setMessage({ type: 'error', text: 'Failed to send password reset email. Please try again.' });
-    } finally {
-      setLoading(false);
-    }
+  const handlePasswordChange = () => {
+    navigate('/account');
   };
 
   const getInitials = () => {
@@ -160,7 +130,7 @@ export function ProfilePage() {
                 ))}
                 {user?.identityProvider && (
                   <Badge size="sm" variant="outline" color="gray">
-                    {user.identityProvider === 'auth0' ? 'Email' : user.identityProvider}
+                    {user.identityProvider}
                   </Badge>
                 )}
               </Group>
@@ -290,7 +260,7 @@ export function ProfilePage() {
                   </Group>
                   <Group justify="space-between">
                     <Text size="sm" c="dimmed">Identity Provider</Text>
-                    <Text size="sm">{user?.identityProvider || 'auth0'}</Text>
+                    <Text size="sm">{user?.identityProvider || 'clerk'}</Text>
                   </Group>
                   {user?.accountId && (
                     <Group justify="space-between">
@@ -306,26 +276,20 @@ export function ProfilePage() {
           {/* Security Tab */}
           <Tabs.Panel value="security" p="xl">
             <Stack gap="lg">
-              <Title order={4}>Change Password</Title>
+              <Title order={4}>Security Settings</Title>
 
-              {user?.identityProvider && user.identityProvider !== 'auth0' ? (
-                <Alert icon={<IconAlertCircle size={16} />} color="blue">
-                  You signed in with {user.identityProvider}. Password management is handled by your identity provider.
+              <Stack gap="md">
+                <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
+                  Passwords, multi-factor authentication, and active sessions are managed in Clerk.
                 </Alert>
-              ) : (
-                <Stack gap="md">
-                  <Alert icon={<IconAlertCircle size={16} />} color="blue" variant="light">
-                    For security, password changes are handled via Auth0 email reset flow.
-                  </Alert>
-                  <Button
-                    onClick={handlePasswordChange}
-                    disabled={loading}
-                    leftSection={loading ? <Loader size={16} /> : <IconLock size={16} />}
-                  >
-                    Send Password Reset Email
-                  </Button>
-                </Stack>
-              )}
+                <Button
+                  onClick={handlePasswordChange}
+                  disabled={loading}
+                  leftSection={<IconLock size={16} />}
+                >
+                  Open Account Settings
+                </Button>
+              </Stack>
 
               <Divider my="xl" />
 

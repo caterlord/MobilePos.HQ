@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using EWHQ.Api.Data;
 using EWHQ.Api.Models.AdminPortal;
 using EWHQ.Api.Identity;
-using System.Security.Claims;
+using EWHQ.Api.Services;
 using System.Linq;
 
 namespace EWHQ.Api.Controllers;
@@ -16,21 +16,24 @@ public class TenantSetupController : ControllerBase
 {
     private readonly AdminPortalDbContext _context;
     private readonly UserProfileDbContext _userContext;
+    private readonly IClerkUserService _clerkUserService;
     private readonly ILogger<TenantSetupController> _logger;
 
-    public TenantSetupController(AdminPortalDbContext context, UserProfileDbContext userContext, ILogger<TenantSetupController> logger)
+    public TenantSetupController(
+        AdminPortalDbContext context,
+        UserProfileDbContext userContext,
+        IClerkUserService clerkUserService,
+        ILogger<TenantSetupController> logger)
     {
         _context = context;
         _userContext = userContext;
+        _clerkUserService = clerkUserService;
         _logger = logger;
     }
 
     private string GetCurrentUserId()
     {
-        // Auth0 provides the user ID in the 'sub' claim
-        var userId = User.FindFirst("sub")?.Value
-            ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? string.Empty;
+        var userId = User.GetExternalUserId() ?? string.Empty;
 
         if (string.IsNullOrEmpty(userId))
         {
@@ -41,11 +44,22 @@ public class TenantSetupController : ControllerBase
         return userId;
     }
 
-    private string GetUserEmail()
+    private async Task<string> GetUserEmailAsync(string externalUserId)
     {
-        return User.FindFirst(ClaimTypes.Email)?.Value
-            ?? User.FindFirst("https://posx.one/email")?.Value
-            ?? string.Empty;
+        var email = User.GetEmailAddress();
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return email;
+        }
+
+        var existingUser = await _userContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
+        if (!string.IsNullOrWhiteSpace(existingUser?.Email))
+        {
+            return existingUser.Email;
+        }
+
+        return (await _clerkUserService.GetUserAsync(externalUserId))?.Email ?? string.Empty;
     }
 
     [HttpPost("setup")]
@@ -53,20 +67,20 @@ public class TenantSetupController : ControllerBase
     {
         try
         {
-            var auth0UserId = GetCurrentUserId();
-            var userEmail = GetUserEmail();
+            var externalUserId = GetCurrentUserId();
+            var userEmail = await GetUserEmailAsync(externalUserId);
 
-            if (string.IsNullOrEmpty(auth0UserId))
+            if (string.IsNullOrEmpty(externalUserId))
             {
                 _logger.LogError("User ID not found in token");
                 return Unauthorized("User ID not found in token");
             }
 
             // Get the actual user from database
-            var user = await _userContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+            var user = await _userContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
             if (user == null)
             {
-                _logger.LogError($"User not found in database for Auth0 ID: {auth0UserId}");
+                _logger.LogError("User not found in database for external identity ID: {ExternalUserId}", externalUserId);
                 return Unauthorized("User not found in database. Please sync your profile first.");
             }
 
@@ -86,7 +100,7 @@ public class TenantSetupController : ControllerBase
                     {
                         Name = request.CompanyName,
                         Email = userEmail,
-                        CreatedByUserId = auth0UserId,
+                        CreatedByUserId = externalUserId,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
@@ -115,7 +129,7 @@ public class TenantSetupController : ControllerBase
                         BrandId = brand.Id,
                         Address = request.ShopAddress,
                         IsActive = true,
-                        CreatedBy = auth0UserId,
+                        CreatedBy = externalUserId,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
@@ -179,10 +193,10 @@ public class TenantSetupController : ControllerBase
     {
         try
         {
-            var auth0UserId = GetCurrentUserId();
+            var externalUserId = GetCurrentUserId();
 
             // Get the actual user from database
-            var user = await _userContext.Users.FirstOrDefaultAsync(u => u.Auth0UserId == auth0UserId);
+            var user = await _userContext.Users.FirstOrDefaultAsync(u => u.ExternalUserId == externalUserId);
             if (user == null)
             {
                 return Ok(new { hasSetup = false });

@@ -23,7 +23,7 @@ import {
   IconSparkles,
 } from '@tabler/icons-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
-import { useAuth } from '../contexts/Auth0Context'
+import { useAuth } from '../contexts/AuthContext'
 
 // Mock data for charts
 const realtimeData = [

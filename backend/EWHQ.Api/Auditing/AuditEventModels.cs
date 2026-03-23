@@ -12,7 +12,7 @@ public class RequestAuditEvent
     public string TraceId { get; set; } = string.Empty;
     public string OperationId { get; set; } = string.Empty;
     public string RequestId { get; set; } = string.Empty;
-    public string Auth0UserId { get; set; } = string.Empty;
+    public string ExternalUserId { get; set; } = string.Empty;
     public string UserEmailHash { get; set; } = string.Empty;
     public int? BrandId { get; set; }
     public int? CompanyId { get; set; }
