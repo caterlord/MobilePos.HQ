@@ -29,7 +29,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconColumns,
-  IconGripVertical,
+  IconArrowsSort,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconPencil,
@@ -1768,7 +1768,7 @@ const handleSubmit = async () => {
                       </Tooltip>
                       <Button
                         variant="outline"
-                        leftSection={<IconGripVertical size={16} />}
+                        leftSection={<IconArrowsSort size={16} />}
                         onClick={handleOpenReorderModal}
                         disabled={!brandId || selectedCategoryId === null || reorderLoading || reorderSaving}
                         size="sm"

@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Clerk.BackendAPI.Helpers.Jwks;
 using EWHQ.Api.Identity;
+using EWHQ.Api.Services;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.Extensions.Options;
 
 namespace EWHQ.Api.Authorization;
@@ -12,42 +14,54 @@ public sealed class ClerkAuthenticationHandler : AuthenticationHandler<Authentic
     public const string SchemeName = "Clerk";
 
     private readonly ClerkAuthenticationSettings _settings;
+    private readonly IClerkJwksService _jwksService;
+    private readonly JwtSecurityTokenHandler _tokenHandler = new();
 
     public ClerkAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
         ISystemClock clock,
-        ClerkAuthenticationSettings settings)
+        ClerkAuthenticationSettings settings,
+        IClerkJwksService jwksService)
         : base(options, logger, encoder, clock)
     {
         _settings = settings;
+        _jwksService = jwksService;
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.ContainsKey("Authorization") && !Request.Cookies.ContainsKey("__session"))
+        var token = GetSessionToken();
+        if (string.IsNullOrWhiteSpace(token))
         {
             return AuthenticateResult.NoResult();
         }
 
         try
         {
-            var requestState = await AuthenticateRequest.AuthenticateRequestAsync(
-                Request,
-                new AuthenticateRequestOptions(
-                    secretKey: _settings.SecretKey,
-                    machineSecretKey: _settings.MachineSecretKey,
-                    jwtKey: _settings.JwtKey,
-                    audiences: _settings.Audiences,
-                    authorizedParties: _settings.AllowedParties));
-
-            if (!requestState.IsAuthenticated || requestState.Claims == null)
+            var signingKeys = await _jwksService.GetSigningKeysAsync(Context.RequestAborted);
+            var validationParameters = new TokenValidationParameters
             {
-                return AuthenticateResult.Fail("Invalid Clerk session token.");
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKeys = signingKeys,
+                ValidateIssuer = false,
+                ValidateAudience = _settings.Audiences.Count > 0,
+                ValidAudiences = _settings.Audiences,
+                ValidateLifetime = true,
+                RequireExpirationTime = true,
+                ClockSkew = TimeSpan.FromSeconds(5),
+                NameClaimType = ClaimTypes.NameIdentifier,
+                RoleClaimType = ClaimTypes.Role
+            };
+
+            var principal = _tokenHandler.ValidateToken(token, validationParameters, out _);
+            if (!IsAuthorizedPartyAllowed(principal))
+            {
+                return AuthenticateResult.Fail("Invalid Clerk authorized party.");
             }
 
-            var principal = BuildPrincipal(requestState.Claims, Scheme.Name);
+            principal = BuildPrincipal(principal, Scheme.Name);
             return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
         }
         catch (Exception ex)
@@ -55,6 +69,37 @@ public sealed class ClerkAuthenticationHandler : AuthenticationHandler<Authentic
             Logger.LogWarning(ex, "Clerk request authentication failed.");
             return AuthenticateResult.Fail("Clerk request authentication failed.");
         }
+    }
+
+    private string? GetSessionToken()
+    {
+        if (Request.Headers.TryGetValue("Authorization", out var authorizationHeader))
+        {
+            var bearerValue = authorizationHeader.ToString();
+            const string bearerPrefix = "Bearer ";
+            if (bearerValue.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return bearerValue[bearerPrefix.Length..].Trim();
+            }
+        }
+
+        if (Request.Cookies.TryGetValue("__session", out var cookieToken))
+        {
+            return cookieToken;
+        }
+
+        return null;
+    }
+
+    private bool IsAuthorizedPartyAllowed(ClaimsPrincipal principal)
+    {
+        var azp = principal.FindFirst("azp")?.Value;
+        if (string.IsNullOrWhiteSpace(azp) || _settings.AllowedParties.Count == 0)
+        {
+            return true;
+        }
+
+        return _settings.AllowedParties.Contains(azp, StringComparer.OrdinalIgnoreCase);
     }
 
     private static ClaimsPrincipal BuildPrincipal(ClaimsPrincipal principal, string authenticationType)

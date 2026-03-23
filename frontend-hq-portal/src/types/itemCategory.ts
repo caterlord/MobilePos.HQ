@@ -41,3 +41,10 @@ export interface CreateItemCategory {
 }
 
 export type UpdateItemCategory = CreateItemCategory;
+
+export interface CategoryItem extends ItemCategory {
+  uniqueId: string;
+  isSmartCategory: boolean;
+  itemCount?: number;
+  parentUniqueId?: string | null;
+}

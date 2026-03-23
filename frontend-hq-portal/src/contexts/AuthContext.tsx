@@ -117,8 +117,11 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
       return;
     }
 
+    const isInitialProfileLoad = userProfile == null;
     syncInProgressRef.current = true;
-    setProfileLoadAttempted(false);
+    if (isInitialProfileLoad) {
+      setProfileLoadAttempted(false);
+    }
     setBackendReconnectInProgress(true);
 
     try {
@@ -185,6 +188,7 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
           setUserProfile(fallbackProfile);
           setBackendUnavailable(false);
           setBackendError(null);
+          setProfileLoadAttempted(true);
         }
       }
     } finally {
@@ -192,7 +196,7 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
       setBackendReconnectInProgress(false);
       syncInProgressRef.current = false;
     }
-  }, [buildFallbackProfile, clerkUser, getToken, isAuthenticated]);
+  }, [buildFallbackProfile, clerkUser, getToken, isAuthenticated, userProfile]);
 
   useEffect(() => {
     if (!authLoaded || !userLoaded) {
@@ -268,7 +272,7 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
 
   const value: AuthContextType = {
     isAuthenticated,
-    isLoading: !authLoaded || !userLoaded || (isAuthenticated && !profileLoadAttempted),
+    isLoading: !authLoaded || !userLoaded || (isAuthenticated && !profileLoadAttempted && !userProfile),
     user: userProfile,
     backendUnavailable,
     backendError,

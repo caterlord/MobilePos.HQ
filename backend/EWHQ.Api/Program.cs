@@ -179,6 +179,8 @@ var clerkAuthenticationSettings = new ClerkAuthenticationSettings
 
 builder.Services.AddSingleton(clerkAuthenticationSettings);
 builder.Services.AddSingleton(new ClerkBackendApi(bearerAuth: clerkSecretKey));
+builder.Services.AddHttpClient(nameof(ClerkJwksService));
+builder.Services.AddSingleton<IClerkJwksService, ClerkJwksService>();
 builder.Services.AddScoped<IClerkUserService, ClerkUserService>();
 builder.Services.AddScoped<IClaimsTransformation, LocalUserClaimsTransformation>();
 
