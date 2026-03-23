@@ -1,6 +1,5 @@
 import api from './api';
 import type {
-  OnlineOrderingCallToAction,
   OnlineOrderingCallToActionSettings,
   OnlineOrderingDisplayOrderEntry,
   OnlineOrderingDisplayOrderNode,
@@ -20,23 +19,19 @@ class OnlineOrderingService {
       api.get(`/online-ordering/brand/${brandId}/lookups`),
       this.getDisplayOrder(brandId),
     ]);
-    const base = response.data as {
-      shops?: OnlineOrderingLookups['shops'];
-      orderChannels?: OnlineOrderingLookups['orderChannels'];
-      categories?: NonNullable<OnlineOrderingLookups['categories']>;
-    };
+    const base = response.data as Partial<OnlineOrderingLookups>;
     const flattened = this.flattenTree(tree);
     return {
       shops: base.shops ?? [],
       orderChannels: base.orderChannels ?? [],
-      categories: base.categories ?? [],
-      smartCategories: base.categories ?? [],
-      languages: ['en', 'zh-HK'],
+      categories: base.smartCategories ?? [],
+      smartCategories: base.smartCategories ?? [],
+      languages: base.languages ?? ['en', 'zh-HK'],
       summary: {
-        odoCategoryCount: (base.categories ?? []).length,
-        odoItemCount: flattened.reduce((sum, node) => sum + node.itemCount, 0),
-        odoModifierGroupCount: 0,
-        odoMealSetCount: 0,
+        odoCategoryCount: base.summary?.odoCategoryCount ?? (base.smartCategories ?? []).length,
+        odoItemCount: base.summary?.odoItemCount ?? flattened.reduce((sum, node) => sum + node.itemCount, 0),
+        odoModifierGroupCount: base.summary?.odoModifierGroupCount ?? 0,
+        odoMealSetCount: base.summary?.odoMealSetCount ?? 0,
       },
     };
   }
@@ -57,15 +52,10 @@ class OnlineOrderingService {
 
   async updateSettings(brandId: number, payload: OnlineOrderingGeneralSettings): Promise<OnlineOrderingGeneralSettings> {
     const response = await api.put(`/online-ordering/brand/${brandId}/settings`, payload);
-    return response as OnlineOrderingGeneralSettings;
-  }
-
-  async getCallToActionSettings(brandId: number): Promise<OnlineOrderingCallToActionSettings> {
-    const response = await api.get(`/online-ordering/brand/${brandId}/call-to-action`);
     return response.data;
   }
 
-  async getCallToAction(brandId: number): Promise<OnlineOrderingCallToAction> {
+  async getCallToActionSettings(brandId: number): Promise<OnlineOrderingCallToActionSettings> {
     const response = await api.get(`/online-ordering/brand/${brandId}/call-to-action`);
     return response.data;
   }
@@ -75,24 +65,12 @@ class OnlineOrderingService {
     payload: OnlineOrderingCallToActionSettings,
   ): Promise<OnlineOrderingCallToActionSettings> {
     const response = await api.put(`/online-ordering/brand/${brandId}/call-to-action`, payload);
-    return response as OnlineOrderingCallToActionSettings;
-  }
-
-  async updateCallToAction(
-    brandId: number,
-    payload: OnlineOrderingCallToAction,
-  ): Promise<OnlineOrderingCallToAction> {
-    const response = await api.put(`/online-ordering/brand/${brandId}/call-to-action`, payload);
-    return response as OnlineOrderingCallToAction;
+    return response.data;
   }
 
   async getUiI18n(brandId: number): Promise<OnlineOrderingUiI18nResponse> {
     const response = await api.get(`/online-ordering/brand/${brandId}/ui-i18n`);
-    const document = response.data as OnlineOrderingUiI18nDocument;
-    return {
-      languages: ['en', 'zh-HK'],
-      documents: document.entries.length > 0 ? [document] : [],
-    };
+    return response.data;
   }
 
   async updateUiI18n(
@@ -101,11 +79,7 @@ class OnlineOrderingService {
   ): Promise<OnlineOrderingUiI18nResponse> {
     const document = Array.isArray(payload) ? { entries: payload } : payload;
     const response = await api.put(`/online-ordering/brand/${brandId}/ui-i18n`, document);
-    const savedDocument = response as OnlineOrderingUiI18nDocument;
-    return {
-      languages: ['en', 'zh-HK'],
-      documents: savedDocument.entries.length > 0 ? [savedDocument] : [],
-    };
+    return response.data;
   }
 
   async getMenuCombinations(brandId: number): Promise<OnlineOrderingMenuCombination[]> {
@@ -157,7 +131,7 @@ class OnlineOrderingService {
       `/online-ordering/brand/${brandId}/menu-combinations/${menuId}`,
       this.normalizeMenuCombinationPayload(payload),
     );
-    return response as OnlineOrderingMenuCombination;
+    return response.data;
   }
 
   async deleteMenuCombination(brandId: number, menuId: number): Promise<void> {

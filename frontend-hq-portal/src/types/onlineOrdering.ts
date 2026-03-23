@@ -76,17 +76,13 @@ export interface OnlineOrderingGeneralSettings {
 }
 
 export interface OnlineOrderingCallToActionSlot {
-  itemIds: number[];
-  buttonLabel?: string;
-  buttonLabelAlt?: string | null;
-  targetPath?: string | null;
-  placement?: string;
+  placement: string;
   enabled: boolean;
   title: string;
   titleAlt?: string | null;
   description?: string | null;
   descriptionAlt?: string | null;
-  actionLabel?: string;
+  actionLabel: string;
   actionLabelAlt?: string | null;
   actionUrl?: string | null;
   smartCategoryId?: number | null;
@@ -94,11 +90,6 @@ export interface OnlineOrderingCallToActionSlot {
 
 export interface OnlineOrderingCallToActionSettings {
   slots: OnlineOrderingCallToActionSlot[];
-}
-
-export interface OnlineOrderingCallToAction {
-  cartPage: OnlineOrderingCallToActionSlot;
-  orderHistoryPage: OnlineOrderingCallToActionSlot;
 }
 
 export interface OnlineOrderingUiI18nEntry {

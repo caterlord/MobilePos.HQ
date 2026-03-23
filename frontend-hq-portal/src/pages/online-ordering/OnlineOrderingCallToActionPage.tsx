@@ -1,42 +1,71 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Grid, Paper, Stack, Switch, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Grid, Paper, Select, Stack, Switch, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconDeviceFloppy } from '@tabler/icons-react';
 import { useBrands } from '../../contexts/BrandContext';
 import onlineOrderingService from '../../services/onlineOrderingService';
-import type { OnlineOrderingCallToAction, OnlineOrderingCallToActionSlot } from '../../types/onlineOrdering';
+import type {
+  OnlineOrderingCallToActionSettings,
+  OnlineOrderingCallToActionSlot,
+  OnlineOrderingLookups,
+} from '../../types/onlineOrdering';
 
-const emptySlot: OnlineOrderingCallToActionSlot = {
-  enabled: false,
-  title: '',
-  titleAlt: '',
-  description: '',
-  descriptionAlt: '',
-  buttonLabel: '',
-  buttonLabelAlt: '',
-  targetPath: '',
-  itemIds: [],
+const defaultSettings: OnlineOrderingCallToActionSettings = {
+  slots: [
+    {
+      placement: 'cart',
+      enabled: false,
+      title: 'Need something else?',
+      titleAlt: '',
+      description: '',
+      descriptionAlt: '',
+      actionLabel: '',
+      actionLabelAlt: '',
+      actionUrl: '',
+      smartCategoryId: null,
+    },
+    {
+      placement: 'order-history',
+      enabled: false,
+      title: 'Order again',
+      titleAlt: '',
+      description: '',
+      descriptionAlt: '',
+      actionLabel: '',
+      actionLabelAlt: '',
+      actionUrl: '',
+      smartCategoryId: null,
+    },
+  ],
 };
 
-const emptyDocument: OnlineOrderingCallToAction = {
-  cartPage: { ...emptySlot },
-  orderHistoryPage: { ...emptySlot },
-};
+function getPlacementLabel(placement: string) {
+  if (placement === 'cart') return 'Cart Page CTA';
+  if (placement === 'order-history') return 'Order History CTA';
+  return placement;
+}
 
 function SlotEditor({
-  title,
   slot,
+  lookups,
   onChange,
 }: {
-  title: string;
   slot: OnlineOrderingCallToActionSlot;
+  lookups: OnlineOrderingLookups | null;
   onChange: (next: OnlineOrderingCallToActionSlot) => void;
 }) {
   return (
     <Paper withBorder radius="md" p="md">
       <Stack gap="md">
-        <Text fw={600}>{title}</Text>
+        <Stack gap={2}>
+          <Text fw={600}>{getPlacementLabel(slot.placement)}</Text>
+          <Text size="sm" c="dimmed">
+            X1 stores CTA content as structured ODO settings instead of relying on hidden smart categories. You can still target a smart category when needed.
+          </Text>
+        </Stack>
+
         <Switch label="Enabled" checked={slot.enabled} onChange={(event) => onChange({ ...slot, enabled: event.currentTarget.checked })} />
+
         <Grid>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput label="Title" value={slot.title} onChange={(event) => onChange({ ...slot, title: event.currentTarget.value })} />
@@ -66,39 +95,37 @@ function SlotEditor({
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
-              label="Button Label"
-              value={slot.buttonLabel}
-              onChange={(event) => onChange({ ...slot, buttonLabel: event.currentTarget.value })}
+              label="Action Label"
+              value={slot.actionLabel}
+              onChange={(event) => onChange({ ...slot, actionLabel: event.currentTarget.value })}
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
-              label="Button Label (Alt)"
-              value={slot.buttonLabelAlt ?? ''}
-              onChange={(event) => onChange({ ...slot, buttonLabelAlt: event.currentTarget.value })}
+              label="Action Label (Alt)"
+              value={slot.actionLabelAlt ?? ''}
+              onChange={(event) => onChange({ ...slot, actionLabelAlt: event.currentTarget.value })}
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
             <TextInput
-              label="Target Path"
-              value={slot.targetPath ?? ''}
-              onChange={(event) => onChange({ ...slot, targetPath: event.currentTarget.value })}
+              label="Action URL"
+              value={slot.actionUrl ?? ''}
+              onChange={(event) => onChange({ ...slot, actionUrl: event.currentTarget.value })}
             />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 6 }}>
-            <TextInput
-              label="Linked Item IDs"
-              description="Comma-separated item IDs"
-              value={slot.itemIds.join(', ')}
-              onChange={(event) =>
-                onChange({
-                  ...slot,
-                  itemIds: event.currentTarget.value
-                    .split(',')
-                    .map((part) => Number.parseInt(part.trim(), 10))
-                    .filter((value) => Number.isFinite(value)),
-                })
-              }
+            <Select
+              label="Target Smart Category"
+              placeholder="Optional"
+              clearable
+              searchable
+              data={(lookups?.smartCategories ?? []).map((category) => ({
+                value: String(category.id),
+                label: category.name,
+              }))}
+              value={slot.smartCategoryId ? String(slot.smartCategoryId) : null}
+              onChange={(value) => onChange({ ...slot, smartCategoryId: value ? Number.parseInt(value, 10) : null })}
             />
           </Grid.Col>
         </Grid>
@@ -109,23 +136,30 @@ function SlotEditor({
 
 export function OnlineOrderingCallToActionPage() {
   const { selectedBrand } = useBrands();
-  const brandId = selectedBrand ? Number.parseInt(selectedBrand, 10) : null;
+  const brandId = useMemo(() => (selectedBrand ? Number.parseInt(selectedBrand, 10) : null), [selectedBrand]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [document, setDocument] = useState<OnlineOrderingCallToAction>(emptyDocument);
+  const [settings, setSettings] = useState<OnlineOrderingCallToActionSettings>(defaultSettings);
+  const [lookups, setLookups] = useState<OnlineOrderingLookups | null>(null);
 
   const load = useCallback(async () => {
     if (!brandId) {
-      setDocument(emptyDocument);
+      setSettings(defaultSettings);
+      setLookups(null);
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
-      setDocument(await onlineOrderingService.getCallToAction(brandId));
+      const [settingsResponse, lookupsResponse] = await Promise.all([
+        onlineOrderingService.getCallToActionSettings(brandId),
+        onlineOrderingService.getLookups(brandId),
+      ]);
+      setSettings(settingsResponse.slots.length > 0 ? settingsResponse : defaultSettings);
+      setLookups(lookupsResponse);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load call-to-action settings.';
       setError(message);
@@ -143,8 +177,8 @@ export function OnlineOrderingCallToActionPage() {
     if (!brandId) return;
     try {
       setSaving(true);
-      const saved = await onlineOrderingService.updateCallToAction(brandId, document);
-      setDocument(saved);
+      const saved = await onlineOrderingService.updateCallToActionSettings(brandId, settings);
+      setSettings(saved);
       notifications.show({ color: 'green', message: 'Call-to-action settings saved.' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save call-to-action settings.';
@@ -182,14 +216,19 @@ export function OnlineOrderingCallToActionPage() {
           </Text>
         </Paper>
       ) : (
-        <>
-          <SlotEditor title="Cart Page CTA" slot={document.cartPage} onChange={(next) => setDocument((current) => ({ ...current, cartPage: next }))} />
+        settings.slots.map((slot, index) => (
           <SlotEditor
-            title="Order History CTA"
-            slot={document.orderHistoryPage}
-            onChange={(next) => setDocument((current) => ({ ...current, orderHistoryPage: next }))}
+            key={`${slot.placement}-${index}`}
+            slot={slot}
+            lookups={lookups}
+            onChange={(next) =>
+              setSettings((current) => ({
+                ...current,
+                slots: current.slots.map((entry, entryIndex) => (entryIndex === index ? next : entry)),
+              }))
+            }
           />
-        </>
+        ))
       )}
 
       <Button leftSection={<IconDeviceFloppy size={16} />} onClick={() => void handleSave()} loading={saving}>
