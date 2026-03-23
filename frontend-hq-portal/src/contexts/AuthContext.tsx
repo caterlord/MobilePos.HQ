@@ -62,6 +62,11 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
   const [backendError, setBackendError] = useState<string | null>(null);
   const [backendReconnectInProgress, setBackendReconnectInProgress] = useState(false);
   const syncInProgressRef = useRef(false);
+  const userProfileRef = useRef<UserProfile | null>(null);
+
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
 
   const isAuthenticated = authLoaded && !!isSignedIn;
 
@@ -117,7 +122,7 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
       return;
     }
 
-    const isInitialProfileLoad = userProfile == null;
+    const isInitialProfileLoad = userProfileRef.current == null;
     syncInProgressRef.current = true;
     if (isInitialProfileLoad) {
       setProfileLoadAttempted(false);
@@ -196,7 +201,7 @@ export const AuthContextProvider: React.FC<AuthContextProviderProps> = ({ childr
       setBackendReconnectInProgress(false);
       syncInProgressRef.current = false;
     }
-  }, [buildFallbackProfile, clerkUser, getToken, isAuthenticated, userProfile]);
+  }, [buildFallbackProfile, clerkUser, getToken, isAuthenticated]);
 
   useEffect(() => {
     if (!authLoaded || !userLoaded) {
