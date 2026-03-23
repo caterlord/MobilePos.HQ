@@ -31,6 +31,15 @@ import { StoreSystemParametersPage } from './pages/operations/store-settings/Sto
 import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
+import { OnlineOrderingLayout } from './pages/online-ordering/OnlineOrderingLayout'
+import { OnlineOrderingMenuPage } from './pages/online-ordering/OnlineOrderingMenuPage'
+import { OnlineOrderingDisplayOrderPage } from './pages/online-ordering/OnlineOrderingDisplayOrderPage'
+import { OnlineOrderingModifiersPage } from './pages/online-ordering/OnlineOrderingModifiersPage'
+import { OnlineOrderingCallToActionPage } from './pages/online-ordering/OnlineOrderingCallToActionPage'
+import { OnlineOrderingSettingsPage } from './pages/online-ordering/OnlineOrderingSettingsPage'
+import { OnlineOrderingChannelMappingPage } from './pages/online-ordering/OnlineOrderingChannelMappingPage'
+import { OnlineOrderingMenuCombinationsPage } from './pages/online-ordering/OnlineOrderingMenuCombinationsPage'
+import { OnlineOrderingUiI18nPage } from './pages/online-ordering/OnlineOrderingUiI18nPage'
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -129,6 +138,17 @@ function AppContent() {
         <Route path="menus/promotions" element={<PromotionsPage />} />
         <Route path="menus/discounts" element={<DiscountsPage />} />
         <Route path="menus/button-styles" element={<ButtonStylesPage />} />
+        <Route path="online-ordering" element={<OnlineOrderingLayout />}>
+          <Route index element={<Navigate to="/online-ordering/menu" replace />} />
+          <Route path="menu" element={<OnlineOrderingMenuPage />} />
+          <Route path="display-order" element={<OnlineOrderingDisplayOrderPage />} />
+          <Route path="modifiers" element={<OnlineOrderingModifiersPage />} />
+          <Route path="call-to-action" element={<OnlineOrderingCallToActionPage />} />
+          <Route path="settings" element={<OnlineOrderingSettingsPage />} />
+          <Route path="channel-mapping" element={<OnlineOrderingChannelMappingPage />} />
+          <Route path="menu-combinations" element={<OnlineOrderingMenuCombinationsPage />} />
+          <Route path="ui-i18n" element={<OnlineOrderingUiI18nPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
     </Routes>
