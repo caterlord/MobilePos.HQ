@@ -56,6 +56,19 @@ public class OnlineOrderingBusinessDaySectionDto
     public string? ToTime { get; set; }
 }
 
+public class OnlineOrderingCategorySpecialSettingDto
+{
+    public int CategoryId { get; set; }
+    public string InfoAlign { get; set; } = string.Empty;
+    public string DisplayImageSize { get; set; } = string.Empty;
+    public string Gap { get; set; } = "sm";
+    public bool IsNecessary { get; set; }
+    public bool PrioritySubmission { get; set; }
+    public bool HiddenAfterSubmission { get; set; }
+    public bool HiddenRemark { get; set; }
+    public IReadOnlyList<int> DisplayThresholdItemIds { get; set; } = Array.Empty<int>();
+}
+
 public class OnlineOrderingGeneralSettingsDto
 {
     public string WebsiteUrl { get; set; } = string.Empty;
@@ -71,6 +84,7 @@ public class OnlineOrderingGeneralSettingsDto
     public string RoundingMethod { get; set; } = string.Empty;
     public int? RoundingPlace { get; set; }
     public IReadOnlyList<OnlineOrderingBusinessDaySectionDto> BusinessDaySections { get; set; } = Array.Empty<OnlineOrderingBusinessDaySectionDto>();
+    public IReadOnlyList<OnlineOrderingCategorySpecialSettingDto> CategorySettings { get; set; } = Array.Empty<OnlineOrderingCategorySpecialSettingDto>();
 }
 
 public class OnlineOrderingCallToActionSlotDto

@@ -46,6 +46,18 @@ export interface OnlineOrderingBusinessDaySection {
   toTime?: string | null;
 }
 
+export interface OnlineOrderingCategorySpecialSetting {
+  categoryId: number;
+  infoAlign: string;
+  displayImageSize: string;
+  gap: string;
+  isNecessary: boolean;
+  prioritySubmission: boolean;
+  hiddenAfterSubmission: boolean;
+  hiddenRemark: boolean;
+  displayThresholdItemIds: number[];
+}
+
 export interface OnlineOrderingGeneralSettings {
   websiteUrl: string;
   countryCode: string;
@@ -60,6 +72,7 @@ export interface OnlineOrderingGeneralSettings {
   roundingMethod: string;
   roundingPlace?: number | null;
   businessDaySections: OnlineOrderingBusinessDaySection[];
+  categorySettings: OnlineOrderingCategorySpecialSetting[];
 }
 
 export interface OnlineOrderingCallToActionSlot {

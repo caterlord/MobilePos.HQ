@@ -6,6 +6,7 @@ import {
   Group,
   NumberInput,
   Paper,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -18,7 +19,41 @@ import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useBrands } from '../../contexts/BrandContext';
 import onlineOrderingService from '../../services/onlineOrderingService';
-import type { OnlineOrderingGeneralSettings } from '../../types/onlineOrdering';
+import type { OnlineOrderingGeneralSettings, OnlineOrderingLookups } from '../../types/onlineOrdering';
+
+const countryCodeOptions = [
+  { value: '852', label: '(+852) Hong Kong' },
+  { value: '61', label: '(+61) Australia' },
+  { value: '65', label: '(+65) Singapore' },
+  { value: '886', label: '(+886) Taiwan' },
+  { value: '1', label: '(+1) United States / Canada' },
+  { value: '44', label: '(+44) United Kingdom' },
+];
+
+const roundingMethodOptions = [
+  { value: '', label: 'Setting by POS' },
+  { value: 'UP', label: 'Round up' },
+  { value: 'DOWN', label: 'Round down' },
+  { value: 'ROUND', label: 'Round' },
+  { value: 'N5C', label: 'Nearest 5 cents' },
+  { value: 'NONE', label: 'No round' },
+];
+
+const infoAlignOptions = [
+  { value: '', label: 'Default' },
+  { value: 'left', label: 'Left' },
+  { value: 'right', label: 'Right' },
+];
+
+const displayImageSizeOptions = [
+  { value: '', label: 'Default' },
+  { value: 'sm', label: 'Small' },
+];
+
+const gapOptions = [
+  { value: 'sm', label: 'Default' },
+  { value: 'no', label: 'No gap' },
+];
 
 const defaultSettings: OnlineOrderingGeneralSettings = {
   websiteUrl: '',
@@ -34,12 +69,39 @@ const defaultSettings: OnlineOrderingGeneralSettings = {
   roundingMethod: '',
   roundingPlace: null,
   businessDaySections: [],
+  categorySettings: [],
 };
+
+function normalizeSettings(
+  settings: OnlineOrderingGeneralSettings,
+  lookups: OnlineOrderingLookups | null,
+): OnlineOrderingGeneralSettings {
+  if (!lookups) {
+    return settings;
+  }
+
+  const existing = new Map(settings.categorySettings.map((entry) => [entry.categoryId, entry]));
+  return {
+    ...settings,
+    categorySettings: lookups.smartCategories.map((category) => existing.get(category.id) ?? {
+      categoryId: category.id,
+      infoAlign: '',
+      displayImageSize: '',
+      gap: 'sm',
+      isNecessary: false,
+      prioritySubmission: false,
+      hiddenAfterSubmission: false,
+      hiddenRemark: false,
+      displayThresholdItemIds: [],
+    }),
+  };
+}
 
 export function OnlineOrderingSettingsPage() {
   const { selectedBrand } = useBrands();
   const brandId = useMemo(() => (selectedBrand ? parseInt(selectedBrand, 10) : null), [selectedBrand]);
   const [settings, setSettings] = useState<OnlineOrderingGeneralSettings>(defaultSettings);
+  const [lookups, setLookups] = useState<OnlineOrderingLookups | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +109,17 @@ export function OnlineOrderingSettingsPage() {
   useEffect(() => {
     if (!brandId) {
       setSettings(defaultSettings);
+      setLookups(null);
       return;
     }
 
     setLoading(true);
     setError(null);
-    onlineOrderingService.getSettings(brandId)
-      .then(setSettings)
+    Promise.all([onlineOrderingService.getSettings(brandId), onlineOrderingService.getLookups(brandId)])
+      .then(([settingsResponse, lookupsResponse]) => {
+        setLookups(lookupsResponse);
+        setSettings(normalizeSettings(settingsResponse, lookupsResponse));
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load ODO settings'))
       .finally(() => setLoading(false));
   }, [brandId]);
@@ -64,7 +130,7 @@ export function OnlineOrderingSettingsPage() {
     try {
       setSaving(true);
       const response = await onlineOrderingService.updateSettings(brandId, settings);
-      setSettings(response);
+      setSettings(normalizeSettings(response, lookups));
       notifications.show({
         color: 'green',
         message: 'ODO general settings updated.',
@@ -109,13 +175,24 @@ export function OnlineOrderingSettingsPage() {
         <Stack gap="lg">
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
             <TextInput label="Website URL" value={settings.websiteUrl} onChange={(event) => setSettings((current) => ({ ...current, websiteUrl: event.currentTarget.value }))} />
-            <TextInput label="Country Code" value={settings.countryCode} onChange={(event) => setSettings((current) => ({ ...current, countryCode: event.currentTarget.value }))} />
+            <Select
+              label="Country Code"
+              data={countryCodeOptions}
+              searchable
+              value={settings.countryCode}
+              onChange={(value) => setSettings((current) => ({ ...current, countryCode: value ?? '852' }))}
+            />
             <NumberInput label="Time Zone" value={settings.timeZone} onChange={(value) => setSettings((current) => ({ ...current, timeZone: Number(value) || 0 }))} />
             <NumberInput label="Order Token Valid Time (min)" value={settings.orderTokenValidTime} onChange={(value) => setSettings((current) => ({ ...current, orderTokenValidTime: Number(value) || 0 }))} />
             <NumberInput label="Quota" value={settings.quota} onChange={(value) => setSettings((current) => ({ ...current, quota: Number(value) || 0 }))} />
             <NumberInput label="Quota Of Item" value={settings.quotaOfItem} onChange={(value) => setSettings((current) => ({ ...current, quotaOfItem: Number(value) || 0 }))} />
             <NumberInput label="Quota Of Each Item" value={settings.quotaOfEachItem} onChange={(value) => setSettings((current) => ({ ...current, quotaOfEachItem: Number(value) || 0 }))} />
-            <TextInput label="Rounding Method" value={settings.roundingMethod} onChange={(event) => setSettings((current) => ({ ...current, roundingMethod: event.currentTarget.value }))} />
+            <Select
+              label="Rounding Method"
+              data={roundingMethodOptions}
+              value={settings.roundingMethod}
+              onChange={(value) => setSettings((current) => ({ ...current, roundingMethod: value ?? '' }))}
+            />
             <NumberInput label="Rounding Place" value={settings.roundingPlace ?? 0} onChange={(value) => setSettings((current) => ({ ...current, roundingPlace: Number(value) || 0 }))} />
             <TextInput label="Expired Token Message" value={settings.whenTokenExpiredTips ?? ''} onChange={(event) => setSettings((current) => ({ ...current, whenTokenExpiredTips: event.currentTarget.value }))} />
           </SimpleGrid>
@@ -137,6 +214,163 @@ export function OnlineOrderingSettingsPage() {
             />
           </Group>
         </Stack>
+      </Paper>
+
+      <Paper p="lg" radius="md" style={{ border: '1px solid #E3E8EE', backgroundColor: 'white' }}>
+        <Group justify="space-between" mb="md">
+          <div>
+            <Title order={3}>Category Presentation</Title>
+            <Text size="sm" c="dimmed">
+              Override layout and submission behavior for published ODO smart categories.
+            </Text>
+          </div>
+        </Group>
+
+        <Table withTableBorder striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Category</Table.Th>
+              <Table.Th>Info Align</Table.Th>
+              <Table.Th>Image Size</Table.Th>
+              <Table.Th>Gap</Table.Th>
+              <Table.Th>Flags</Table.Th>
+              <Table.Th>Display Threshold Item IDs</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {settings.categorySettings.map((categorySetting, index) => {
+              const category = lookups?.smartCategories.find((entry) => entry.id === categorySetting.categoryId);
+              return (
+                <Table.Tr key={categorySetting.categoryId}>
+                  <Table.Td>
+                    <Text fw={600}>{category?.name ?? `Category #${categorySetting.categoryId}`}</Text>
+                    {category?.altName && (
+                      <Text size="xs" c="dimmed">
+                        {category.altName}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Select
+                      data={infoAlignOptions}
+                      value={categorySetting.infoAlign}
+                      onChange={(value) =>
+                        setSettings((current) => ({
+                          ...current,
+                          categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                            entryIndex === index ? { ...entry, infoAlign: value ?? '' } : entry,
+                          ),
+                        }))
+                      }
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <Select
+                      data={displayImageSizeOptions}
+                      value={categorySetting.displayImageSize}
+                      onChange={(value) =>
+                        setSettings((current) => ({
+                          ...current,
+                          categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                            entryIndex === index ? { ...entry, displayImageSize: value ?? '' } : entry,
+                          ),
+                        }))
+                      }
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <Select
+                      data={gapOptions}
+                      value={categorySetting.gap}
+                      onChange={(value) =>
+                        setSettings((current) => ({
+                          ...current,
+                          categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                            entryIndex === index ? { ...entry, gap: value ?? 'sm' } : entry,
+                          ),
+                        }))
+                      }
+                    />
+                  </Table.Td>
+                  <Table.Td>
+                    <Stack gap={6}>
+                      <Switch
+                        label="Necessary"
+                        checked={categorySetting.isNecessary}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, isNecessary: event.currentTarget.checked } : entry,
+                            ),
+                          }))
+                        }
+                      />
+                      <Switch
+                        label="Priority submission"
+                        checked={categorySetting.prioritySubmission}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, prioritySubmission: event.currentTarget.checked } : entry,
+                            ),
+                          }))
+                        }
+                      />
+                      <Switch
+                        label="Hide after submission"
+                        checked={categorySetting.hiddenAfterSubmission}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, hiddenAfterSubmission: event.currentTarget.checked } : entry,
+                            ),
+                          }))
+                        }
+                      />
+                      <Switch
+                        label="Hide remark"
+                        checked={categorySetting.hiddenRemark}
+                        onChange={(event) =>
+                          setSettings((current) => ({
+                            ...current,
+                            categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, hiddenRemark: event.currentTarget.checked } : entry,
+                            ),
+                          }))
+                        }
+                      />
+                    </Stack>
+                  </Table.Td>
+                  <Table.Td>
+                    <TextInput
+                      placeholder="e.g. 101, 202"
+                      value={categorySetting.displayThresholdItemIds.join(', ')}
+                      onChange={(event) =>
+                        setSettings((current) => ({
+                          ...current,
+                          categorySettings: current.categorySettings.map((entry, entryIndex) =>
+                            entryIndex === index
+                              ? {
+                                  ...entry,
+                                  displayThresholdItemIds: event.currentTarget.value
+                                    .split(',')
+                                    .map((part) => Number.parseInt(part.trim(), 10))
+                                    .filter((value) => Number.isFinite(value)),
+                                }
+                              : entry,
+                          ),
+                        }))
+                      }
+                    />
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
       </Paper>
 
       <Paper p="lg" radius="md" style={{ border: '1px solid #E3E8EE', backgroundColor: 'white' }}>
