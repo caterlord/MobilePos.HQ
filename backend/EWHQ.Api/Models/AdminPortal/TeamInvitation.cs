@@ -17,11 +17,11 @@ public class TeamInvitation
     public DateTime? AcceptedAt { get; set; }
     public string? AcceptedByUserId { get; set; }
 
-    // Email verification fields for Auth0 flow
+    // Email verification fields for identity-provider sign-in flow
     public string? VerificationCode { get; set; } // 6-digit code for email verification
     public int VerificationAttempts { get; set; } = 0;
     public DateTime? VerificationCodeExpiresAt { get; set; }
-    public bool RequiresEmailVerification { get; set; } = false; // True when Auth0 email doesn't match invited email
+    public bool RequiresEmailVerification { get; set; } = false; // True when the signed-in email doesn't match the invited email
     
     // Navigation properties
     public virtual Team Team { get; set; } = null!;

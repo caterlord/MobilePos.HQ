@@ -11,8 +11,8 @@ The active and authoritative implementation plan is now under:
 - `docs/execution-plan/PROGRESS_TRACKER.md`
 
 ## Authentication Baseline (Current)
-- Authentication is Auth0-only.
-- Backend protected endpoints require Auth0 bearer access tokens.
+- Authentication is Clerk-based.
+- Backend protected endpoints require Clerk session bearer tokens.
 - Legacy local auth endpoints such as `/api/auth/login` are not part of the active architecture.
 
 ## Current Sprint Tracking

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Claims;
+using EWHQ.Api.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -116,8 +117,8 @@ public class AuditSaveChangesInterceptor : SaveChangesInterceptor
         var traceId = Activity.Current?.TraceId.ToString() ?? string.Empty;
         var operationId = Activity.Current?.RootId ?? string.Empty;
         var requestId = httpContext?.TraceIdentifier ?? string.Empty;
-        var actorId = httpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
-        var actorEmail = httpContext?.User.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+        var actorId = httpContext?.User.GetExternalUserId() ?? string.Empty;
+        var actorEmail = httpContext?.User.GetEmailAddress() ?? string.Empty;
         var actorDisplay = !string.IsNullOrWhiteSpace(actorEmail) ? actorEmail : actorId;
 
         foreach (var mutation in pendingMutations)

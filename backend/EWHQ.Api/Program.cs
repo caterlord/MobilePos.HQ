@@ -4,11 +4,10 @@ using EWHQ.Api.Data;
 using DotNetEnv;
 using EWHQ.Api.Identity;
 using EWHQ.Api.Auditing;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
-using System.Security.Claims;
+using Clerk.BackendAPI;
+using Microsoft.AspNetCore.Authentication;
+using EWHQ.Api.Authorization;
 using EWHQ.Api.Services;
 using SendGrid;
 
@@ -154,39 +153,51 @@ builder.Services.AddScoped<IPOSDbContextService, POSDbContextService>();
 // Add Brand Authorization service
 builder.Services.AddScoped<IBrandAuthorizationService, BrandAuthorizationService>();
 
-// Identity services removed - Auth0 handles all authentication
-// UserProfileDbContext now manages user profiles directly
+// Identity services removed - Clerk handles authentication
+// UserProfileDbContext now manages local profiles and roles.
 
-// Configure Auth0 JWT authentication
-var auth0Domain = Environment.GetEnvironmentVariable("AUTH0_DOMAIN") ?? throw new InvalidOperationException("AUTH0_DOMAIN not set");
-var auth0Audience = Environment.GetEnvironmentVariable("AUTH0_AUDIENCE") ?? throw new InvalidOperationException("AUTH0_AUDIENCE not set");
+var clerkSecretKey = (Environment.GetEnvironmentVariable("CLERK_SECRET_KEY")
+    ?? builder.Configuration["Clerk:SecretKey"]
+    ?? throw new InvalidOperationException("CLERK_SECRET_KEY not set")).Trim();
+
+var clerkAuthenticationSettings = new ClerkAuthenticationSettings
+{
+    SecretKey = clerkSecretKey,
+    MachineSecretKey = Environment.GetEnvironmentVariable("CLERK_MACHINE_SECRET_KEY")
+        ?? builder.Configuration["Clerk:MachineSecretKey"],
+    JwtKey = Environment.GetEnvironmentVariable("CLERK_JWT_KEY")
+        ?? builder.Configuration["Clerk:JwtKey"],
+    AllowedParties = (Environment.GetEnvironmentVariable("CLERK_ALLOWED_PARTIES")
+        ?? builder.Configuration["Clerk:AllowedParties"]
+        ?? "http://localhost:5173,http://localhost:5174")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+    Audiences = (Environment.GetEnvironmentVariable("CLERK_AUDIENCES")
+        ?? builder.Configuration["Clerk:Audiences"]
+        ?? string.Empty)
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+};
+
+builder.Services.AddSingleton(clerkAuthenticationSettings);
+builder.Services.AddSingleton(new ClerkBackendApi(bearerAuth: clerkSecretKey));
+builder.Services.AddHttpClient(nameof(ClerkJwksService));
+builder.Services.AddSingleton<IClerkJwksService, ClerkJwksService>();
+builder.Services.AddScoped<IClerkUserService, ClerkUserService>();
+builder.Services.AddScoped<IClaimsTransformation, LocalUserClaimsTransformation>();
 
 builder.Services.AddAuthentication(options =>
     {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultAuthenticateScheme = ClerkAuthenticationHandler.SchemeName;
+        options.DefaultChallengeScheme = ClerkAuthenticationHandler.SchemeName;
     })
-    .AddJwtBearer(options =>
-    {
-        options.Authority = $"https://{auth0Domain}/";
-        options.Audience = auth0Audience;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew = TimeSpan.Zero,
-            NameClaimType = ClaimTypes.NameIdentifier,
-            RoleClaimType = "https://ewhq.com/roles"
-        };
-    });
+    .AddScheme<AuthenticationSchemeOptions, ClerkAuthenticationHandler>(
+        ClerkAuthenticationHandler.SchemeName,
+        _ => { });
 
 // Add authorization
 builder.Services.AddAuthorization();
 
 // Add custom services
-// DatabaseSeeder removed - Auth0 handles user authentication
+// DatabaseSeeder removed - Clerk handles user authentication
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 
@@ -201,14 +212,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddSingleton<ISendGridClient>(x =>
     new SendGridClient(Environment.GetEnvironmentVariable("SENDGRID_API_KEY") ?? throw new InvalidOperationException("SENDGRID_API_KEY not set")));
 
-// Add Auth0 Management service
-builder.Services.AddScoped<IAuth0ManagementService, Auth0ManagementService>();
-
 // Add Legacy POS Service
 builder.Services.AddScoped<ILegacyPOSService, LegacyPOSService>();
-
-// Add HttpClient for Auth0 controller
-builder.Services.AddHttpClient();
 
 // Enable Azure Monitor OpenTelemetry export when connection string is configured.
 var applicationInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");

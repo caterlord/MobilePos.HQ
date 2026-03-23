@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
-import { Auth0ProviderWithHistory } from './components/Auth0ProviderWithHistory'
-import { Auth0ContextProvider, useAuth } from './contexts/Auth0Context'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useAuth as useClerkAuth } from '@clerk/react'
+import { ClerkProviderWithRoutes } from './components/ClerkProviderWithRoutes'
+import { AuthContextProvider, useAuth } from './contexts/AuthContext'
 import { BrandProvider } from './contexts/BrandContext'
 import { BookmarkProvider } from './contexts/BookmarkContext'
 import { LoginPage } from './pages/LoginPage'
+import { AccountSettingsPage } from './pages/AccountSettingsPage'
 import { DashboardLayout } from './layouts/DashboardLayout'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -29,12 +31,10 @@ import { StoreSystemParametersPage } from './pages/operations/store-settings/Sto
 import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { LoadingSpinner } from './components/LoadingSpinner'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
-import { useAuth0 } from '@auth0/auth0-react'
-import { useEffect } from 'react'
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
-  const { isAuthenticated, isLoading: authLoading } = useAuth0();
+  const { isLoaded, isSignedIn } = useClerkAuth();
   const {
     user,
     isLoading: userLoading,
@@ -45,6 +45,8 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
     retryBackendConnection,
     logout,
   } = useAuth();
+  const isAuthenticated = !!isSignedIn;
+  const authLoading = !isLoaded;
 
   if (backendUnavailable) {
     return (
@@ -57,7 +59,7 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
     );
   }
 
-  // Show loading while Auth0 or user profile is loading
+  // Show loading while Clerk or user profile is loading
   if (authLoading || userLoading) {
     return <LoadingSpinner message="Loading your profile..." />;
   }
@@ -81,66 +83,19 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   return <>{children}</>;
 }
 
-// Callback Component for Auth0
-function CallbackPage() {
-  const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth0();
-  const {
-    user,
-    isLoading: userLoading,
-    hasTenantAssociation,
-    backendUnavailable,
-    backendError,
-    backendReconnectInProgress,
-    retryBackendConnection,
-    logout,
-  } = useAuth();
-
-  useEffect(() => {
-    // Wait for both Auth0 authentication and user profile sync
-    if (!isLoading && !userLoading) {
-      if (isAuthenticated && user) {
-        // Check if user has tenant association
-        if (backendUnavailable) {
-          return;
-        }
-
-        if (hasTenantAssociation()) {
-          // Has tenant, go to dashboard
-          navigate('/', { replace: true });
-        } else {
-          // No tenant, go to onboarding
-          navigate('/onboarding', { replace: true });
-        }
-      } else if (!isAuthenticated && !isLoading) {
-        // Authentication failed, go back to login
-        navigate('/login', { replace: true });
-      }
-    }
-  }, [isAuthenticated, isLoading, user, userLoading, hasTenantAssociation, navigate, backendUnavailable]);
-
-  if (backendUnavailable) {
-    return (
-      <BackendConnectionOverlay
-        message={backendError}
-        reconnecting={backendReconnectInProgress}
-        onRetry={retryBackendConnection}
-        onLogout={logout}
-      />
-    );
-  }
-
-  return <LoadingSpinner message="Completing sign in..." />;
-}
-
-// App Content with Auth0 hooks available
+// App Content with Clerk hooks available
 function AppContent() {
-  const { isAuthenticated } = useAuth0();
+  const { isLoaded, isSignedIn } = useClerkAuth();
+  const isAuthenticated = !!isSignedIn;
+
+  if (!isLoaded) {
+    return <LoadingSpinner message="Loading authentication..." />;
+  }
 
   return (
     <Routes>
-      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} />
-      <Route path="/callback" element={<CallbackPage />} />
+      <Route path="/login" element={!isAuthenticated ? <LoginPage mode="sign-in" /> : <Navigate to="/" replace />} />
+      <Route path="/sign-up" element={!isAuthenticated ? <LoginPage mode="sign-up" /> : <Navigate to="/" replace />} />
       <Route path="/onboarding" element={
         <ProtectedRoute requireTenant={false}>
           <OnboardingWizard />
@@ -152,6 +107,7 @@ function AppContent() {
         </ProtectedRoute>
       }>
         <Route index element={<DashboardPage />} />
+        <Route path="account/*" element={<AccountSettingsPage />} />
         <Route path="pos" element={<PosPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="organization-management" element={<OrganizationManagementPage />} />
@@ -182,15 +138,15 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <Auth0ProviderWithHistory>
-        <Auth0ContextProvider>
+      <ClerkProviderWithRoutes>
+        <AuthContextProvider>
           <BrandProvider>
             <BookmarkProvider>
               <AppContent />
             </BookmarkProvider>
           </BrandProvider>
-        </Auth0ContextProvider>
-      </Auth0ProviderWithHistory>
+        </AuthContextProvider>
+      </ClerkProviderWithRoutes>
     </BrowserRouter>
   )
 }

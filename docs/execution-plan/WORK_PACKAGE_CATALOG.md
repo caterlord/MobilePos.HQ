@@ -14,8 +14,8 @@ Each work package is atomic and execution-ready.
 - Sprint: S01
 - Priority: P0
 - Depends on: none
-- Scope: Resolve `/auth0/change-password` behavior mismatch.
-- Deliverables: Implement endpoint or reroute frontend to Auth0-compliant flow.
+- Scope: Resolve `/auth/change-password` behavior mismatch.
+- Deliverables: Implement endpoint or reroute frontend to Clerk account-management flow.
 - Verification: Password change UX no longer hits missing API.
 
 ## WP-003 Route Integrity Cleanup
@@ -31,14 +31,14 @@ Each work package is atomic and execution-ready.
 - Priority: P1
 - Depends on: none
 - Scope: Remove stale docs/scripts assuming `/api/auth/login` local auth.
-- Deliverables: Updated scripts and docs for Auth0-only login.
+- Deliverables: Updated scripts and docs for the hosted auth flow.
 - Verification: Scripts/docs match current backend endpoints.
 
 ## WP-005 API Contract Test Baseline
 - Sprint: S01
 - Priority: P1
 - Depends on: WP-001, WP-002
-- Scope: Add basic API contract checks for auth0/profile/invitation/tenant setup.
+- Scope: Add basic API contract checks for auth/profile/invitation/tenant setup.
 - Deliverables: Contract test suite or scripted checks in repo.
 - Verification: CI/local contract checks pass.
 

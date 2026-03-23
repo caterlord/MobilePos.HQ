@@ -1,8 +1,8 @@
 namespace EWHQ.Api.Identity;
 
 /// <summary>
-/// User entity for Auth0 integration.
-/// Authentication is handled by Auth0, this entity stores user profile and basic information.
+/// User entity for external identity integration.
+/// Authentication is handled by Clerk, while this entity stores the local HQ profile and access data.
 /// </summary>
 public class ApplicationUser
 {
@@ -14,9 +14,9 @@ public class ApplicationUser
     public string? LastName { get; set; }
     public string? PhoneNumber { get; set; }
 
-    // Auth0 integration
-    public string? Auth0UserId { get; set; } // Auth0 user identifier (e.g., "auth0|xxx" or "google-oauth2|xxx")
-    public string? IdentityProvider { get; set; } // Identity provider (e.g., "auth0", "google-oauth2", "facebook", etc.)
+    // External identity integration
+    public string? ExternalUserId { get; set; } // External user identifier (for example, a Clerk user ID)
+    public string? IdentityProvider { get; set; } // Identity provider (for example, "clerk", "oauth_google")
 
     // User type to distinguish between different user categories
     public string UserType { get; set; } = "Standard"; // SuperAdmin, Admin, Standard

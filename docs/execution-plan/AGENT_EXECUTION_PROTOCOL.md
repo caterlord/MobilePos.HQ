@@ -49,7 +49,7 @@ If blocked:
 - Endpoint smoke checks (as applicable): use updated scripts under `backend/EWHQ.Api/`.
 
 ## High-Risk Areas (Always Add Extra Checks)
-- Auth/Auth0 sync and claim mapping
+- Auth/Clerk sync and claim mapping
 - Invitation acceptance and role assignment
 - Tenant/brand selection and data isolation
 - Payment callbacks and idempotency

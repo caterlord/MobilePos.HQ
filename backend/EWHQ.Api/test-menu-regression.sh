@@ -2,9 +2,9 @@
 
 # Sprint 4 menu regression baseline checks (WP-022 baseline)
 # Usage:
-#   AUTH0_TOKEN=<bearer-token> BRAND_ID=<brand-id> ./test-menu-regression.sh
+#   API_TOKEN=<bearer-token> BRAND_ID=<brand-id> ./test-menu-regression.sh
 # Optional:
-#   API_URL=http://localhost:5125/api AUTH0_TOKEN=<token> BRAND_ID=<id> ./test-menu-regression.sh
+#   API_URL=http://localhost:5125/api API_TOKEN=<token> BRAND_ID=<id> ./test-menu-regression.sh
 
 set -u
 
@@ -14,13 +14,13 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 API_URL="${API_URL:-http://localhost:5125/api}"
-TOKEN="${AUTH0_TOKEN:-}"
+TOKEN="${API_TOKEN:-}"
 BRAND_ID="${BRAND_ID:-}"
 TMP_BODY="/tmp/ewhq-menu-regression-response.json"
 
 if [ -z "$TOKEN" ]; then
-  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
-  echo "  export AUTH0_TOKEN='<access-token>'"
+  echo -e "${YELLOW}API_TOKEN is not set.${NC}"
+  echo "  export API_TOKEN='<access-token>'"
   exit 1
 fi
 

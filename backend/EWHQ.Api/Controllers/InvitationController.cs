@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using EWHQ.Api.Services;
 using EWHQ.Api.Models.AdminPortal;
+using EWHQ.Api.Identity;
 using Microsoft.EntityFrameworkCore;
 using EWHQ.Api.Data;
 using System.Security.Claims;
@@ -17,6 +18,7 @@ public class InvitationController : ControllerBase
 {
     private readonly ITeamService _teamService;
     private readonly IAccessAuditService _accessAuditService;
+    private readonly IClerkUserService _clerkUserService;
     private readonly AdminDbContext _context;
     private readonly ILogger<InvitationController> _logger;
     private readonly IEmailService _emailService;
@@ -24,12 +26,14 @@ public class InvitationController : ControllerBase
     public InvitationController(
         ITeamService teamService,
         IAccessAuditService accessAuditService,
+        IClerkUserService clerkUserService,
         AdminDbContext context,
         ILogger<InvitationController> logger,
         IEmailService emailService)
     {
         _teamService = teamService;
         _accessAuditService = accessAuditService;
+        _clerkUserService = clerkUserService;
         _context = context;
         _logger = logger;
         _emailService = emailService;
@@ -74,31 +78,33 @@ public class InvitationController : ControllerBase
     }
 
     /// <summary>
-    /// Accept an invitation after Auth0 authentication
-    /// This endpoint is called after the user has authenticated with Auth0
+    /// Accept an invitation after Clerk authentication.
     /// </summary>
     [HttpPost("accept")]
     [Authorize]
     public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)
     {
-        // Get the authenticated user's information from Auth0 token
-        // Try both ClaimTypes.NameIdentifier and "sub" as Auth0 uses "sub" for the user ID
-        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var externalUserId = User.GetExternalUserId();
+        var userEmail = User.GetEmailAddress();
 
-        // Try both ClaimTypes.Email and various email claim types that Auth0 might use
-        var auth0Email = User.FindFirst(ClaimTypes.Email)?.Value
-            ?? User.FindFirst("email")?.Value
-            ?? User.FindFirst("https://ewhq.com/email")?.Value;
-
-        if (string.IsNullOrEmpty(auth0UserId) || string.IsNullOrEmpty(auth0Email))
+        if (string.IsNullOrEmpty(externalUserId))
         {
-            // Log the actual claims for debugging
             _logger.LogWarning("Failed to extract user information from token. Claims present:");
             foreach (var claim in User.Claims)
             {
                 _logger.LogWarning($"  {claim.Type}: {claim.Value}");
             }
             return Unauthorized(new { message = "Unable to retrieve user information from authentication token" });
+        }
+
+        if (string.IsNullOrEmpty(userEmail))
+        {
+            userEmail = (await _clerkUserService.GetUserAsync(externalUserId))?.Email ?? string.Empty;
+        }
+
+        if (string.IsNullOrEmpty(userEmail))
+        {
+            return Unauthorized(new { message = "Unable to retrieve user email from authentication token or Clerk profile" });
         }
 
         var invitationToken = request.GetToken();
@@ -127,8 +133,7 @@ public class InvitationController : ControllerBase
             return BadRequest(new { message = "Invitation has expired" });
         }
 
-        // Check if the Auth0 email matches the invited email
-        var emailMatches = string.Equals(auth0Email, invitation.Email, StringComparison.OrdinalIgnoreCase);
+        var emailMatches = string.Equals(userEmail, invitation.Email, StringComparison.OrdinalIgnoreCase);
 
         if (!emailMatches && !invitation.RequiresEmailVerification)
         {
@@ -140,7 +145,7 @@ public class InvitationController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            await TryAuditAsync(invitation.TeamId, "InvitationAcceptRequiresEmailVerification", auth0UserId, null, invitation.Email, new
+            await TryAuditAsync(invitation.TeamId, "InvitationAcceptRequiresEmailVerification", externalUserId, null, invitation.Email, new
             {
                 invitationId = invitation.Id
             });
@@ -165,7 +170,7 @@ public class InvitationController : ControllerBase
             // Add user to the team
             var success = await _teamService.AddTeamMemberAsync(
                 invitation.TeamId,
-                auth0UserId,
+                externalUserId,
                 invitation.Role,
                 invitation.InvitedByUserId);
 
@@ -177,11 +182,11 @@ public class InvitationController : ControllerBase
             // Mark invitation as accepted
             invitation.IsAccepted = true;
             invitation.AcceptedAt = DateTime.UtcNow;
-            invitation.AcceptedByUserId = auth0UserId;
+            invitation.AcceptedByUserId = externalUserId;
 
             await _context.SaveChangesAsync();
 
-            await TryAuditAsync(invitation.TeamId, "InvitationAccepted", auth0UserId, auth0UserId, auth0Email, new
+            await TryAuditAsync(invitation.TeamId, "InvitationAccepted", externalUserId, externalUserId, userEmail, new
             {
                 invitationId = invitation.Id
             });
@@ -199,15 +204,15 @@ public class InvitationController : ControllerBase
     }
 
     /// <summary>
-    /// Verify email ownership when Auth0 email doesn't match invited email
+    /// Verify email ownership when the signed-in email doesn't match the invited email.
     /// </summary>
     [HttpPost("verify-email")]
     [Authorize]
     public async Task<IActionResult> VerifyEmailOwnership([FromBody] VerifyEmailRequest request)
     {
-        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var externalUserId = User.GetExternalUserId();
 
-        if (string.IsNullOrEmpty(auth0UserId))
+        if (string.IsNullOrEmpty(externalUserId))
         {
             return Unauthorized();
         }
@@ -252,7 +257,7 @@ public class InvitationController : ControllerBase
         // Verification successful - add user to team
         var success = await _teamService.AddTeamMemberAsync(
             invitation.TeamId,
-            auth0UserId,
+            externalUserId,
             invitation.Role,
             invitation.InvitedByUserId);
 
@@ -264,15 +269,15 @@ public class InvitationController : ControllerBase
         // Mark invitation as accepted
         invitation.IsAccepted = true;
         invitation.AcceptedAt = DateTime.UtcNow;
-        invitation.AcceptedByUserId = auth0UserId;
+        invitation.AcceptedByUserId = externalUserId;
         invitation.RequiresEmailVerification = false;
 
         // Store verified email for future reference (optional)
-        await StoreVerifiedEmail(auth0UserId, invitation.Email);
+        await StoreVerifiedEmail(externalUserId, invitation.Email);
 
         await _context.SaveChangesAsync();
 
-        await TryAuditAsync(invitation.TeamId, "InvitationAcceptedAfterVerification", auth0UserId, auth0UserId, invitation.Email, new
+        await TryAuditAsync(invitation.TeamId, "InvitationAcceptedAfterVerification", externalUserId, externalUserId, invitation.Email, new
         {
             invitationId = invitation.Id
         });
@@ -293,7 +298,7 @@ public class InvitationController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResendVerificationCode([FromBody] ResendVerificationRequest request)
     {
-        var auth0UserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+        var externalUserId = User.GetExternalUserId();
 
         var invitation = await _context.TeamInvitations
             .Include(i => i.Team)
@@ -321,7 +326,7 @@ public class InvitationController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        await TryAuditAsync(invitation.TeamId, "InvitationVerificationResent", auth0UserId, null, invitation.Email, new
+        await TryAuditAsync(invitation.TeamId, "InvitationVerificationResent", externalUserId, null, invitation.Email, new
         {
             invitationId = invitation.Id
         });

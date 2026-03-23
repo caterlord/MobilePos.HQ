@@ -2,7 +2,7 @@
 
 # Sprint 1 smoke: token -> onboarding invite flow -> brand load/select (WP-007)
 # Usage:
-#   AUTH0_TOKEN=<bearer-token> INVITATION_TOKEN=<invite-token> ./test-smoke-onboarding-brand.sh
+#   API_TOKEN=<bearer-token> INVITATION_TOKEN=<invite-token> ./test-smoke-onboarding-brand.sh
 
 set -u
 
@@ -12,13 +12,13 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 API_URL="${API_URL:-http://localhost:5125/api}"
-TOKEN="${AUTH0_TOKEN:-}"
+TOKEN="${API_TOKEN:-}"
 INVITATION_TOKEN="${INVITATION_TOKEN:-}"
 TMP_BODY="/tmp/ewhq-smoke-body.json"
 
 if [ -z "$TOKEN" ]; then
-  echo -e "${YELLOW}AUTH0_TOKEN is not set.${NC}"
-  echo "  export AUTH0_TOKEN='<access-token>'"
+  echo -e "${YELLOW}API_TOKEN is not set.${NC}"
+  echo "  export API_TOKEN='<access-token>'"
   exit 1
 fi
 

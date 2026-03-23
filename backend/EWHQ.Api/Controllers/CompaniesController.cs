@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using EWHQ.Api.Models.AdminPortal;
 using EWHQ.Api.Services;
-using System.Security.Claims;
+using EWHQ.Api.Constants;
+using EWHQ.Api.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace EWHQ.Api.Controllers;
 
@@ -12,28 +14,47 @@ namespace EWHQ.Api.Controllers;
 public class CompaniesController : ControllerBase
 {
     private readonly ICompanyService _companyService;
+    private readonly UserProfileDbContext _userContext;
     private readonly ILogger<CompaniesController> _logger;
 
-    public CompaniesController(ICompanyService companyService, ILogger<CompaniesController> logger)
+    public CompaniesController(ICompanyService companyService, UserProfileDbContext userContext, ILogger<CompaniesController> logger)
     {
         _companyService = companyService;
+        _userContext = userContext;
         _logger = logger;
     }
 
-    private string GetCurrentUserId()
+    private async Task<string> GetCurrentUserIdAsync()
     {
-        return User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        var localUserId = User.FindFirst(HqClaimTypes.LocalUserId)?.Value;
+        if (!string.IsNullOrWhiteSpace(localUserId))
+        {
+            return localUserId;
+        }
+
+        var externalUserId = User.GetExternalUserId();
+
+        if (string.IsNullOrWhiteSpace(externalUserId))
+        {
+            return string.Empty;
+        }
+
+        var user = await _userContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(candidate => candidate.ExternalUserId == externalUserId);
+
+        return user?.Id ?? string.Empty;
     }
 
     private bool IsSuperAdmin()
     {
-        return User.IsInRole("SuperAdmin");
+        return User.IsInRole("SuperAdmin") || User.FindFirst(HqClaimTypes.UserType)?.Value == "SuperAdmin";
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Company>>> GetCompanies()
     {
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserIdAsync();
         var companies = await _companyService.GetCompaniesAsync(userId, IsSuperAdmin());
         return Ok(companies);
     }
@@ -41,7 +62,7 @@ public class CompaniesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<Company>> GetCompany(int id)
     {
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserIdAsync();
         var company = await _companyService.GetCompanyByIdAsync(id, userId, IsSuperAdmin());
         
         if (company == null)
@@ -56,7 +77,7 @@ public class CompaniesController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserIdAsync();
         var company = new Company
         {
             Name = request.Name,
@@ -87,7 +108,7 @@ public class CompaniesController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserIdAsync();
         var company = new Company
         {
             Name = request.Name,
@@ -118,7 +139,7 @@ public class CompaniesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCompany(int id)
     {
-        var userId = GetCurrentUserId();
+        var userId = await GetCurrentUserIdAsync();
         var success = await _companyService.DeleteCompanyAsync(id, userId, IsSuperAdmin());
         
         if (!success)

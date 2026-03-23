@@ -4,8 +4,8 @@ namespace EWHQ.Api.Identity;
 
 /// <summary>
 /// Database context for user profile and legacy access management.
-/// Auth0 handles authentication, this context manages user profiles synchronized from Auth0
-/// and legacy multi-tenant access mappings. This will be consolidated into the Admin database.
+/// Clerk handles authentication while this context manages synchronized user profiles
+/// and local access mappings. This will be consolidated into the Admin database.
 /// </summary>
 public class UserProfileDbContext : DbContext
 {
@@ -30,9 +30,9 @@ public class UserProfileDbContext : DbContext
                 .IsUnique()
                 .HasDatabaseName("IX_Users_Email_IdentityProvider_public");
 
-            entity.HasIndex(u => u.Auth0UserId)
+            entity.HasIndex(u => u.ExternalUserId)
                 .IsUnique()
-                .HasDatabaseName("IX_Users_Auth0UserId_public");
+                .HasDatabaseName("IX_Users_ExternalUserId_public");
 
             entity.HasIndex(u => u.UserType)
                 .HasDatabaseName("IX_Users_UserType_public");

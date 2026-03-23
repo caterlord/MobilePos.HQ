@@ -1,4 +1,6 @@
-// API configuration with Auth0 token handling
+import { getRegisteredAccessToken } from '../lib/authToken';
+
+// API configuration with Clerk token handling
 const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5125';
 
 class ApiService {
@@ -24,7 +26,7 @@ class ApiService {
   }
 
   private async getAuthHeader(): Promise<Record<string, string>> {
-    const token = localStorage.getItem('auth0_token');
+    const token = await getRegisteredAccessToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
