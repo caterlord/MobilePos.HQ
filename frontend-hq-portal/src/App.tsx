@@ -139,15 +139,22 @@ function AppContent() {
         <Route path="menus/discounts" element={<DiscountsPage />} />
         <Route path="menus/button-styles" element={<ButtonStylesPage />} />
         <Route path="online-ordering" element={<OnlineOrderingLayout />}>
-          <Route index element={<Navigate to="/online-ordering/menu" replace />} />
-          <Route path="menu" element={<OnlineOrderingMenuPage />} />
-          <Route path="display-order" element={<OnlineOrderingDisplayOrderPage />} />
-          <Route path="modifiers" element={<OnlineOrderingModifiersPage />} />
-          <Route path="call-to-action" element={<OnlineOrderingCallToActionPage />} />
-          <Route path="settings" element={<OnlineOrderingSettingsPage />} />
-          <Route path="channel-mapping" element={<OnlineOrderingChannelMappingPage />} />
-          <Route path="menu-combinations" element={<OnlineOrderingMenuCombinationsPage />} />
+          <Route index element={<Navigate to="/online-ordering/menus" replace />} />
+          <Route path="menus" element={<OnlineOrderingMenuPage />} />
+          <Route path="menus/display-order" element={<OnlineOrderingDisplayOrderPage />} />
+          <Route path="menus/modifiers" element={<OnlineOrderingModifiersPage />} />
+          <Route path="menus/call-to-action" element={<OnlineOrderingCallToActionPage />} />
+          <Route path="menus/menu-combinations" element={<OnlineOrderingMenuCombinationsPage />} />
+          <Route path="general-settings" element={<OnlineOrderingSettingsPage />} />
+          <Route path="channel-settings" element={<OnlineOrderingChannelMappingPage />} />
           <Route path="ui-i18n" element={<OnlineOrderingUiI18nPage />} />
+          <Route path="menu" element={<Navigate to="/online-ordering/menus" replace />} />
+          <Route path="display-order" element={<Navigate to="/online-ordering/menus/display-order" replace />} />
+          <Route path="modifiers" element={<Navigate to="/online-ordering/menus/modifiers" replace />} />
+          <Route path="call-to-action" element={<Navigate to="/online-ordering/menus/call-to-action" replace />} />
+          <Route path="settings" element={<Navigate to="/online-ordering/general-settings" replace />} />
+          <Route path="channel-mapping" element={<Navigate to="/online-ordering/channel-settings" replace />} />
+          <Route path="menu-combinations" element={<Navigate to="/online-ordering/menus/menu-combinations" replace />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />

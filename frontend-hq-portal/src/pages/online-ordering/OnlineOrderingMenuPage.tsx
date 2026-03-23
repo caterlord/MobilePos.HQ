@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Group,
   Modal,
   NumberInput,
@@ -15,10 +16,24 @@ import {
   Table,
   Text,
   TextInput,
+  ThemeIcon,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconDeviceFloppy, IconEdit, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import {
+  IconAdjustments,
+  IconAlertCircle,
+  IconArrowsSort,
+  IconDeviceFloppy,
+  IconEdit,
+  IconExternalLink,
+  IconLayoutGrid,
+  IconPlus,
+  IconRefresh,
+  IconShoppingCart,
+  IconTrash,
+} from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import { useBrands } from '../../contexts/BrandContext';
 import menuItemService from '../../services/menuItemService';
 import onlineOrderingService from '../../services/onlineOrderingService';
@@ -100,6 +115,37 @@ function hydrateShopSchedules(detail: SmartCategoryDetail, lookups: OnlineOrderi
     modifiedBy: '',
   });
 }
+
+const menuFeatureCards = [
+  {
+    title: 'Display Order',
+    description: 'Reorder the ODO smart-category tree and keep the storefront structure aligned.',
+    icon: IconArrowsSort,
+    color: 'indigo',
+    to: '/online-ordering/menus/display-order',
+  },
+  {
+    title: 'Modifiers',
+    description: 'Review modifier groups and meal sets that are visible in ODO.',
+    icon: IconAdjustments,
+    color: 'grape',
+    to: '/online-ordering/menus/modifiers',
+  },
+  {
+    title: 'Call To Action',
+    description: 'Manage cart and order-history CTA content for online ordering.',
+    icon: IconShoppingCart,
+    color: 'teal',
+    to: '/online-ordering/menus/call-to-action',
+  },
+  {
+    title: 'Menu Combinations',
+    description: 'Build online-ordering menu combinations from ODO categories and shop assignments.',
+    icon: IconLayoutGrid,
+    color: 'orange',
+    to: '/online-ordering/menus/menu-combinations',
+  },
+];
 
 export function OnlineOrderingMenuPage() {
   const { selectedBrand } = useBrands();
@@ -339,12 +385,36 @@ export function OnlineOrderingMenuPage() {
         </Paper>
       </SimpleGrid>
 
+      <SimpleGrid cols={{ base: 1, md: 2, xl: 4 }} spacing="lg">
+        {menuFeatureCards.map((feature) => {
+          const Icon = feature.icon;
+          return (
+            <Card key={feature.title} padding="lg" radius="md" style={{ border: '1px solid #E3E8EE', backgroundColor: 'white' }}>
+              <Group justify="space-between" mb="md">
+                <ThemeIcon size="xl" radius="md" variant="light" color={feature.color}>
+                  <Icon size={22} />
+                </ThemeIcon>
+                <Button component={Link} to={feature.to} variant="subtle" size="compact-sm" rightSection={<IconExternalLink size={14} />}>
+                  Open
+                </Button>
+              </Group>
+              <Title order={3} size={18} mb={8}>
+                {feature.title}
+              </Title>
+              <Text size="sm" c="dimmed">
+                {feature.description}
+              </Text>
+            </Card>
+          );
+        })}
+      </SimpleGrid>
+
       <Paper p="lg" radius="md" style={{ border: '1px solid #E3E8EE', backgroundColor: 'white' }}>
         <Group justify="space-between" mb="md">
           <div>
-            <Title order={3}>ODO Category Management</Title>
+            <Title order={3}>ODO Menus Overview</Title>
             <Text size="sm" c="dimmed">
-              Use this page to publish categories, manage their item membership, and control shop visibility without switching back to the generic menu screens.
+              Use this landing page to jump into ODO menu workflows, then manage published categories, item membership, and shop visibility without switching back to the generic menu screens.
             </Text>
           </div>
           <Group>

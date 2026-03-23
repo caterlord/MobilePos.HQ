@@ -2,14 +2,26 @@ import { Box, Button, Container, Group, Stack, Text, Title } from '@mantine/core
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 const sections = [
-  { label: 'Menu', path: '/online-ordering/menu' },
-  { label: 'Menu Display Order', path: '/online-ordering/display-order' },
-  { label: 'Modifier', path: '/online-ordering/modifiers' },
-  { label: 'Call To Action', path: '/online-ordering/call-to-action' },
-  { label: 'General Settings', path: '/online-ordering/settings' },
-  { label: 'Channel Mapping', path: '/online-ordering/channel-mapping' },
-  { label: 'Menu Combinations', path: '/online-ordering/menu-combinations' },
-  { label: 'UI i18n', path: '/online-ordering/ui-i18n' },
+  {
+    label: 'Menus',
+    path: '/online-ordering/menus',
+    match: (pathname: string) => pathname === '/online-ordering/menus' || pathname.startsWith('/online-ordering/menus/'),
+  },
+  {
+    label: 'General Settings',
+    path: '/online-ordering/general-settings',
+    match: (pathname: string) => pathname === '/online-ordering/general-settings',
+  },
+  {
+    label: 'Channel Settings',
+    path: '/online-ordering/channel-settings',
+    match: (pathname: string) => pathname === '/online-ordering/channel-settings',
+  },
+  {
+    label: 'UI i18n',
+    path: '/online-ordering/ui-i18n',
+    match: (pathname: string) => pathname === '/online-ordering/ui-i18n',
+  },
 ];
 
 export function OnlineOrderingLayout() {
@@ -39,8 +51,7 @@ export function OnlineOrderingLayout() {
             </div>
             <Group gap="xs">
               {sections.map((section) => {
-                const active =
-                  location.pathname === section.path || (section.path !== '/online-ordering/menu' && location.pathname.startsWith(section.path));
+                const active = section.match(location.pathname);
                 return (
                   <Button
                     key={section.path}
