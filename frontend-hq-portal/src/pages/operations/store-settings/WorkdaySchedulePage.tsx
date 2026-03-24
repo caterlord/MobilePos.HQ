@@ -640,12 +640,17 @@ export function WorkdaySchedulePage() {
           <Alert icon={<IconAlertCircle size={16} />} color="yellow">Select a brand to manage workday schedules.</Alert>
         )}
 
-        {loading && (
-          <Group justify="center" py="xl"><Loader size="sm" /><Text size="sm" c="dimmed">Loading...</Text></Group>
-        )}
-
-        {!loading && selectedShopId && (
-          <div style={{ display: 'flex', gap: 8 }}>
+        {selectedShopId && (
+          <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+          {loading && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 10,
+              background: 'rgba(255,255,255,0.7)', borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Group><Loader size="sm" /><Text size="sm" c="dimmed">Loading...</Text></Group>
+            </div>
+          )}
           <Paper withBorder radius="md" style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
             {/* Hour header row */}
             <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, minmax(0, 1fr))', borderBottom: '1px solid #e9ecef' }}>
