@@ -647,7 +647,7 @@ export function WorkdaySchedulePage() {
         {!loading && selectedShopId && (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
             {/* Hour header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 64px', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 72px', borderBottom: '1px solid #e9ecef' }}>
               <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={i} style={{
@@ -757,7 +757,7 @@ export function WorkdaySchedulePage() {
                     )}
                   </div>
                   {/* Action icons */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingRight: 8 }}>
                     {entry && (
                       <ActionIcon variant="subtle" color="gray" size="sm"
                         onClick={(e) => { e.stopPropagation(); openCopyModal(day.code); }}>
@@ -950,15 +950,25 @@ export function WorkdaySchedulePage() {
         size="md"
       >
         <Stack gap="md">
-          {copySourceDay && entryByDay.get(copySourceDay) && (
-            <Paper withBorder p="xs" radius="sm" bg="gray.0">
-              <Text size="sm" fw={500}>
-                Source: {dayLabel(copySourceDay)} {entryByDay.get(copySourceDay)!.openTime.substring(0, 5)}–{entryByDay.get(copySourceDay)!.closeTime.substring(0, 5)}
-                {entryByDay.get(copySourceDay)!.dayDelta > 0 ? ' +1d' : ''}
-                {' '}({(periodsByHeaderId.get(entryByDay.get(copySourceDay)!.workdayHeaderId) ?? []).length} periods)
-              </Text>
-            </Paper>
-          )}
+          {copySourceDay && entryByDay.get(copySourceDay) && (() => {
+            const srcEntry = entryByDay.get(copySourceDay)!;
+            const srcPeriods = (periodsByHeaderId.get(srcEntry.workdayHeaderId) ?? []).map((p) => ({
+              id: p.workdayPeriodId, periodName: p.periodName,
+              fromTime: p.fromTime.substring(0, 5), toTime: p.toTime.substring(0, 5),
+              dayDelta: p.dayDelta, workdayPeriodMasterId: p.workdayPeriodMasterId ?? null,
+            }));
+            return (
+              <Paper withBorder p="sm" radius="sm" bg="gray.0">
+                <Text size="sm" fw={500} mb="xs">
+                  Source: {dayLabel(copySourceDay)} {srcEntry.openTime.substring(0, 5)}–{srcEntry.closeTime.substring(0, 5)}
+                  {srcEntry.dayDelta > 0 ? ' +1d' : ''} ({srcPeriods.length} periods)
+                </Text>
+                <Box pt={14}>
+                  <TimelineBar entry={srcEntry} periods={srcPeriods} />
+                </Box>
+              </Paper>
+            );
+          })()}
 
           <div>
             <Text fw={500} size="sm" mb="xs">Copy to days (same shop)</Text>
