@@ -46,8 +46,10 @@ import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
-// Module-level flag: survives component remounts during auth re-sync
-let _hasEverAuthenticated = false;
+// Session-level flag: survives component remounts AND Vite HMR during auth re-sync
+const HAS_AUTH_KEY = '__x1_has_ever_authenticated';
+const getHasEverAuthenticated = () => sessionStorage.getItem(HAS_AUTH_KEY) === '1';
+const setHasEverAuthenticated = () => sessionStorage.setItem(HAS_AUTH_KEY, '1');
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -65,12 +67,12 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Track if user was ever fully loaded — persists across remounts
+  // Track if user was ever fully loaded — persists in sessionStorage
   if (isAuthenticated && user) {
-    _hasEverAuthenticated = true;
+    setHasEverAuthenticated();
   }
 
-  const isResync = _hasEverAuthenticated;
+  const isResync = getHasEverAuthenticated();
 
   // Initial load: show full-page spinner. Re-sync: show overlay over existing content.
   if (!isResync) {
@@ -119,13 +121,13 @@ function AppContent() {
   const isAuthenticated = !!isSignedIn;
 
   // On initial load, show spinner. On re-sync (backend reconnect), render routes + overlay.
-  if (!isLoaded && !_hasEverAuthenticated) {
+  if (!isLoaded && !getHasEverAuthenticated()) {
     return <LoadingSpinner message="Loading authentication..." />;
   }
 
   return (
     <>
-    {!isLoaded && _hasEverAuthenticated && (
+    {!isLoaded && getHasEverAuthenticated() && (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 3000,
         background: 'rgba(255,255,255,0.7)',
