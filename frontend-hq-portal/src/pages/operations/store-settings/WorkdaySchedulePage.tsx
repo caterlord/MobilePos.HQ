@@ -597,7 +597,7 @@ export function WorkdaySchedulePage() {
         {!loading && selectedShopId && (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
             {/* Hour header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr)', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 40px', borderBottom: '1px solid #e9ecef' }}>
               <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={i} style={{
@@ -607,6 +607,7 @@ export function WorkdaySchedulePage() {
                   {String(i).padStart(2, '0')}
                 </div>
               ))}
+              <div style={{ background: '#f8f9fa' }} />
             </div>
             {/* Day rows */}
             {DAYS.map((day, dayIdx) => {
@@ -625,7 +626,7 @@ export function WorkdaySchedulePage() {
               return (
                 <div key={day.code}
                   style={{
-                    display: 'grid', gridTemplateColumns: '56px 1fr',
+                    display: 'grid', gridTemplateColumns: '56px 1fr 40px',
                     borderBottom: dayIdx < DAYS.length - 1 ? '1px solid #e9ecef' : 'none',
                     cursor: 'pointer',
                     transition: 'background 0.1s',
@@ -704,6 +705,13 @@ export function WorkdaySchedulePage() {
                         <Text size="xs" c="dimmed" fs="italic">Closed</Text>
                       </div>
                     )}
+                  </div>
+                  {/* Action icon */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'} size="sm"
+                      onClick={(e) => { e.stopPropagation(); openDayEditor(day.code); }}>
+                      {entry ? <IconEdit size={14} /> : <IconPlus size={14} />}
+                    </ActionIcon>
                   </div>
                 </div>
               );
