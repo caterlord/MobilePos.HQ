@@ -36,9 +36,20 @@ class ApiService {
     return headers;
   }
 
+  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    const response = await fetch(url, init);
+    // Retry once on 401 — token provider may not be ready yet
+    if (response.status === 401) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const retryHeaders = await this.getAuthHeader();
+      return fetch(url, { ...init, headers: retryHeaders });
+    }
+    return response;
+  }
+
   async get(endpoint: string) {
     const headers = await this.getAuthHeader();
-    const response = await fetch(`${API_URL}/api${endpoint}`, {
+    const response = await this.fetchWithRetry(`${API_URL}/api${endpoint}`, {
       method: 'GET',
       headers,
     });

@@ -47,30 +47,8 @@ import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
-// Track if user was ever fully loaded.
-// Uses localStorage with a 60-second TTL to survive Vite-induced page reloads
-// (Vite's HMR WebSocket disconnects when backend is killed, triggering a full reload).
-// The TTL ensures a genuine fresh session (e.g., after closing the tab for 1+ min)
-// gets the proper initial loading flow.
-const AUTH_FLAG_KEY = '__x1_auth_ts';
-const AUTH_FLAG_TTL = 60_000; // 60 seconds
-
-function getHasEverAuth(): boolean {
-  const ts = localStorage.getItem(AUTH_FLAG_KEY);
-  if (!ts) return false;
-  return Date.now() - parseInt(ts, 10) < AUTH_FLAG_TTL;
-}
-
-function setHasEverAuth(): void {
-  localStorage.setItem(AUTH_FLAG_KEY, String(Date.now()));
-}
-
-// Keep the flag alive while the page is open
-if (getHasEverAuth()) {
-  setInterval(() => { if (getHasEverAuth()) setHasEverAuth(); }, 15_000);
-}
-
-let _hasEverAuthenticated = getHasEverAuth();
+// Track if user was ever fully loaded in this page lifecycle.
+let _hasEverAuthenticated = false;
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -91,7 +69,6 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   // Mark once user is fully authenticated
   if (isAuthenticated && user) {
     _hasEverAuthenticated = true;
-    setHasEverAuth();
   }
 
   // INITIAL LOAD: block rendering until auth is ready (prevents 401 race conditions)
