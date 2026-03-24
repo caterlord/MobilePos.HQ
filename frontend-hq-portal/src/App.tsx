@@ -1,3 +1,4 @@
+import { Loader, Text } from '@mantine/core'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth as useClerkAuth } from '@clerk/react'
 import { ClerkProviderWithRoutes } from './components/ClerkProviderWithRoutes'
@@ -28,7 +29,6 @@ import { StoreInfoSettingsPage } from './pages/operations/store-settings/StoreIn
 import { WorkdaySchedulePage } from './pages/operations/store-settings/WorkdaySchedulePage'
 import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
 import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
-import { LoadingSpinner } from './components/LoadingSpinner'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
 import { OnlineOrderingLayout } from './pages/online-ordering/OnlineOrderingLayout'
 import { OnlineOrderingMenuPage } from './pages/online-ordering/OnlineOrderingMenuPage'
@@ -80,11 +80,22 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
       {children}
       {showLoadingOverlay && (
         <div style={{
-          position: 'fixed', inset: 0, zIndex: 3000,
-          background: 'rgba(255,255,255,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'fixed', top: 0, left: 0, right: 0,
+          zIndex: 3000, padding: '8px 0',
+          display: 'flex', justifyContent: 'center',
+          pointerEvents: 'none',
         }}>
-          <LoadingSpinner message={authLoading ? 'Loading authentication...' : 'Syncing your profile...'} />
+          <div style={{
+            background: 'white', borderRadius: 8, padding: '8px 20px',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+            display: 'flex', alignItems: 'center', gap: 10,
+            pointerEvents: 'auto',
+          }}>
+            <Loader size={16} color="blue" />
+            <Text size="sm" c="dimmed">
+              {authLoading ? 'Loading authentication...' : 'Syncing your profile...'}
+            </Text>
+          </div>
         </div>
       )}
       {backendUnavailable && (
