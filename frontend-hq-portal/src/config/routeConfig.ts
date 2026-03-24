@@ -74,12 +74,8 @@ export const ROUTE_CONFIG: RouteItem[] = [
         label: 'Info Settings',
       },
       {
-        path: '/store-settings/workday-schedule',
+        path: '/store-settings/workday',
         label: 'Workday Schedule',
-      },
-      {
-        path: '/store-settings/workday-periods',
-        label: 'Workday Periods',
       },
       {
         path: '/store-settings/system-parameters',

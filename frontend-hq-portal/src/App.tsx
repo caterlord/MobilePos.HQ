@@ -25,8 +25,7 @@ import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
 import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
 import { StoreSettingsOverviewPage } from './pages/operations/store-settings/StoreSettingsOverviewPage'
 import { StoreInfoSettingsPage } from './pages/operations/store-settings/StoreInfoSettingsPage'
-import { StoreWorkdaySchedulePage } from './pages/operations/store-settings/StoreWorkdaySchedulePage'
-import { StoreWorkdayPeriodsPage } from './pages/operations/store-settings/StoreWorkdayPeriodsPage'
+import { WorkdaySchedulePage } from './pages/operations/store-settings/WorkdaySchedulePage'
 import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
 import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { LoadingSpinner } from './components/LoadingSpinner'
@@ -130,8 +129,9 @@ function AppContent() {
         <Route path="integrations/device-settings" element={<DeviceSettingsPage />} />
         <Route path="store-settings" element={<StoreSettingsOverviewPage />} />
         <Route path="store-settings/info" element={<StoreInfoSettingsPage />} />
-        <Route path="store-settings/workday-schedule" element={<StoreWorkdaySchedulePage />} />
-        <Route path="store-settings/workday-periods" element={<StoreWorkdayPeriodsPage />} />
+        <Route path="store-settings/workday" element={<WorkdaySchedulePage />} />
+        <Route path="store-settings/workday-schedule" element={<Navigate to="/store-settings/workday" replace />} />
+        <Route path="store-settings/workday-periods" element={<Navigate to="/store-settings/workday" replace />} />
         <Route path="store-settings/system-parameters" element={<StoreSystemParametersPage />} />
         <Route path="store-settings/tables" element={<StoreTableSettingsPage />} />
         <Route path="settings" element={<Navigate to="/store-settings" replace />} />
