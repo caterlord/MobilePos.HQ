@@ -118,11 +118,22 @@ function AppContent() {
   const { isLoaded, isSignedIn } = useClerkAuth();
   const isAuthenticated = !!isSignedIn;
 
-  if (!isLoaded) {
+  // On initial load, show spinner. On re-sync (backend reconnect), render routes + overlay.
+  if (!isLoaded && !_hasEverAuthenticated) {
     return <LoadingSpinner message="Loading authentication..." />;
   }
 
   return (
+    <>
+    {!isLoaded && _hasEverAuthenticated && (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 3000,
+        background: 'rgba(255,255,255,0.7)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <LoadingSpinner message="Reconnecting..." />
+      </div>
+    )}
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage mode="sign-in" /> : <Navigate to="/" replace />} />
       <Route path="/sign-up" element={!isAuthenticated ? <LoginPage mode="sign-up" /> : <Navigate to="/" replace />} />
@@ -187,6 +198,7 @@ function AppContent() {
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
     </Routes>
+    </>
   );
 }
 
