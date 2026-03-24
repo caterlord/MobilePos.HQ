@@ -20,13 +20,31 @@ export interface StoreInfoSettings {
   name: string;
   altName: string;
   description: string;
+  altDesc: string;
   addressLine1: string;
   addressLine2: string;
+  addressLine3: string;
+  addressLine4: string;
+  altAddressLine1: string;
+  altAddressLine2: string;
+  altAddressLine3: string;
+  altAddressLine4: string;
+  district: string;
   city: string;
   country: string;
   telephone: string;
+  fax: string;
+  intCallingCode: string;
+  contact1: string;
+  contactTitle1: string;
+  contact2: string;
+  contactTitle2: string;
+  shopCode: string;
   currencyCode: string;
   currencySymbol: string;
+  addressForDelivery: string;
+  addressLat?: number | null;
+  addressLong?: number | null;
   enabled: boolean;
 }
 
@@ -34,13 +52,31 @@ export interface UpdateStoreInfoSettingsRequest {
   name: string;
   altName: string;
   description: string;
+  altDesc: string;
   addressLine1: string;
   addressLine2: string;
+  addressLine3: string;
+  addressLine4: string;
+  altAddressLine1: string;
+  altAddressLine2: string;
+  altAddressLine3: string;
+  altAddressLine4: string;
+  district: string;
   city: string;
   country: string;
   telephone: string;
+  fax: string;
+  intCallingCode: string;
+  contact1: string;
+  contactTitle1: string;
+  contact2: string;
+  contactTitle2: string;
+  shopCode: string;
   currencyCode: string;
   currencySymbol: string;
+  addressForDelivery: string;
+  addressLat?: number | null;
+  addressLong?: number | null;
   enabled: boolean;
 }
 

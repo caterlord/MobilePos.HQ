@@ -9,6 +9,9 @@
 - `npm run build` in both frontends and `dotnet publish -c Release backend/EWHQ.Api` validate production bundles before reviews.
 - Bash probes such as `backend/EWHQ.Api/test-auth.sh` and `test-pending-invitations.sh` exercise high-risk flows; keep them updated when endpoints change.
 
+## UI Design Guidelines
+Before building any frontend UI, read and follow `docs/UI_GUIDELINES.md`. It defines which data grid component to use (Simple Table vs DataTable), page structure patterns, form patterns, and notification conventions. All frontend pages must adhere to these guidelines for consistency.
+
 ## Coding Style & Naming Conventions
 Backend code follows standard C# conventions: PascalCase types, camelCase locals, DI-friendly constructors, and nullable reference types enabled—prefer `async` methods and guard clauses over nested conditionals. Frontend code uses TypeScript with functional components, two-space indentation, PascalCase component files, camelCase utilities, and Tailwind classes grouped by layout → spacing → color. Run `npm run lint` in each UI package; avoid `eslint-disable` comments unless the alternative is documented.
 

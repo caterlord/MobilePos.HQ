@@ -19,17 +19,17 @@ public class User
     public string UserName { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string UserAltName { get; set; }
+    public string? UserAltName { get; set; }
 
     [MaxLength(50)]
     [Required]
     public string Password { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string CardNo { get; set; }
+    public string? CardNo { get; set; }
 
     [MaxLength(50)]
-    public string StaffCode { get; set; }
+    public string? StaffCode { get; set; }
 
     [Key]
     [Column(Order = 2)]

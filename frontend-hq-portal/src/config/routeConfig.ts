@@ -92,6 +92,32 @@ export const ROUTE_CONFIG: RouteItem[] = [
     ],
   },
   {
+    path: '/pos-settings',
+    label: 'POS Settings',
+    children: [
+      {
+        path: '/pos-settings/payment-methods',
+        label: 'Payment Methods',
+      },
+      {
+        path: '/pos-settings/tax-surcharge',
+        label: 'Tax & Surcharge',
+      },
+      {
+        path: '/pos-settings/departments',
+        label: 'Departments',
+      },
+      {
+        path: '/pos-settings/reasons',
+        label: 'Reasons',
+      },
+      {
+        path: '/pos-settings/pos-users',
+        label: 'POS Users',
+      },
+    ],
+  },
+  {
     path: '/integrations',
     label: 'Integrations',
     children: [

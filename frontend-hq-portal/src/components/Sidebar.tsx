@@ -1,7 +1,6 @@
-import { Stack, NavLink, Box, Text, UnstyledButton, Group, Collapse, Divider, Avatar, Menu, ActionIcon, Paper } from '@mantine/core'
+import { Stack, NavLink, Box, Text, UnstyledButton, Group, Collapse, Avatar, Menu, ActionIcon } from '@mantine/core'
 import {
   IconHome,
-  IconCashRegister,
   IconReceipt,
   IconUsers,
   IconPackage,
@@ -35,13 +34,14 @@ import {
   IconAdjustments,
   IconShoppingCart,
   IconLanguage,
-  IconStar,
-  IconStarOff,
+  IconCategory,
+  IconListDetails,
+  IconToolsKitchen2,
+  IconPalette,
 } from '@tabler/icons-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { useBookmarks } from '../contexts/BookmarkContext'
 import { TenantSelector } from './TenantSelector'
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {
@@ -49,7 +49,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const location = useLocation()
   const [expandedSections, setExpandedSections] = useState<string[]>([])
   const { user, logout } = useAuth()
-  const { bookmarks } = useBookmarks()
 
   // Get user initials
   const getUserInitials = () => {
@@ -81,7 +80,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     () =>
       new Set([
         '/',
-        '/pos',
         '/menus',
         '/menus/categories',
         '/menus/smart-categories',
@@ -108,6 +106,17 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         '/online-ordering/channel-mapping',
         '/online-ordering/menu-combinations',
         '/store-settings',
+        '/store-settings/info',
+        '/store-settings/workday-schedule',
+        '/store-settings/workday-periods',
+        '/store-settings/system-parameters',
+        '/store-settings/tables',
+        '/pos-settings',
+        '/pos-settings/payment-methods',
+        '/pos-settings/tax-surcharge',
+        '/pos-settings/departments',
+        '/pos-settings/reasons',
+        '/pos-settings/pos-users',
         '/integrations',
         '/integrations/device-settings',
         '/profile',
@@ -121,7 +130,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     () =>
       [
         { icon: IconHome, label: 'Home', path: '/' },
-        { icon: IconCashRegister, label: 'POS System', path: '/pos' },
         { icon: IconReceipt, label: 'Orders', path: '/orders' },
         { icon: IconPackage, label: 'Products', path: '/products' },
         { icon: IconChartBar, label: 'Reports', path: '/reports' },
@@ -134,15 +142,49 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
     () =>
       [
         {
+          key: 'menus',
+          label: 'Menus',
+          items: [
+            { icon: IconCategory, label: 'Categories', path: '/menus/categories' },
+            { icon: IconListDetails, label: 'Smart Categories', path: '/menus/smart-categories' },
+            { icon: IconToolsKitchen2, label: 'Menu Items', path: '/menus/items' },
+            { icon: IconAdjustments, label: 'Modifiers', path: '/menus/modifiers' },
+            { icon: IconPackage, label: 'Meal Set', path: '/menus/meal-set' },
+            { icon: IconPercentage, label: 'Promotions', path: '/menus/promotions' },
+            { icon: IconTicket, label: 'Discounts', path: '/menus/discounts' },
+            { icon: IconPalette, label: 'Button Styles', path: '/menus/button-styles' },
+          ],
+        },
+        {
+          key: 'store-settings',
+          label: 'Store Settings',
+          items: [
+            { icon: IconBuildingStore, label: 'Store Info', path: '/store-settings/info' },
+            { icon: IconClock, label: 'Workday Schedule', path: '/store-settings/workday-schedule' },
+            { icon: IconClock, label: 'Workday Periods', path: '/store-settings/workday-periods' },
+            { icon: IconSettings, label: 'System Parameters', path: '/store-settings/system-parameters' },
+            { icon: IconTable, label: 'Tables & Sections', path: '/store-settings/tables' },
+          ],
+        },
+        {
           key: 'operations',
           label: 'Operations',
           items: [
             { icon: IconBuildingStore, label: 'Stores', path: '/stores' },
-            { icon: IconMenu2, label: 'Menus', path: '/menus' },
-            { icon: IconAdjustments, label: 'Store Settings', path: '/store-settings' },
             { icon: IconTable, label: 'Tables', path: '/tables' },
             { icon: IconUserCheck, label: 'Staff', path: '/staff' },
             { icon: IconClock, label: 'Shifts', path: '/shifts' },
+          ],
+        },
+        {
+          key: 'pos-settings',
+          label: 'POS Settings',
+          items: [
+            { icon: IconWallet, label: 'Payment Methods', path: '/pos-settings/payment-methods' },
+            { icon: IconReceiptTax, label: 'Tax & Surcharge', path: '/pos-settings/tax-surcharge' },
+            { icon: IconBoxSeam, label: 'Departments', path: '/pos-settings/departments' },
+            { icon: IconFileInvoice, label: 'Reasons', path: '/pos-settings/reasons' },
+            { icon: IconUsers, label: 'POS Users', path: '/pos-settings/pos-users' },
           ],
         },
         {
@@ -296,69 +338,6 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             </Stack>
           </Box>
 
-          <Divider my="xs" />
-
-          {/* Section 2: User Shortcuts */}
-          <Box mb="sm">
-            <Group justify="space-between" mb={8} px={4}>
-              <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-                Shortcuts
-              </Text>
-              <UnstyledButton>
-                <IconSettings size={14} style={{ color: '#697386' }} />
-              </UnstyledButton>
-            </Group>
-
-            {bookmarks.length === 0 ? (
-              <Paper
-                p="md"
-                mx="xs"
-                style={(theme) => ({
-                  backgroundColor: theme.colors.gray[0],
-                  border: `1px dashed ${theme.colors.gray[3]}`,
-                  textAlign: 'center',
-                })}
-              >
-                <IconStarOff size={24} style={{ color: '#ADB5BD', marginBottom: 8 }} />
-                <Text size="xs" c="dimmed">
-                  Add page shortcuts here by
-                </Text>
-                <Text size="xs" c="dimmed">
-                  clicking the <IconStar size={12} style={{ display: 'inline' }} /> icon on any page
-                </Text>
-              </Paper>
-            ) : (
-              <Stack gap={0}>
-                {bookmarks.map((bookmark) => {
-                  const isActive = location.pathname === bookmark.path;
-                  return (
-                    <NavLink
-                      key={bookmark.path}
-                      label={bookmark.label}
-                      leftSection={<IconStar size={16} stroke={1.5} />}
-                      active={isActive}
-                      onClick={() => navigate(bookmark.path)}
-                      styles={{
-                        root: {
-                          borderRadius: 6,
-                          padding: '6px 8px',
-                          fontSize: 14,
-                          minHeight: 32,
-                        },
-                        label: {
-                          fontSize: 14,
-                          fontWeight: isActive ? 600 : 400,
-                        },
-                      }}
-                    />
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-
-          <Divider my="xs" />
-
           {/* Section 3: Management (Full Menu) */}
           <Box mb="sm">
             <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={8} px={4}>
@@ -370,6 +349,8 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                   <NavLink
                     label={section.label}
                     leftSection={
+                      section.key === 'menus' ? <IconMenu2 size={18} stroke={1.5} /> :
+                      section.key === 'store-settings' ? <IconAdjustments size={18} stroke={1.5} /> :
                       section.key === 'operations' ? <IconBuildingStore size={18} stroke={1.5} /> :
                       section.key === 'finance' ? <IconWallet size={18} stroke={1.5} /> :
                       section.key === 'inventory' ? <IconBoxSeam size={18} stroke={1.5} /> :

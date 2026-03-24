@@ -42,7 +42,7 @@ public class PaymentMethod
     public bool? IsDrawerKick { get; set; }
 
     [MaxLength(100)]
-    public string LinkedGateway { get; set; }
+    public string? LinkedGateway { get; set; }
 
     public bool? IsSystemUse { get; set; }
 
@@ -70,16 +70,16 @@ public class PaymentMethod
     public bool? IsAutoRemarkEnabled { get; set; }
 
     [MaxLengthUnlimited]
-    public string IncludedItemIdList { get; set; }
+    public string? IncludedItemIdList { get; set; }
 
     [MaxLengthUnlimited]
-    public string ExcludedItemIdList { get; set; }
+    public string? ExcludedItemIdList { get; set; }
 
     [MaxLengthUnlimited]
-    public string IncludedCategoryIdList { get; set; }
+    public string? IncludedCategoryIdList { get; set; }
 
     [MaxLengthUnlimited]
-    public string ExcludedCategoryIdList { get; set; }
+    public string? ExcludedCategoryIdList { get; set; }
 
     public int? MaxUseCount { get; set; }
 
@@ -94,18 +94,18 @@ public class PaymentMethod
     public decimal? TxChargesRate { get; set; }
 
     [MaxLength(2000)]
-    public string IncludedDiscountIdList { get; set; }
+    public string? IncludedDiscountIdList { get; set; }
 
     [MaxLength(2000)]
-    public string ExcludedDiscountIdList { get; set; }
+    public string? ExcludedDiscountIdList { get; set; }
 
     [MaxLength(2000)]
-    public string IncludedMemberHeaderIdList { get; set; }
+    public string? IncludedMemberHeaderIdList { get; set; }
 
     [MaxLength(2000)]
-    public string ExcludedMemberHeaderIdList { get; set; }
+    public string? ExcludedMemberHeaderIdList { get; set; }
 
     [MaxLength(300)]
-    public string RemarkFormats { get; set; }
+    public string? RemarkFormats { get; set; }
 
 }

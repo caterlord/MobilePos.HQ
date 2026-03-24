@@ -40,6 +40,12 @@ import { OnlineOrderingSettingsPage } from './pages/online-ordering/OnlineOrderi
 import { OnlineOrderingChannelMappingPage } from './pages/online-ordering/OnlineOrderingChannelMappingPage'
 import { OnlineOrderingMenuCombinationsPage } from './pages/online-ordering/OnlineOrderingMenuCombinationsPage'
 import { OnlineOrderingUiI18nPage } from './pages/online-ordering/OnlineOrderingUiI18nPage'
+import { PosSettingsPage } from './pages/operations/pos-settings/PosSettingsPage'
+import { PaymentMethodsPage } from './pages/operations/pos-settings/PaymentMethodsPage'
+import { TaxSurchargePage } from './pages/operations/pos-settings/TaxSurchargePage'
+import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage'
+import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
+import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -129,6 +135,12 @@ function AppContent() {
         <Route path="store-settings/system-parameters" element={<StoreSystemParametersPage />} />
         <Route path="store-settings/tables" element={<StoreTableSettingsPage />} />
         <Route path="settings" element={<Navigate to="/store-settings" replace />} />
+        <Route path="pos-settings" element={<PosSettingsPage />} />
+        <Route path="pos-settings/payment-methods" element={<PaymentMethodsPage />} />
+        <Route path="pos-settings/tax-surcharge" element={<TaxSurchargePage />} />
+        <Route path="pos-settings/departments" element={<DepartmentsPage />} />
+        <Route path="pos-settings/reasons" element={<ReasonsPage />} />
+        <Route path="pos-settings/pos-users" element={<PosUsersPage />} />
         <Route path="menus" element={<MenuPage />} />
         <Route path="menus/categories" element={<MenuCategoriesPage />} />
         <Route path="menus/smart-categories" element={<SmartCategoriesPage />} />

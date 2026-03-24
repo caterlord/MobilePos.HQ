@@ -16,13 +16,31 @@ public class StoreInfoSettingsDto
     public string Name { get; set; } = string.Empty;
     public string AltName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string AltDesc { get; set; } = string.Empty;
     public string AddressLine1 { get; set; } = string.Empty;
     public string AddressLine2 { get; set; } = string.Empty;
+    public string AddressLine3 { get; set; } = string.Empty;
+    public string AddressLine4 { get; set; } = string.Empty;
+    public string AltAddressLine1 { get; set; } = string.Empty;
+    public string AltAddressLine2 { get; set; } = string.Empty;
+    public string AltAddressLine3 { get; set; } = string.Empty;
+    public string AltAddressLine4 { get; set; } = string.Empty;
+    public string District { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string Country { get; set; } = string.Empty;
     public string Telephone { get; set; } = string.Empty;
+    public string Fax { get; set; } = string.Empty;
+    public string IntCallingCode { get; set; } = string.Empty;
+    public string Contact1 { get; set; } = string.Empty;
+    public string ContactTitle1 { get; set; } = string.Empty;
+    public string Contact2 { get; set; } = string.Empty;
+    public string ContactTitle2 { get; set; } = string.Empty;
+    public string ShopCode { get; set; } = string.Empty;
     public string CurrencyCode { get; set; } = string.Empty;
     public string CurrencySymbol { get; set; } = string.Empty;
+    public string AddressForDelivery { get; set; } = string.Empty;
+    public decimal? AddressLat { get; set; }
+    public decimal? AddressLong { get; set; }
     public bool Enabled { get; set; }
 }
 
@@ -31,13 +49,31 @@ public class UpdateStoreInfoSettingsRequestDto
     public string Name { get; set; } = string.Empty;
     public string AltName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string AltDesc { get; set; } = string.Empty;
     public string AddressLine1 { get; set; } = string.Empty;
     public string AddressLine2 { get; set; } = string.Empty;
+    public string AddressLine3 { get; set; } = string.Empty;
+    public string AddressLine4 { get; set; } = string.Empty;
+    public string AltAddressLine1 { get; set; } = string.Empty;
+    public string AltAddressLine2 { get; set; } = string.Empty;
+    public string AltAddressLine3 { get; set; } = string.Empty;
+    public string AltAddressLine4 { get; set; } = string.Empty;
+    public string District { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string Country { get; set; } = string.Empty;
     public string Telephone { get; set; } = string.Empty;
+    public string Fax { get; set; } = string.Empty;
+    public string IntCallingCode { get; set; } = string.Empty;
+    public string Contact1 { get; set; } = string.Empty;
+    public string ContactTitle1 { get; set; } = string.Empty;
+    public string Contact2 { get; set; } = string.Empty;
+    public string ContactTitle2 { get; set; } = string.Empty;
+    public string ShopCode { get; set; } = string.Empty;
     public string CurrencyCode { get; set; } = string.Empty;
     public string CurrencySymbol { get; set; } = string.Empty;
+    public string AddressForDelivery { get; set; } = string.Empty;
+    public decimal? AddressLat { get; set; }
+    public decimal? AddressLong { get; set; }
     public bool Enabled { get; set; }
 }
 
