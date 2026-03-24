@@ -54,6 +54,7 @@ const emptyInfo: StoreInfoSettings = {
   addressForDelivery: '',
   addressLat: null,
   addressLong: null,
+  ianaTimeZone: '',
   timeZoneId: null,
   timeZoneValue: null,
   timeZoneUseDaylightTime: null,
@@ -90,12 +91,7 @@ const timezoneOptions: TzOption[] = (() => {
   }
 })();
 
-// Find best matching timezone name from an offset value
-const findTzByOffset = (offset: number | null | undefined): string | null => {
-  if (offset == null) return null;
-  const match = timezoneOptions.find((tz) => Math.abs(tz.offset - offset) < 0.01);
-  return match?.value ?? null;
-};
+const tzOffsetMap = new Map(timezoneOptions.map((tz) => [tz.value, tz.offset]));
 
 export function StoreInfoSettingsPage() {
   const { brandId, shopsLoading, shopsError, shops, reloadShops } =
@@ -167,8 +163,9 @@ export function StoreInfoSettingsPage() {
         addressForDelivery: info.addressForDelivery,
         addressLat: info.addressLat,
         addressLong: info.addressLong,
+        ianaTimeZone: info.ianaTimeZone,
         timeZoneId: info.timeZoneId,
-        timeZoneValue: info.timeZoneValue,
+        timeZoneValue: info.ianaTimeZone ? (tzOffsetMap.get(info.ianaTimeZone) ?? info.timeZoneValue) : info.timeZoneValue,
         timeZoneUseDaylightTime: info.timeZoneUseDaylightTime,
         enabled: info.enabled,
       });
@@ -363,11 +360,8 @@ export function StoreInfoSettingsPage() {
               searchable
               clearable
               data={timezoneOptions}
-              value={findTzByOffset(info.timeZoneValue)}
-              onChange={(val) => {
-                const tz = timezoneOptions.find((t) => t.value === val);
-                setInfo((prev) => ({ ...prev, timeZoneValue: tz ? tz.offset : null }));
-              }}
+              value={info.ianaTimeZone || null}
+              onChange={(val) => setInfo((prev) => ({ ...prev, ianaTimeZone: val ?? '' }))}
               nothingFoundMessage="No timezone found"
             />
             <Switch label="Uses Daylight Saving Time" checked={!!info.timeZoneUseDaylightTime} mt="xl"

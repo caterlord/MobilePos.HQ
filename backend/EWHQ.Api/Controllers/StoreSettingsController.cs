@@ -65,7 +65,9 @@ public class StoreSettingsController : ControllerBase
             .FirstOrDefaultAsync(x => x.AccountId == accountId && x.ShopId == shopId, HttpContext.RequestAborted);
     }
 
-    private static StoreInfoSettingsDto ToStoreInfoSettingsDto(Shop shop)
+    private const string IanaTimeZoneParamCode = "IANA_TIMEZONE";
+
+    private static StoreInfoSettingsDto ToStoreInfoSettingsDto(Shop shop, string ianaTimeZone = "")
     {
         return new StoreInfoSettingsDto
         {
@@ -98,6 +100,7 @@ public class StoreSettingsController : ControllerBase
             AddressForDelivery = shop.AddressForDelivery ?? string.Empty,
             AddressLat = shop.AddressLat,
             AddressLong = shop.AddressLong,
+            IanaTimeZone = ianaTimeZone,
             TimeZoneId = shop.TimeZoneId,
             TimeZoneValue = shop.TimeZoneValue,
             TimeZoneUseDaylightTime = shop.TimeZoneUseDaylightTime,
@@ -215,7 +218,13 @@ public class StoreSettingsController : ControllerBase
                 return NotFound(new { message = "Shop not found." });
             }
 
-            return Ok(ToStoreInfoSettingsDto(shop));
+            var ianaParam = await context.ShopSystemParameters
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.ShopId == shopId
+                    && x.ParamCode == IanaTimeZoneParamCode && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            return Ok(ToStoreInfoSettingsDto(shop, ianaParam?.ParamValue ?? string.Empty));
         }
         catch (InvalidOperationException ex)
         {
@@ -303,6 +312,52 @@ public class StoreSettingsController : ControllerBase
             shop.ModifiedDate = now;
             shop.ModifiedBy = currentUser;
 
+            // Dual-write: save IANA timezone name to ShopSystemParameter
+            var ianaValue = (payload.IanaTimeZone ?? string.Empty).Trim();
+            var existingIana = await context.ShopSystemParameters
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.ShopId == shopId
+                    && x.ParamCode == IanaTimeZoneParamCode,
+                    HttpContext.RequestAborted);
+
+            if (!string.IsNullOrEmpty(ianaValue))
+            {
+                if (existingIana != null)
+                {
+                    existingIana.ParamValue = ianaValue;
+                    existingIana.Enabled = true;
+                    existingIana.ModifiedDate = now;
+                    existingIana.ModifiedBy = currentUser;
+                }
+                else
+                {
+                    var nextParamId = (await context.ShopSystemParameters
+                        .Where(x => x.AccountId == accountId && x.ShopId == shopId)
+                        .Select(x => (int?)x.ParamId)
+                        .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+                    context.ShopSystemParameters.Add(new ShopSystemParameter
+                    {
+                        ParamId = nextParamId,
+                        AccountId = accountId,
+                        ShopId = shopId,
+                        ParamCode = IanaTimeZoneParamCode,
+                        Description = "IANA timezone identifier",
+                        ParamValue = ianaValue,
+                        Enabled = true,
+                        CreatedDate = now,
+                        CreatedBy = currentUser,
+                        ModifiedDate = now,
+                        ModifiedBy = currentUser
+                    });
+                }
+            }
+            else if (existingIana != null)
+            {
+                existingIana.Enabled = false;
+                existingIana.ModifiedDate = now;
+                existingIana.ModifiedBy = currentUser;
+            }
+
             await _settingsAuditService.LogMutationAsync(
                 context,
                 new SettingsAuditMutation
@@ -320,7 +375,7 @@ public class StoreSettingsController : ControllerBase
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
-            return Ok(ToStoreInfoSettingsDto(shop));
+            return Ok(ToStoreInfoSettingsDto(shop, ianaValue));
         }
         catch (InvalidOperationException ex)
         {

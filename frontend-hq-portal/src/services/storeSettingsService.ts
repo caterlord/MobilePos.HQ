@@ -45,6 +45,7 @@ export interface StoreInfoSettings {
   addressForDelivery: string;
   addressLat?: number | null;
   addressLong?: number | null;
+  ianaTimeZone: string;
   timeZoneId?: number | null;
   timeZoneValue?: number | null;
   timeZoneUseDaylightTime?: boolean | null;
@@ -80,6 +81,7 @@ export interface UpdateStoreInfoSettingsRequest {
   addressForDelivery: string;
   addressLat?: number | null;
   addressLong?: number | null;
+  ianaTimeZone: string;
   timeZoneId?: number | null;
   timeZoneValue?: number | null;
   timeZoneUseDaylightTime?: boolean | null;
