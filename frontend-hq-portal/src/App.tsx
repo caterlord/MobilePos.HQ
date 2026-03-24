@@ -62,17 +62,6 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  if (backendUnavailable) {
-    return (
-      <BackendConnectionOverlay
-        message={backendError}
-        reconnecting={backendReconnectInProgress}
-        onRetry={retryBackendConnection}
-        onLogout={logout}
-      />
-    );
-  }
-
   // Show loading while Clerk or user profile is loading
   if (authLoading || userLoading) {
     return <LoadingSpinner message="Loading your profile..." />;
@@ -94,7 +83,19 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   }
 
   // Both auth and user profile are ready
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {backendUnavailable && (
+        <BackendConnectionOverlay
+          message={backendError}
+          reconnecting={backendReconnectInProgress}
+          onRetry={retryBackendConnection}
+          onLogout={logout}
+        />
+      )}
+    </>
+  );
 }
 
 // App Content with Clerk hooks available
