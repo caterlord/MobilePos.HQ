@@ -271,7 +271,7 @@ function TimelineBar({ entry, periods, overflows }: {
 // ── Main page ──
 
 export function WorkdaySchedulePage() {
-  const { brandId, shops, selectedShopId, setSelectedShopId } =
+  const { brandId, shopsLoading, shops, selectedShopId, setSelectedShopId } =
     useStoreSettingsShopSelection();
 
   const [entries, setEntries] = useState<StoreWorkdayEntry[]>([]);
@@ -622,16 +622,15 @@ export function WorkdaySchedulePage() {
             <Text size="sm" c="dimmed">Configure business hours and service periods per day.</Text>
           </div>
           <Group>
-            {shopOptions.length > 0 && (
-              <select
-                value={selectedShopId ?? ''}
-                onChange={(e) => setSelectedShopId(e.target.value ? Number(e.target.value) : null)}
-                style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ced4da' }}
-              >
-                <option value="">Select shop</option>
-                {shopOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            )}
+            <Select
+              placeholder={shopsLoading ? 'Loading shops...' : 'Select shop'}
+              data={shopOptions}
+              value={selectedShopId ? String(selectedShopId) : null}
+              onChange={(val) => setSelectedShopId(val ? Number(val) : null)}
+              disabled={shopsLoading || shopOptions.length === 0}
+              searchable
+              style={{ minWidth: 240 }}
+            />
             <Button variant="subtle" onClick={() => void loadData()} loading={loading}>Refresh</Button>
           </Group>
         </Group>
