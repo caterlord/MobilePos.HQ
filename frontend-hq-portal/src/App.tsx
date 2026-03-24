@@ -30,6 +30,7 @@ import { WorkdaySchedulePage } from './pages/operations/store-settings/WorkdaySc
 import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
 import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
+import { LoadingSpinner } from './components/LoadingSpinner'
 import { OnlineOrderingLayout } from './pages/online-ordering/OnlineOrderingLayout'
 import { OnlineOrderingMenuPage } from './pages/online-ordering/OnlineOrderingMenuPage'
 import { OnlineOrderingDisplayOrderPage } from './pages/online-ordering/OnlineOrderingDisplayOrderPage'
@@ -45,6 +46,14 @@ import { TaxSurchargePage } from './pages/operations/pos-settings/TaxSurchargePa
 import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage'
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
+
+// Track if user was ever fully loaded in this page session.
+// Preserved across Vite HMR via import.meta.hot.
+let _hasEverAuthenticated = false;
+if (import.meta.hot) {
+  if (import.meta.hot.data._hasAuth) _hasEverAuthenticated = true;
+  import.meta.hot.dispose((data) => { data._hasAuth = _hasEverAuthenticated; });
+}
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -62,23 +71,39 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Hard redirect: only if Clerk is loaded and user is NOT signed in
+  // Mark once user is fully authenticated
+  if (isAuthenticated && user) {
+    _hasEverAuthenticated = true;
+  }
+
+  // INITIAL LOAD: block rendering until auth is ready (prevents 401 race conditions)
+  if (!_hasEverAuthenticated) {
+    if (authLoading || userLoading) {
+      return <LoadingSpinner message="Loading your profile..." />;
+    }
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    if (!user) {
+      return <LoadingSpinner message="Syncing your profile..." />;
+    }
+    if (requireTenant && !hasTenantAssociation()) {
+      return <Navigate to="/onboarding" replace />;
+    }
+  }
+
+  // Hard redirect: only if Clerk confirms user is NOT signed in
   if (isLoaded && !isSignedIn) {
     return <Navigate to="/login" replace />;
   }
 
-  // Onboarding redirect: only if fully loaded and no tenant
-  if (isLoaded && isAuthenticated && user && requireTenant && !hasTenantAssociation()) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // Always render children. Show loading/syncing as overlays, never as replacements.
-  const showLoadingOverlay = authLoading || userLoading || (isAuthenticated && !user);
+  // RE-SYNC: render children + non-blocking banner on top
+  const showSyncBanner = _hasEverAuthenticated && (authLoading || userLoading || (isAuthenticated && !user));
 
   return (
     <>
       {children}
-      {showLoadingOverlay && (
+      {showSyncBanner && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0,
           zIndex: 3000, padding: '8px 0',
@@ -92,9 +117,7 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
             pointerEvents: 'auto',
           }}>
             <Loader size={16} color="blue" />
-            <Text size="sm" c="dimmed">
-              {authLoading ? 'Loading authentication...' : 'Syncing your profile...'}
-            </Text>
+            <Text size="sm" c="dimmed">Reconnecting...</Text>
           </div>
         </div>
       )}
