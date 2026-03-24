@@ -46,19 +46,6 @@ import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
-// Module-level flag: tracks if user was ever authenticated in this page lifecycle.
-// In dev mode, Vite HMR preserves this via import.meta.hot.
-let _hasEverAuthenticated = false;
-if (import.meta.hot) {
-  // Preserve across Vite HMR reloads
-  if (import.meta.hot.data._hasEverAuthenticated) {
-    _hasEverAuthenticated = true;
-  }
-  import.meta.hot.dispose((data) => {
-    data._hasEverAuthenticated = _hasEverAuthenticated;
-  });
-}
-
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
   const { isLoaded, isSignedIn } = useClerkAuth();
@@ -75,40 +62,29 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Track if user was ever fully loaded
-  if (isAuthenticated && user) {
-    _hasEverAuthenticated = true;
+  // Hard redirect: only if Clerk is loaded and user is NOT signed in
+  if (isLoaded && !isSignedIn) {
+    return <Navigate to="/login" replace />;
   }
 
-  const isResync = _hasEverAuthenticated;
-
-  // Initial load: show full-page spinner. Re-sync: show overlay over existing content.
-  if (!isResync) {
-    if (authLoading || userLoading) {
-      return <LoadingSpinner message="Loading authentication..." />;
-    }
-    if (!isAuthenticated) {
-      return <Navigate to="/login" replace />;
-    }
-    if (!user) {
-      return <LoadingSpinner message="Syncing your profile..." />;
-    }
-    if (requireTenant && !hasTenantAssociation()) {
-      return <Navigate to="/onboarding" replace />;
-    }
+  // Onboarding redirect: only if fully loaded and no tenant
+  if (isLoaded && isAuthenticated && user && requireTenant && !hasTenantAssociation()) {
+    return <Navigate to="/onboarding" replace />;
   }
 
-  // Both auth and user profile are ready (or re-syncing with content preserved)
+  // Always render children. Show loading/syncing as overlays, never as replacements.
+  const showLoadingOverlay = authLoading || userLoading || (isAuthenticated && !user);
+
   return (
     <>
       {children}
-      {isResync && (authLoading || userLoading || (isAuthenticated && !user)) && (
+      {showLoadingOverlay && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 3000,
-          background: 'rgba(255,255,255,0.7)',
+          background: 'rgba(255,255,255,0.85)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <LoadingSpinner message="Reconnecting..." />
+          <LoadingSpinner message={authLoading ? 'Loading authentication...' : 'Syncing your profile...'} />
         </div>
       )}
       {backendUnavailable && (
@@ -125,25 +101,10 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
 
 // App Content with Clerk hooks available
 function AppContent() {
-  const { isLoaded, isSignedIn } = useClerkAuth();
+  const { isSignedIn } = useClerkAuth();
   const isAuthenticated = !!isSignedIn;
 
-  // On initial load, show spinner. On re-sync (backend reconnect), render routes + overlay.
-  if (!isLoaded && !_hasEverAuthenticated) {
-    return <LoadingSpinner message="Loading authentication..." />;
-  }
-
   return (
-    <>
-    {!isLoaded && _hasEverAuthenticated && (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 3000,
-        background: 'rgba(255,255,255,0.7)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <LoadingSpinner message="Reconnecting..." />
-      </div>
-    )}
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage mode="sign-in" /> : <Navigate to="/" replace />} />
       <Route path="/sign-up" element={!isAuthenticated ? <LoginPage mode="sign-up" /> : <Navigate to="/" replace />} />
@@ -208,7 +169,6 @@ function AppContent() {
       </Route>
       <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
     </Routes>
-    </>
   );
 }
 
