@@ -98,6 +98,9 @@ public class StoreSettingsController : ControllerBase
             AddressForDelivery = shop.AddressForDelivery ?? string.Empty,
             AddressLat = shop.AddressLat,
             AddressLong = shop.AddressLong,
+            TimeZoneId = shop.TimeZoneId,
+            TimeZoneValue = shop.TimeZoneValue,
+            TimeZoneUseDaylightTime = shop.TimeZoneUseDaylightTime,
             Enabled = shop.Enabled
         };
     }
@@ -293,6 +296,9 @@ public class StoreSettingsController : ControllerBase
             shop.AddressForDelivery = Clip(payload.AddressForDelivery, 1000);
             shop.AddressLat = payload.AddressLat;
             shop.AddressLong = payload.AddressLong;
+            shop.TimeZoneId = payload.TimeZoneId;
+            shop.TimeZoneValue = payload.TimeZoneValue;
+            shop.TimeZoneUseDaylightTime = payload.TimeZoneUseDaylightTime;
             shop.Enabled = payload.Enabled;
             shop.ModifiedDate = now;
             shop.ModifiedBy = currentUser;

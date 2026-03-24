@@ -41,6 +41,9 @@ public class StoreInfoSettingsDto
     public string AddressForDelivery { get; set; } = string.Empty;
     public decimal? AddressLat { get; set; }
     public decimal? AddressLong { get; set; }
+    public int? TimeZoneId { get; set; }
+    public decimal? TimeZoneValue { get; set; }
+    public bool? TimeZoneUseDaylightTime { get; set; }
     public bool Enabled { get; set; }
 }
 
@@ -74,6 +77,9 @@ public class UpdateStoreInfoSettingsRequestDto
     public string AddressForDelivery { get; set; } = string.Empty;
     public decimal? AddressLat { get; set; }
     public decimal? AddressLong { get; set; }
+    public int? TimeZoneId { get; set; }
+    public decimal? TimeZoneValue { get; set; }
+    public bool? TimeZoneUseDaylightTime { get; set; }
     public bool Enabled { get; set; }
 }
 

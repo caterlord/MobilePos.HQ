@@ -9,6 +9,7 @@ import {
   Loader,
   Modal,
   Paper,
+  Select,
   Stack,
   Switch,
   Table,
@@ -53,7 +54,47 @@ const emptyInfo: StoreInfoSettings = {
   addressForDelivery: '',
   addressLat: null,
   addressLong: null,
+  timeZoneId: null,
+  timeZoneValue: null,
+  timeZoneUseDaylightTime: null,
   enabled: true,
+};
+
+// Build timezone options from IANA database
+interface TzOption { value: string; label: string; offset: number }
+
+const timezoneOptions: TzOption[] = (() => {
+  try {
+    const zones = Intl.supportedValuesOf('timeZone');
+    return zones.map((tz) => {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' });
+      const parts = formatter.formatToParts(now);
+      const offsetPart = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+      const match = offsetPart.match(/GMT([+-]?)(\d+)?(?::(\d+))?/);
+      let offsetValue = 0;
+      if (match) {
+        const sign = match[1] === '-' ? -1 : 1;
+        const hours = parseInt(match[2] || '0', 10);
+        const minutes = parseInt(match[3] || '0', 10);
+        offsetValue = sign * (hours + minutes / 60);
+      }
+      return {
+        value: tz,
+        label: `${tz.replace(/_/g, ' ')} (${offsetPart || 'UTC'})`,
+        offset: offsetValue,
+      };
+    });
+  } catch {
+    return [];
+  }
+})();
+
+// Find best matching timezone name from an offset value
+const findTzByOffset = (offset: number | null | undefined): string | null => {
+  if (offset == null) return null;
+  const match = timezoneOptions.find((tz) => Math.abs(tz.offset - offset) < 0.01);
+  return match?.value ?? null;
 };
 
 export function StoreInfoSettingsPage() {
@@ -126,6 +167,9 @@ export function StoreInfoSettingsPage() {
         addressForDelivery: info.addressForDelivery,
         addressLat: info.addressLat,
         addressLong: info.addressLong,
+        timeZoneId: info.timeZoneId,
+        timeZoneValue: info.timeZoneValue,
+        timeZoneUseDaylightTime: info.timeZoneUseDaylightTime,
         enabled: info.enabled,
       });
       notifications.show({ color: 'green', message: 'Store info saved' });
@@ -309,6 +353,26 @@ export function StoreInfoSettingsPage() {
           </Group>
           <Textarea label="Delivery Address" minRows={2} value={info.addressForDelivery}
             onChange={(e) => setInfo((prev) => ({ ...prev, addressForDelivery: e.currentTarget.value }))} />
+
+          {/* Timezone */}
+          <Title order={5} mt="sm">Timezone</Title>
+          <Group grow>
+            <Select
+              label="Timezone"
+              placeholder="Select timezone"
+              searchable
+              clearable
+              data={timezoneOptions}
+              value={findTzByOffset(info.timeZoneValue)}
+              onChange={(val) => {
+                const tz = timezoneOptions.find((t) => t.value === val);
+                setInfo((prev) => ({ ...prev, timeZoneValue: tz ? tz.offset : null }));
+              }}
+              nothingFoundMessage="No timezone found"
+            />
+            <Switch label="Uses Daylight Saving Time" checked={!!info.timeZoneUseDaylightTime} mt="xl"
+              onChange={(e) => setInfo((prev) => ({ ...prev, timeZoneUseDaylightTime: e.currentTarget.checked }))} />
+          </Group>
 
           <Switch label="Shop Enabled" checked={info.enabled}
             onChange={(e) => setInfo((prev) => ({ ...prev, enabled: e.currentTarget.checked }))} />
