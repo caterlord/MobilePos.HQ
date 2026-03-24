@@ -224,6 +224,10 @@ const storeSettingsService = {
     const suffix = query.toString();
     return unwrap(await api.get(`/store-settings/brand/${brandId}/audit-logs${suffix ? `?${suffix}` : ''}`));
   },
+  async copyWorkdaySchedule(brandId: number, shopId: number, payload: CopyWorkdayScheduleRequest): Promise<{ message: string }> {
+    return unwrap(await api.post(`/store-settings/brand/${brandId}/shops/${shopId}/workday-copy`, payload));
+  },
+
   // ── Period Masters ──
 
   async getPeriodMasters(brandId: number): Promise<WorkdayPeriodMaster[]> {
@@ -262,6 +266,12 @@ export interface UpsertWorkdayPeriodMaster {
   defaultFromTime?: string | null;
   defaultToTime?: string | null;
   dayDelta?: number | null;
+}
+
+export interface CopyWorkdayScheduleRequest {
+  sourceDay: string;
+  targetDays: string[];
+  targetShopIds: number[];
 }
 
 export default storeSettingsService;

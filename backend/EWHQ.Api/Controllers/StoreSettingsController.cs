@@ -530,7 +530,7 @@ public class StoreSettingsController : ControllerBase
                     row.DayDelta = entry.DayDelta;
                     row.Enabled = entry.Enabled;
                     row.ModifiedDate = now;
-                    row.ModifedBy = currentUser;
+                    row.ModifiedBy = currentUser;
                     continue;
                 }
 
@@ -552,7 +552,7 @@ public class StoreSettingsController : ControllerBase
                     CreatedDate = now,
                     CreatedBy = currentUser,
                     ModifiedDate = now,
-                    ModifedBy = currentUser
+                    ModifiedBy = currentUser
                 });
             }
 
@@ -1050,6 +1050,158 @@ public class StoreSettingsController : ControllerBase
         {
             _logger.LogError(ex, "Error upserting system parameter {ParamCode} for brand {BrandId}, shop {ShopId}", paramCode, brandId, shopId);
             return StatusCode(500, new { message = "An error occurred while saving system parameter settings." });
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  COPY WORKDAY SCHEDULE
+    // ════════════════════════════════════════════════════════════════
+
+    [HttpPost("brand/{brandId:int}/shops/{shopId:int}/workday-copy")]
+    [RequireBrandAdmin]
+    public async Task<IActionResult> CopyWorkdaySchedule(int brandId, int shopId, CopyWorkdayScheduleRequestDto payload)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(payload.SourceDay))
+                return BadRequest(new { message = "Source day is required." });
+
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var user = GetCurrentUserIdentifier();
+
+            // Load source schedule + periods
+            var sourceEntry = await context.ShopWorkdayHeaders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.ShopId == shopId
+                    && x.Day == payload.SourceDay && x.Enabled, HttpContext.RequestAborted);
+
+            if (sourceEntry == null)
+                return NotFound(new { message = $"No schedule found for day '{payload.SourceDay}'." });
+
+            var sourcePeriods = await context.ShopWorkdayPeriods
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.ShopId == shopId
+                    && x.WorkdayHeaderId == sourceEntry.WorkdayHeaderId && x.Enabled)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            // Determine target shops (current shop + any additional)
+            var targetShopIds = new HashSet<int> { shopId };
+            if (payload.TargetShopIds?.Count > 0)
+            {
+                foreach (var sid in payload.TargetShopIds)
+                    targetShopIds.Add(sid);
+            }
+
+            // Determine target days
+            var targetDays = payload.TargetDays?.Count > 0
+                ? payload.TargetDays.ToList()
+                : new List<string> { payload.SourceDay };
+
+            var copiedCount = 0;
+
+            foreach (var targetShopId in targetShopIds)
+            {
+                foreach (var targetDay in targetDays)
+                {
+                    // Skip copying source to itself on same shop
+                    if (targetShopId == shopId && targetDay == payload.SourceDay)
+                        continue;
+
+                    // Remove existing entry for this day on target shop
+                    var existingEntry = await context.ShopWorkdayHeaders
+                        .FirstOrDefaultAsync(x => x.AccountId == accountId && x.ShopId == targetShopId
+                            && x.Day == targetDay, HttpContext.RequestAborted);
+
+                    int newHeaderId;
+
+                    if (existingEntry != null)
+                    {
+                        // Update existing
+                        existingEntry.OpenTime = sourceEntry.OpenTime;
+                        existingEntry.CloseTime = sourceEntry.CloseTime;
+                        existingEntry.DayDelta = sourceEntry.DayDelta;
+                        existingEntry.Enabled = true;
+                        existingEntry.ModifiedDate = now;
+                        existingEntry.ModifiedBy = user;
+                        newHeaderId = existingEntry.WorkdayHeaderId;
+
+                        // Remove old periods for this day
+                        var oldPeriods = await context.ShopWorkdayPeriods
+                            .Where(x => x.AccountId == accountId && x.ShopId == targetShopId
+                                && x.WorkdayHeaderId == newHeaderId)
+                            .ToListAsync(HttpContext.RequestAborted);
+                        context.ShopWorkdayPeriods.RemoveRange(oldPeriods);
+                    }
+                    else
+                    {
+                        // Create new entry
+                        newHeaderId = (await context.ShopWorkdayHeaders
+                            .Where(x => x.AccountId == accountId && x.ShopId == targetShopId)
+                            .Select(x => (int?)x.WorkdayHeaderId)
+                            .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+                        context.ShopWorkdayHeaders.Add(new ShopWorkdayHeader
+                        {
+                            WorkdayHeaderId = newHeaderId,
+                            AccountId = accountId,
+                            ShopId = targetShopId,
+                            Day = targetDay,
+                            OpenTime = sourceEntry.OpenTime,
+                            CloseTime = sourceEntry.CloseTime,
+                            DayDelta = sourceEntry.DayDelta,
+                            Enabled = true,
+                            CreatedDate = now,
+                            CreatedBy = user,
+                            ModifiedDate = now,
+                            ModifiedBy = user
+                        });
+                    }
+
+                    // Copy periods
+                    var nextPeriodId = (await context.ShopWorkdayPeriods
+                        .Where(x => x.AccountId == accountId && x.ShopId == targetShopId)
+                        .Select(x => (int?)x.WorkdayPeriodId)
+                        .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+                    foreach (var sp in sourcePeriods)
+                    {
+                        context.ShopWorkdayPeriods.Add(new ShopWorkdayPeriod
+                        {
+                            WorkdayPeriodId = nextPeriodId++,
+                            AccountId = accountId,
+                            ShopId = targetShopId,
+                            WorkdayHeaderId = newHeaderId,
+                            PeriodName = sp.PeriodName,
+                            FromTime = sp.FromTime,
+                            ToTime = sp.ToTime,
+                            DayDelta = sp.DayDelta,
+                            Enabled = true,
+                            WorkdayPeriodMasterId = sp.WorkdayPeriodMasterId,
+                            CreatedDate = now,
+                            CreatedBy = user,
+                            ModifiedDate = now,
+                            ModifiedBy = user
+                        });
+                    }
+
+                    copiedCount++;
+                }
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            return Ok(new { message = $"Copied schedule to {copiedCount} day(s)." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error copying workday schedule for brand {BrandId}, shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred while copying the schedule." });
         }
     }
 

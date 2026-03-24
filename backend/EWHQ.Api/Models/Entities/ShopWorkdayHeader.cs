@@ -40,6 +40,7 @@ public class ShopWorkdayHeader
 
     [MaxLength(50)]
     [Required]
-    public string ModifedBy { get; set; } = string.Empty;
+    [Column("ModifedBy")]
+    public string ModifiedBy { get; set; } = string.Empty;
 
 }

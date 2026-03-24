@@ -5,7 +5,9 @@ import {
   Badge,
   Box,
   Button,
+  Checkbox,
   Container,
+  Divider,
   Group,
   Loader,
   Modal,
@@ -18,7 +20,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconEdit, IconPlus, IconTrash, IconClock, IconSettings } from '@tabler/icons-react';
+import { IconAlertCircle, IconEdit, IconPlus, IconTrash, IconClock, IconSettings, IconCopy } from '@tabler/icons-react';
 import type { StoreWorkdayEntry, StoreWorkdayPeriod, WorkdayPeriodMaster, UpsertWorkdayPeriodMaster } from '../../../services/storeSettingsService';
 import storeSettingsService from '../../../services/storeSettingsService';
 import { useStoreSettingsShopSelection } from './useStoreSettingsShopSelection';
@@ -285,6 +287,14 @@ export function WorkdaySchedulePage() {
   const [masterRenameWarning, setMasterRenameWarning] = useState<string | null>(null);
   const [masterSubmitting, setMasterSubmitting] = useState(false);
 
+  // Copy modal state
+  const [copyModalOpened, setCopyModalOpened] = useState(false);
+  const [copySourceDay, setCopySourceDay] = useState<string | null>(null);
+  const [copyTargetDays, setCopyTargetDays] = useState<string[]>([]);
+  const [copyTargetShopIds, setCopyTargetShopIds] = useState<number[]>([]);
+  const [copyToOtherShops, setCopyToOtherShops] = useState(false);
+  const [copying, setCopying] = useState(false);
+
   // Edit modal state
   const [editDay, setEditDay] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState('06:00');
@@ -416,6 +426,47 @@ export function WorkdaySchedulePage() {
     } finally {
       setMasterSubmitting(false);
     }
+  };
+
+  // ── Copy schedule ──
+
+  const openCopyModal = (dayCode: string) => {
+    setCopySourceDay(dayCode);
+    setCopyTargetDays([]);
+    setCopyTargetShopIds([]);
+    setCopyToOtherShops(false);
+    setCopyModalOpened(true);
+  };
+
+  const handleCopy = async () => {
+    if (!brandId || !selectedShopId || !copySourceDay) return;
+    if (copyTargetDays.length === 0 && copyTargetShopIds.length === 0) {
+      notifications.show({ color: 'red', message: 'Select at least one target day or shop.' });
+      return;
+    }
+    try {
+      setCopying(true);
+      await storeSettingsService.copyWorkdaySchedule(brandId, selectedShopId, {
+        sourceDay: copySourceDay,
+        targetDays: copyTargetDays,
+        targetShopIds: copyTargetShopIds,
+      });
+      notifications.show({ color: 'green', message: `Schedule copied from ${dayLabel(copySourceDay)}` });
+      setCopyModalOpened(false);
+      await loadData();
+    } catch (err) {
+      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed to copy' });
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  const toggleCopyDay = (day: string) => {
+    setCopyTargetDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]);
+  };
+
+  const toggleCopyShop = (shopId: number) => {
+    setCopyTargetShopIds((prev) => prev.includes(shopId) ? prev.filter((s) => s !== shopId) : [...prev, shopId]);
   };
 
   // ── Open editor ──
@@ -596,7 +647,7 @@ export function WorkdaySchedulePage() {
         {!loading && selectedShopId && (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
             {/* Hour header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 40px', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 64px', borderBottom: '1px solid #e9ecef' }}>
               <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={i} style={{
@@ -705,8 +756,14 @@ export function WorkdaySchedulePage() {
                       </div>
                     )}
                   </div>
-                  {/* Action icon */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {/* Action icons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                    {entry && (
+                      <ActionIcon variant="subtle" color="gray" size="sm"
+                        onClick={(e) => { e.stopPropagation(); openCopyModal(day.code); }}>
+                        <IconCopy size={14} />
+                      </ActionIcon>
+                    )}
                     <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'} size="sm"
                       onClick={(e) => { e.stopPropagation(); openDayEditor(day.code); }}>
                       {entry ? <IconEdit size={14} /> : <IconPlus size={14} />}
@@ -881,6 +938,84 @@ export function WorkdaySchedulePage() {
                 Save
               </Button>
             </Group>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ── Copy Schedule Modal ── */}
+      <Modal
+        opened={copyModalOpened}
+        onClose={() => setCopyModalOpened(false)}
+        title={`Copy ${copySourceDay ? dayLabel(copySourceDay) : ''} Schedule`}
+        size="md"
+      >
+        <Stack gap="md">
+          {copySourceDay && entryByDay.get(copySourceDay) && (
+            <Paper withBorder p="xs" radius="sm" bg="gray.0">
+              <Text size="sm" fw={500}>
+                Source: {dayLabel(copySourceDay)} {entryByDay.get(copySourceDay)!.openTime.substring(0, 5)}–{entryByDay.get(copySourceDay)!.closeTime.substring(0, 5)}
+                {entryByDay.get(copySourceDay)!.dayDelta > 0 ? ' +1d' : ''}
+                {' '}({(periodsByHeaderId.get(entryByDay.get(copySourceDay)!.workdayHeaderId) ?? []).length} periods)
+              </Text>
+            </Paper>
+          )}
+
+          <div>
+            <Text fw={500} size="sm" mb="xs">Copy to days (same shop)</Text>
+            <Group gap="xs">
+              {DAYS.filter((d) => d.code !== copySourceDay).map((d) => (
+                <Checkbox
+                  key={d.code}
+                  label={d.short}
+                  checked={copyTargetDays.includes(d.code)}
+                  onChange={() => toggleCopyDay(d.code)}
+                />
+              ))}
+            </Group>
+          </div>
+
+          <Divider />
+
+          <Checkbox
+            label="Also apply to other shops"
+            checked={copyToOtherShops}
+            onChange={(e) => {
+              setCopyToOtherShops(e.currentTarget.checked);
+              if (!e.currentTarget.checked) setCopyTargetShopIds([]);
+            }}
+          />
+
+          {copyToOtherShops && (
+            <Paper withBorder p="sm" radius="sm">
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" fw={500}>Target shops</Text>
+                <Button size="xs" variant="subtle"
+                  onClick={() => {
+                    const otherShopIds = shops.filter((s) => s.shopId !== selectedShopId).map((s) => s.shopId);
+                    setCopyTargetShopIds((prev) => prev.length === otherShopIds.length ? [] : otherShopIds);
+                  }}>
+                  {copyTargetShopIds.length === shops.filter((s) => s.shopId !== selectedShopId).length ? 'Deselect all' : 'Select all'}
+                </Button>
+              </Group>
+              <Stack gap="xs">
+                {shops.filter((s) => s.shopId !== selectedShopId).map((s) => (
+                  <Checkbox
+                    key={s.shopId}
+                    label={s.shopName}
+                    checked={copyTargetShopIds.includes(s.shopId)}
+                    onChange={() => toggleCopyShop(s.shopId)}
+                  />
+                ))}
+              </Stack>
+            </Paper>
+          )}
+
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setCopyModalOpened(false)}>Cancel</Button>
+            <Button leftSection={<IconCopy size={14} />} onClick={() => void handleCopy()} loading={copying}
+              disabled={copyTargetDays.length === 0 && copyTargetShopIds.length === 0}>
+              Copy
+            </Button>
           </Group>
         </Stack>
       </Modal>

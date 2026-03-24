@@ -196,3 +196,12 @@ public class UpsertWorkdayPeriodMasterDto
     public TimeSpan? DefaultToTime { get; set; }
     public int? DayDelta { get; set; }
 }
+
+// ── Copy Workday Schedule ──
+
+public class CopyWorkdayScheduleRequestDto
+{
+    public string SourceDay { get; set; } = string.Empty;
+    public IReadOnlyList<string> TargetDays { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<int> TargetShopIds { get; set; } = Array.Empty<int>();
+}
