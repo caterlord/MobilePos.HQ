@@ -1189,7 +1189,15 @@ public class StoreSettingsController : ControllerBase
                 }
             }
 
+            // SQL Server needs IDENTITY_INSERT ON for explicit ID inserts.
+            // Only one table at a time, so save headers first, then periods.
+            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayHeader] ON", HttpContext.RequestAborted);
             await context.SaveChangesAsync(HttpContext.RequestAborted);
+            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayHeader] OFF", HttpContext.RequestAborted);
+
+            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayPeriod] ON", HttpContext.RequestAborted);
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayPeriod] OFF", HttpContext.RequestAborted);
 
             return Ok(new { message = $"Copied schedule to {copiedCount} day(s)." });
         }
