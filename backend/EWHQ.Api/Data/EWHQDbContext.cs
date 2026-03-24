@@ -737,9 +737,15 @@ public class EWHQDbContext : DbContext
         modelBuilder.Entity<WorkdayPeriodMaster>()
             .HasKey(e => new { e.WorkdayPeriodMasterId, e.AccountId });
 
-        // Shop special configuration
+        // Identity columns — let SQL Server auto-generate IDs
         modelBuilder.Entity<Shop>()
             .Property(s => s.ShopId)
+            .ValueGeneratedOnAdd();
+        modelBuilder.Entity<ShopWorkdayHeader>()
+            .Property(s => s.WorkdayHeaderId)
+            .ValueGeneratedOnAdd();
+        modelBuilder.Entity<ShopWorkdayPeriod>()
+            .Property(s => s.WorkdayPeriodId)
             .ValueGeneratedOnAdd();
     }
 

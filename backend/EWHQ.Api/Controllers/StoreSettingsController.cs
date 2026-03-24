@@ -1135,15 +1135,9 @@ public class StoreSettingsController : ControllerBase
                     }
                     else
                     {
-                        // Create new entry
-                        newHeaderId = (await context.ShopWorkdayHeaders
-                            .Where(x => x.AccountId == accountId && x.ShopId == targetShopId)
-                            .Select(x => (int?)x.WorkdayHeaderId)
-                            .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
-
-                        context.ShopWorkdayHeaders.Add(new ShopWorkdayHeader
+                        // Create new entry — let DB auto-generate WorkdayHeaderId
+                        var newHeader = new ShopWorkdayHeader
                         {
-                            WorkdayHeaderId = newHeaderId,
                             AccountId = accountId,
                             ShopId = targetShopId,
                             Day = targetDay,
@@ -1155,20 +1149,18 @@ public class StoreSettingsController : ControllerBase
                             CreatedBy = user,
                             ModifiedDate = now,
                             ModifiedBy = user
-                        });
+                        };
+                        context.ShopWorkdayHeaders.Add(newHeader);
+                        // Save now to get the auto-generated WorkdayHeaderId
+                        await context.SaveChangesAsync(HttpContext.RequestAborted);
+                        newHeaderId = newHeader.WorkdayHeaderId;
                     }
 
-                    // Copy periods
-                    var nextPeriodId = (await context.ShopWorkdayPeriods
-                        .Where(x => x.AccountId == accountId && x.ShopId == targetShopId)
-                        .Select(x => (int?)x.WorkdayPeriodId)
-                        .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
-
+                    // Copy periods — let DB auto-generate WorkdayPeriodId
                     foreach (var sp in sourcePeriods)
                     {
                         context.ShopWorkdayPeriods.Add(new ShopWorkdayPeriod
                         {
-                            WorkdayPeriodId = nextPeriodId++,
                             AccountId = accountId,
                             ShopId = targetShopId,
                             WorkdayHeaderId = newHeaderId,
@@ -1184,20 +1176,11 @@ public class StoreSettingsController : ControllerBase
                             ModifiedBy = user
                         });
                     }
+                    await context.SaveChangesAsync(HttpContext.RequestAborted);
 
                     copiedCount++;
                 }
             }
-
-            // SQL Server needs IDENTITY_INSERT ON for explicit ID inserts.
-            // Only one table at a time, so save headers first, then periods.
-            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayHeader] ON", HttpContext.RequestAborted);
-            await context.SaveChangesAsync(HttpContext.RequestAborted);
-            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayHeader] OFF", HttpContext.RequestAborted);
-
-            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayPeriod] ON", HttpContext.RequestAborted);
-            await context.SaveChangesAsync(HttpContext.RequestAborted);
-            await context.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [ShopWorkdayPeriod] OFF", HttpContext.RequestAborted);
 
             return Ok(new { message = $"Copied schedule to {copiedCount} day(s)." });
         }
