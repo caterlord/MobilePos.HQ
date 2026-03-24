@@ -694,7 +694,7 @@ export function WorkdaySchedulePage() {
                     {day.short}
                   </div>
                   {/* Timeline cell */}
-                  <div style={{ position: 'relative', height: 44, minWidth: 0 }}>
+                  <div style={{ position: 'relative', height: 44, minWidth: 0, overflow: 'hidden' }}>
                     {/* Hour gridlines */}
                     {Array.from({ length: 23 }, (_, i) => (
                       <div key={i} style={{
