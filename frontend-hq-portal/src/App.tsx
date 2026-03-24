@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth as useClerkAuth } from '@clerk/react'
 import { ClerkProviderWithRoutes } from './components/ClerkProviderWithRoutes'
@@ -62,30 +63,43 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Show loading while Clerk or user profile is loading
-  if (authLoading || userLoading) {
-    return <LoadingSpinner message="Loading your profile..." />;
+  // Track if user was ever fully loaded — after that, show re-sync as overlay
+  const hasEverLoaded = useRef(false);
+  if (isAuthenticated && user) {
+    hasEverLoaded.current = true;
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+  const isResync = hasEverLoaded.current;
+
+  // Initial load: show full-page spinner. Re-sync: show overlay over existing content.
+  if (!isResync) {
+    if (authLoading || userLoading) {
+      return <LoadingSpinner message="Loading authentication..." />;
+    }
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    if (!user) {
+      return <LoadingSpinner message="Syncing your profile..." />;
+    }
+    if (requireTenant && !hasTenantAssociation()) {
+      return <Navigate to="/onboarding" replace />;
+    }
   }
 
-  // Wait for user profile to be loaded
-  if (isAuthenticated && !user) {
-    return <LoadingSpinner message="Syncing your profile..." />;
-  }
-
-  // Check tenant association if required
-  if (requireTenant && user && !hasTenantAssociation()) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // Both auth and user profile are ready
+  // Both auth and user profile are ready (or re-syncing with content preserved)
   return (
     <>
       {children}
+      {isResync && (authLoading || userLoading || (isAuthenticated && !user)) && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 3000,
+          background: 'rgba(255,255,255,0.7)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <LoadingSpinner message="Reconnecting..." />
+        </div>
+      )}
       {backendUnavailable && (
         <BackendConnectionOverlay
           message={backendError}
