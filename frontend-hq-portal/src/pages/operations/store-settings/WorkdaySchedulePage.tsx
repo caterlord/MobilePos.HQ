@@ -645,9 +645,9 @@ export function WorkdaySchedulePage() {
         )}
 
         {!loading && selectedShopId && (
-          <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+          <Paper withBorder radius="md" style={{ overflow: 'hidden', width: '100%' }}>
             {/* Hour header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr) 72px', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, minmax(0, 1fr)) 72px', borderBottom: '1px solid #e9ecef' }}>
               <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={i} style={{
