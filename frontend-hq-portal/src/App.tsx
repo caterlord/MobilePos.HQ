@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth as useClerkAuth } from '@clerk/react'
 import { ClerkProviderWithRoutes } from './components/ClerkProviderWithRoutes'
@@ -47,6 +46,9 @@ import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
+// Module-level flag: survives component remounts during auth re-sync
+let _hasEverAuthenticated = false;
+
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
   const { isLoaded, isSignedIn } = useClerkAuth();
@@ -63,13 +65,12 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Track if user was ever fully loaded — after that, show re-sync as overlay
-  const hasEverLoaded = useRef(false);
+  // Track if user was ever fully loaded — persists across remounts
   if (isAuthenticated && user) {
-    hasEverLoaded.current = true;
+    _hasEverAuthenticated = true;
   }
 
-  const isResync = hasEverLoaded.current;
+  const isResync = _hasEverAuthenticated;
 
   // Initial load: show full-page spinner. Re-sync: show overlay over existing content.
   if (!isResync) {
