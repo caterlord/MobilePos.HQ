@@ -93,6 +93,21 @@ const timezoneOptions: TzOption[] = (() => {
 
 const tzOffsetMap = new Map(timezoneOptions.map((tz) => [tz.value, tz.offset]));
 
+// Detect if a timezone observes DST by comparing offsets in January vs July
+const tzUsesDst = (ianaName: string): boolean => {
+  try {
+    const jan = new Date(2024, 0, 1);
+    const jul = new Date(2024, 6, 1);
+    const fmt = (d: Date) => {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: ianaName, timeZoneName: 'shortOffset' }).formatToParts(d);
+      return parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    };
+    return fmt(jan) !== fmt(jul);
+  } catch {
+    return false;
+  }
+};
+
 export function StoreInfoSettingsPage() {
   const { brandId, shopsLoading, shopsError, shops, reloadShops } =
     useStoreSettingsShopSelection();
@@ -361,11 +376,13 @@ export function StoreInfoSettingsPage() {
               clearable
               data={timezoneOptions}
               value={info.ianaTimeZone || null}
-              onChange={(val) => setInfo((prev) => ({ ...prev, ianaTimeZone: val ?? '' }))}
+              onChange={(val) => setInfo((prev) => ({
+                ...prev,
+                ianaTimeZone: val ?? '',
+                timeZoneUseDaylightTime: val ? tzUsesDst(val) : null,
+              }))}
               nothingFoundMessage="No timezone found"
             />
-            <Switch label="Uses Daylight Saving Time" checked={!!info.timeZoneUseDaylightTime} mt="xl"
-              onChange={(e) => setInfo((prev) => ({ ...prev, timeZoneUseDaylightTime: e.currentTarget.checked }))} />
           </Group>
 
           <Switch label="Shop Enabled" checked={info.enabled}
