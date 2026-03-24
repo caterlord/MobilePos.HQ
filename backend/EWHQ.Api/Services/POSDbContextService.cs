@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EWHQ.Api.Services;
 
-public interface IPOSDbContextService
+public interface IPOSDbContextService : IDisposable
 {
     Task<EWHQDbContext> GetContextForBrandAsync(int brandId);
     Task<(EWHQDbContext context, int accountId)> GetContextAndAccountIdForBrandAsync(int brandId);
@@ -18,6 +18,10 @@ public class POSDbContextService : IPOSDbContextService
     private readonly IConfiguration _configuration;
     private readonly AuditSaveChangesInterceptor _auditSaveChangesInterceptor;
     private readonly ILogger<POSDbContextService> _logger;
+
+    // Cache legacy context per request scope to avoid creating multiple instances
+    // and to ensure proper disposal at end of request
+    private EWHQDbContext? _cachedLegacyContext;
 
     public POSDbContextService(
         IServiceProvider serviceProvider,
@@ -54,8 +58,9 @@ public class POSDbContextService : IPOSDbContextService
         // If brand uses legacy POS and has a legacy account ID, create context with legacy connection
         if (brand.UseLegacyPOS && brand.LegacyAccountId.HasValue)
         {
-            var legacyContext = CreateLegacyPOSContext();
-            return (legacyContext, brand.LegacyAccountId.Value);
+            // Reuse cached legacy context within the same request scope
+            _cachedLegacyContext ??= CreateLegacyPOSContext();
+            return (_cachedLegacyContext, brand.LegacyAccountId.Value);
         }
 
         // Otherwise use the default EWHQ context
@@ -122,5 +127,11 @@ public class POSDbContextService : IPOSDbContextService
         optionsBuilder.AddInterceptors(_auditSaveChangesInterceptor);
 
         return new EWHQDbContext(optionsBuilder.Options);
+    }
+
+    public void Dispose()
+    {
+        _cachedLegacyContext?.Dispose();
+        _cachedLegacyContext = null;
     }
 }
