@@ -5,7 +5,6 @@ import {
   Badge,
   Box,
   Button,
-  Checkbox,
   Container,
   Group,
   Loader,
@@ -732,25 +731,29 @@ export function WorkdaySchedulePage() {
           <Title order={5}>
             <Group gap="xs"><IconClock size={16} /> Business Hours</Group>
           </Title>
-          <Group grow>
+          <Group grow align="flex-end">
             <TextInput
               label="Open"
               placeholder="HH:MM"
               value={editOpen}
-              onChange={(e) => setEditOpen(e.currentTarget.value)}
+              onChange={(e) => {
+                setEditOpen(e.currentTarget.value);
+                setEditDayDelta(parseTime(e.currentTarget.value) > parseTime(editClose) ? 1 : 0);
+              }}
             />
             <TextInput
               label="Close"
               placeholder="HH:MM"
               value={editClose}
-              onChange={(e) => setEditClose(e.currentTarget.value)}
+              onChange={(e) => {
+                setEditClose(e.currentTarget.value);
+                setEditDayDelta(parseTime(editOpen) > parseTime(e.currentTarget.value) ? 1 : 0);
+              }}
             />
+            {editDayDelta > 0 && (
+              <Badge color="blue" variant="light" size="lg" style={{ flexShrink: 0 }}>+1 day</Badge>
+            )}
           </Group>
-          <Checkbox
-            label="Closes next day (cross-midnight)"
-            checked={editDayDelta > 0}
-            onChange={(e) => setEditDayDelta(e.currentTarget.checked ? 1 : 0)}
-          />
 
           {modalHoursError && (
             <Alert icon={<IconAlertCircle size={16} />} color="red" variant="light">{modalHoursError}</Alert>
@@ -816,8 +819,9 @@ export function WorkdaySchedulePage() {
                   placeholder="HH:MM"
                   value={p.fromTime}
                   onChange={(e) => {
+                    const from = e.currentTarget.value;
                     const updated = [...editPeriods];
-                    updated[idx] = { ...p, fromTime: e.currentTarget.value };
+                    updated[idx] = { ...p, fromTime: from, dayDelta: parseTime(from) > parseTime(p.toTime) ? 1 : 0 };
                     setEditPeriods(updated);
                   }}
                 />
@@ -828,21 +832,15 @@ export function WorkdaySchedulePage() {
                   placeholder="HH:MM"
                   value={p.toTime}
                   onChange={(e) => {
+                    const to = e.currentTarget.value;
                     const updated = [...editPeriods];
-                    updated[idx] = { ...p, toTime: e.currentTarget.value };
+                    updated[idx] = { ...p, toTime: to, dayDelta: parseTime(p.fromTime) > parseTime(to) ? 1 : 0 };
                     setEditPeriods(updated);
                   }}
                 />
-                <Checkbox
-                  label="+1d"
-                  size="xs"
-                  checked={p.dayDelta > 0}
-                  onChange={(e) => {
-                    const updated = [...editPeriods];
-                    updated[idx] = { ...p, dayDelta: e.currentTarget.checked ? 1 : 0 };
-                    setEditPeriods(updated);
-                  }}
-                />
+                {p.dayDelta > 0 && (
+                  <Badge color="blue" variant="light" size="sm" style={{ flexShrink: 0 }}>+1d</Badge>
+                )}
                 <ActionIcon variant="subtle" color="red" onClick={() => {
                   setEditPeriods(editPeriods.filter((_, i) => i !== idx));
                 }}>
