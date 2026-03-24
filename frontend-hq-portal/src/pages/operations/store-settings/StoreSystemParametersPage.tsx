@@ -17,7 +17,7 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconDeviceFloppy, IconPlus, IconRefresh } from '@tabler/icons-react';
+import { IconAlertCircle, IconDeviceFloppy, IconPlus } from '@tabler/icons-react';
 import type { StoreSystemParameter } from '../../../services/storeSettingsService';
 import storeSettingsService from '../../../services/storeSettingsService';
 import { useStoreSettingsShopSelection } from './useStoreSettingsShopSelection';
@@ -152,48 +152,36 @@ export function StoreSystemParametersPage() {
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Box>
-          <Title order={2}>System Parameters</Title>
-          <Text size="sm" c="dimmed">Manage store-scoped runtime parameters.</Text>
-        </Box>
-
-        {!brandId ? (
-          <Alert icon={<IconAlertCircle size={16} />} color="yellow" title="No Brand Selected">
-            Select a brand from the top-left brand switcher.
-          </Alert>
-        ) : null}
-
-        {shopsError ? (
-          <Alert icon={<IconAlertCircle size={16} />} color="red" title="Failed to load shops">
-            {shopsError}
-          </Alert>
-        ) : null}
-
-        <Paper withBorder p="md" radius="md">
-          <Group justify="space-between" align="flex-end">
+        <Group justify="space-between">
+          <div>
+            <Title order={2}>System Parameters</Title>
+            <Text size="sm" c="dimmed">Manage store-scoped runtime parameters.</Text>
+          </div>
+          <Group>
             <Select
-              label="Shop"
-              placeholder={shopsLoading ? 'Loading shops...' : 'Select a shop'}
+              placeholder={shopsLoading ? 'Loading shops...' : 'Select shop'}
               data={shops.map((shop) => ({ value: String(shop.shopId), label: `${shop.shopName}${shop.enabled ? '' : ' (Disabled)'}` }))}
               value={selectedShopId ? String(selectedShopId) : null}
               onChange={(value) => setSelectedShopId(value ? Number.parseInt(value, 10) : null)}
               disabled={!brandId || shopsLoading || shops.length === 0}
               searchable
-              style={{ minWidth: 320 }}
+              style={{ minWidth: 240 }}
             />
-            <Button
-              variant="light"
-              leftSection={<IconRefresh size={16} />}
-              onClick={() => {
-                void reloadShops();
-                void loadParameters();
-              }}
-              disabled={!brandId}
-            >
+            <Button variant="subtle" onClick={() => { void reloadShops(); void loadParameters(); }} loading={loading}>
               Refresh
             </Button>
           </Group>
-        </Paper>
+        </Group>
+
+        {!brandId && (
+          <Alert icon={<IconAlertCircle size={16} />} color="yellow">
+            Select a brand to manage system parameters.
+          </Alert>
+        )}
+
+        {shopsError && (
+          <Alert icon={<IconAlertCircle size={16} />} color="red">{shopsError}</Alert>
+        )}
 
         {error ? (
           <Alert icon={<IconAlertCircle size={16} />} color="red" title="Failed to load system parameters">

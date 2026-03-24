@@ -627,7 +627,7 @@ export function WorkdaySchedulePage() {
               data={shopOptions}
               value={selectedShopId ? String(selectedShopId) : null}
               onChange={(val) => setSelectedShopId(val ? Number(val) : null)}
-              disabled={shopsLoading || shopOptions.length === 0}
+              disabled={!brandId || shopsLoading || shopOptions.length === 0}
               searchable
               style={{ minWidth: 240 }}
             />
