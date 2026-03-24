@@ -39,6 +39,6 @@ public class WorkdayPeriodMaster
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string PeriodCode { get; set; }
+    public string? PeriodCode { get; set; }
 
 }

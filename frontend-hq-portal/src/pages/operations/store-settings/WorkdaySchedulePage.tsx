@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
+  Badge,
   Box,
   Button,
   Checkbox,
@@ -10,6 +11,7 @@ import {
   Loader,
   Modal,
   Paper,
+  Select,
   Stack,
   Text,
   TextInput,
@@ -17,8 +19,8 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconEdit, IconPlus, IconTrash, IconClock } from '@tabler/icons-react';
-import type { StoreWorkdayEntry, StoreWorkdayPeriod } from '../../../services/storeSettingsService';
+import { IconAlertCircle, IconEdit, IconPlus, IconTrash, IconClock, IconSettings } from '@tabler/icons-react';
+import type { StoreWorkdayEntry, StoreWorkdayPeriod, WorkdayPeriodMaster, UpsertWorkdayPeriodMaster } from '../../../services/storeSettingsService';
 import storeSettingsService from '../../../services/storeSettingsService';
 import { useStoreSettingsShopSelection } from './useStoreSettingsShopSelection';
 
@@ -276,6 +278,14 @@ export function WorkdaySchedulePage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Period master state
+  const [masters, setMasters] = useState<WorkdayPeriodMaster[]>([]);
+  const [masterModalOpened, setMasterModalOpened] = useState(false);
+  const [masterEditTarget, setMasterEditTarget] = useState<WorkdayPeriodMaster | null>(null);
+  const [masterPayload, setMasterPayload] = useState<UpsertWorkdayPeriodMaster>({ periodName: '', periodCode: '' });
+  const [masterRenameWarning, setMasterRenameWarning] = useState<string | null>(null);
+  const [masterSubmitting, setMasterSubmitting] = useState(false);
+
   // Edit modal state
   const [editDay, setEditDay] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState('06:00');
@@ -296,12 +306,14 @@ export function WorkdaySchedulePage() {
     }
     try {
       setLoading(true);
-      const [snapshot, periodsData] = await Promise.all([
+      const [snapshot, periodsData, mastersData] = await Promise.all([
         storeSettingsService.getSnapshot(brandId, selectedShopId),
         storeSettingsService.getWorkdayPeriods(brandId, selectedShopId),
+        storeSettingsService.getPeriodMasters(brandId),
       ]);
       setEntries(snapshot.workdayEntries);
       setPeriods(periodsData);
+      setMasters(mastersData);
     } catch (err) {
       notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed to load' });
     } finally {
@@ -333,6 +345,79 @@ export function WorkdaySchedulePage() {
     () => computeOverflows(entries, periodsByHeaderId),
     [entries, periodsByHeaderId],
   );
+
+  // ── Period master options for Select dropdown ──
+
+  const masterOptions = useMemo(
+    () => masters.map((m) => ({ value: String(m.workdayPeriodMasterId), label: m.periodName })),
+    [masters],
+  );
+
+  const loadMasters = useCallback(async () => {
+    if (!brandId) return;
+    try {
+      setMasters(await storeSettingsService.getPeriodMasters(brandId));
+    } catch { /* ignore */ }
+  }, [brandId]);
+
+  const openMasterCreate = () => {
+    setMasterEditTarget(null);
+    setMasterPayload({ periodName: '', periodCode: '' });
+    setMasterRenameWarning(null);
+    setMasterModalOpened(true);
+  };
+
+  const openMasterEdit = (m: WorkdayPeriodMaster) => {
+    setMasterEditTarget(m);
+    setMasterPayload({ periodName: m.periodName, periodCode: m.periodCode });
+    setMasterRenameWarning(null);
+    setMasterModalOpened(true);
+  };
+
+  const handleMasterSave = async (cascadeRename = false) => {
+    if (!brandId) return;
+    if (!masterPayload.periodName.trim()) {
+      notifications.show({ color: 'red', message: 'Period name is required' });
+      return;
+    }
+    try {
+      setMasterSubmitting(true);
+      if (masterEditTarget) {
+        // Check if name changed and periods are using it
+        if (masterEditTarget.periodName !== masterPayload.periodName.trim() && masterEditTarget.usageCount > 0 && !cascadeRename) {
+          setMasterRenameWarning(`${masterEditTarget.usageCount} active period(s) use "${masterEditTarget.periodName}". Rename them too?`);
+          setMasterSubmitting(false);
+          return;
+        }
+        await storeSettingsService.updatePeriodMaster(brandId, masterEditTarget.workdayPeriodMasterId, masterPayload, cascadeRename);
+        notifications.show({ color: 'green', message: 'Period master updated' });
+      } else {
+        await storeSettingsService.createPeriodMaster(brandId, masterPayload);
+        notifications.show({ color: 'green', message: 'Period master created' });
+      }
+      setMasterModalOpened(false);
+      setMasterRenameWarning(null);
+      await loadMasters();
+    } catch (err) {
+      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed to save' });
+    } finally {
+      setMasterSubmitting(false);
+    }
+  };
+
+  const handleMasterDelete = async (m: WorkdayPeriodMaster) => {
+    if (!brandId) return;
+    try {
+      setMasterSubmitting(true);
+      await storeSettingsService.deactivatePeriodMaster(brandId, m.workdayPeriodMasterId);
+      notifications.show({ color: 'green', message: 'Period master removed' });
+      await loadMasters();
+    } catch (err) {
+      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed to remove' });
+    } finally {
+      setMasterSubmitting(false);
+    }
+  };
 
   // ── Open editor ──
 
@@ -613,7 +698,13 @@ export function WorkdaySchedulePage() {
 
           {/* Periods */}
           <Group justify="space-between">
-            <Title order={5}>Periods</Title>
+            <Group gap="xs">
+              <Title order={5}>Periods</Title>
+              <ActionIcon variant="subtle" color="gray" size="sm"
+                onClick={(e) => { e.stopPropagation(); openMasterCreate(); }}>
+                <Tooltip label="Manage period names"><IconSettings size={14} /></Tooltip>
+              </ActionIcon>
+            </Group>
             <Button size="xs" variant="light" leftSection={<IconPlus size={14} />}
               onClick={() => setEditPeriods([...editPeriods, {
                 id: 0, periodName: '', fromTime: editOpen, toTime: editClose, dayDelta: 0, workdayPeriodMasterId: null,
@@ -629,16 +720,24 @@ export function WorkdaySchedulePage() {
           {editPeriods.map((p, idx) => (
             <Paper key={idx} withBorder p="xs" radius="sm">
               <Group gap="xs" wrap="nowrap" align="flex-end">
-                <TextInput
-                  label="Name"
+                <Select
+                  label="Period"
                   size="xs"
                   style={{ flex: 1 }}
-                  value={p.periodName}
-                  onChange={(e) => {
+                  data={masterOptions}
+                  value={p.workdayPeriodMasterId ? String(p.workdayPeriodMasterId) : null}
+                  onChange={(val) => {
+                    const master = masters.find((m) => String(m.workdayPeriodMasterId) === val);
                     const updated = [...editPeriods];
-                    updated[idx] = { ...p, periodName: e.currentTarget.value };
+                    updated[idx] = {
+                      ...p,
+                      periodName: master?.periodName ?? p.periodName,
+                      workdayPeriodMasterId: master?.workdayPeriodMasterId ?? null,
+                    };
                     setEditPeriods(updated);
                   }}
+                  placeholder="Select period"
+                  searchable
                 />
                 <TextInput
                   label="From"
@@ -716,6 +815,86 @@ export function WorkdaySchedulePage() {
             </Group>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* ── Period Master Management Modal ── */}
+      <Modal
+        opened={masterModalOpened}
+        onClose={() => { setMasterModalOpened(false); setMasterRenameWarning(null); }}
+        title={masterEditTarget ? 'Edit Period Name' : 'Manage Period Names'}
+        size="md"
+      >
+        {!masterEditTarget ? (
+          /* List view */
+          <Stack gap="md">
+            <Group justify="flex-end">
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openMasterCreate}>
+                Add Period Name
+              </Button>
+            </Group>
+            {masters.length === 0 ? (
+              <Text c="dimmed" ta="center" py="md">No period names defined yet.</Text>
+            ) : (
+              <Stack gap="xs">
+                {masters.map((m) => (
+                  <Paper key={m.workdayPeriodMasterId} withBorder p="xs" radius="sm">
+                    <Group justify="space-between">
+                      <Group gap="xs">
+                        <Text size="sm" fw={500}>{m.periodName}</Text>
+                        {m.usageCount > 0 && (
+                          <Badge size="xs" variant="light">{m.usageCount} in use</Badge>
+                        )}
+                      </Group>
+                      <Group gap="xs">
+                        <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => openMasterEdit(m)}>
+                          <IconEdit size={14} />
+                        </ActionIcon>
+                        <ActionIcon variant="subtle" color="red" size="sm" onClick={() => void handleMasterDelete(m)}
+                          loading={masterSubmitting}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Group>
+                    </Group>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        ) : (
+          /* Edit view */
+          <Stack gap="md">
+            <TextInput label="Period Name" required value={masterPayload.periodName}
+              onChange={(e) => { setMasterPayload({ ...masterPayload, periodName: e.currentTarget.value }); setMasterRenameWarning(null); }} />
+            <TextInput label="Period Code" value={masterPayload.periodCode}
+              onChange={(e) => setMasterPayload({ ...masterPayload, periodCode: e.currentTarget.value })} />
+
+            {masterRenameWarning && (
+              <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light">
+                <Text size="sm">{masterRenameWarning}</Text>
+                <Group mt="xs">
+                  <Button size="xs" color="orange" onClick={() => void handleMasterSave(true)} loading={masterSubmitting}>
+                    Yes, rename all
+                  </Button>
+                  <Button size="xs" variant="default" onClick={() => setMasterRenameWarning(null)}>
+                    Cancel
+                  </Button>
+                </Group>
+              </Alert>
+            )}
+
+            <Group justify="space-between" mt="md">
+              <Button variant="subtle" onClick={() => { setMasterEditTarget(null); setMasterRenameWarning(null); }}>
+                Back to list
+              </Button>
+              <Group>
+                <Button variant="default" onClick={() => { setMasterModalOpened(false); setMasterRenameWarning(null); }}>Cancel</Button>
+                {!masterRenameWarning && (
+                  <Button onClick={() => void handleMasterSave()} loading={masterSubmitting}>Save</Button>
+                )}
+              </Group>
+            </Group>
+          </Stack>
+        )}
       </Modal>
     </Container>
   );

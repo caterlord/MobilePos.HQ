@@ -172,3 +172,27 @@ public class StoreSettingsAuditLogDto
     public string ActionUserName { get; set; } = string.Empty;
     public DateTime LoggedAt { get; set; }
 }
+
+// ── Workday Period Master ──
+
+public class WorkdayPeriodMasterDto
+{
+    public int WorkdayPeriodMasterId { get; set; }
+    public int AccountId { get; set; }
+    public string PeriodName { get; set; } = string.Empty;
+    public string PeriodCode { get; set; } = string.Empty;
+    public TimeSpan? DefaultFromTime { get; set; }
+    public TimeSpan? DefaultToTime { get; set; }
+    public int? DayDelta { get; set; }
+    public bool Enabled { get; set; }
+    public int UsageCount { get; set; }
+}
+
+public class UpsertWorkdayPeriodMasterDto
+{
+    public string PeriodName { get; set; } = string.Empty;
+    public string PeriodCode { get; set; } = string.Empty;
+    public TimeSpan? DefaultFromTime { get; set; }
+    public TimeSpan? DefaultToTime { get; set; }
+    public int? DayDelta { get; set; }
+}

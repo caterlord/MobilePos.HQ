@@ -224,6 +224,44 @@ const storeSettingsService = {
     const suffix = query.toString();
     return unwrap(await api.get(`/store-settings/brand/${brandId}/audit-logs${suffix ? `?${suffix}` : ''}`));
   },
+  // ── Period Masters ──
+
+  async getPeriodMasters(brandId: number): Promise<WorkdayPeriodMaster[]> {
+    return unwrap(await api.get(`/store-settings/brand/${brandId}/period-masters`));
+  },
+
+  async createPeriodMaster(brandId: number, payload: UpsertWorkdayPeriodMaster): Promise<WorkdayPeriodMaster> {
+    return unwrap(await api.post(`/store-settings/brand/${brandId}/period-masters`, payload));
+  },
+
+  async updatePeriodMaster(brandId: number, masterId: number, payload: UpsertWorkdayPeriodMaster, cascadeRename = false): Promise<WorkdayPeriodMaster> {
+    const qs = cascadeRename ? '?cascadeRename=true' : '';
+    return unwrap(await api.put(`/store-settings/brand/${brandId}/period-masters/${masterId}${qs}`, payload));
+  },
+
+  async deactivatePeriodMaster(brandId: number, masterId: number): Promise<void> {
+    await api.delete(`/store-settings/brand/${brandId}/period-masters/${masterId}`);
+  },
 };
+
+export interface WorkdayPeriodMaster {
+  workdayPeriodMasterId: number;
+  accountId: number;
+  periodName: string;
+  periodCode: string;
+  defaultFromTime?: string | null;
+  defaultToTime?: string | null;
+  dayDelta?: number | null;
+  enabled: boolean;
+  usageCount: number;
+}
+
+export interface UpsertWorkdayPeriodMaster {
+  periodName: string;
+  periodCode: string;
+  defaultFromTime?: string | null;
+  defaultToTime?: string | null;
+  dayDelta?: number | null;
+}
 
 export default storeSettingsService;

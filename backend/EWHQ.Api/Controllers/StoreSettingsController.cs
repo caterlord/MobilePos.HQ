@@ -1052,4 +1052,246 @@ public class StoreSettingsController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while saving system parameter settings." });
         }
     }
+
+    // ════════════════════════════════════════════════════════════════
+    //  WORKDAY PERIOD MASTERS
+    // ════════════════════════════════════════════════════════════════
+
+    [HttpGet("brand/{brandId:int}/period-masters")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<WorkdayPeriodMasterDto>>> GetPeriodMasters(int brandId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var masters = await context.WorkdayPeriodMasters
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .OrderBy(x => x.WorkdayPeriodMasterId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            // Count usage per master across all shops
+            var masterIds = masters.Select(m => m.WorkdayPeriodMasterId).ToList();
+            var usageCounts = await context.ShopWorkdayPeriods
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && x.WorkdayPeriodMasterId != null
+                    && masterIds.Contains(x.WorkdayPeriodMasterId!.Value))
+                .GroupBy(x => x.WorkdayPeriodMasterId!.Value)
+                .Select(g => new { MasterId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.MasterId, x => x.Count, HttpContext.RequestAborted);
+
+            var dtos = masters.Select(m => new WorkdayPeriodMasterDto
+            {
+                WorkdayPeriodMasterId = m.WorkdayPeriodMasterId,
+                AccountId = m.AccountId,
+                PeriodName = m.PeriodName ?? string.Empty,
+                PeriodCode = m.PeriodCode ?? string.Empty,
+                DefaultFromTime = m.DefaultFromTime,
+                DefaultToTime = m.DefaultToTime,
+                DayDelta = m.DayDelta,
+                Enabled = m.Enabled,
+                UsageCount = usageCounts.TryGetValue(m.WorkdayPeriodMasterId, out var c) ? c : 0
+            }).ToList();
+
+            return Ok(dtos);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching period masters for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while fetching period masters." });
+        }
+    }
+
+    [HttpPost("brand/{brandId:int}/period-masters")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<WorkdayPeriodMasterDto>> CreatePeriodMaster(int brandId, UpsertWorkdayPeriodMasterDto payload)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(payload.PeriodName))
+                return BadRequest(new { message = "Period name is required." });
+
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var user = GetCurrentUserIdentifier();
+
+            var nextId = (await context.WorkdayPeriodMasters
+                .Where(x => x.AccountId == accountId)
+                .Select(x => (int?)x.WorkdayPeriodMasterId)
+                .MaxAsync(HttpContext.RequestAborted) ?? 0) + 1;
+
+            var entity = new WorkdayPeriodMaster
+            {
+                WorkdayPeriodMasterId = nextId,
+                AccountId = accountId,
+                PeriodName = Clip(payload.PeriodName, 50),
+                PeriodCode = Clip(payload.PeriodCode, 50),
+                DefaultFromTime = payload.DefaultFromTime,
+                DefaultToTime = payload.DefaultToTime,
+                DayDelta = payload.DayDelta,
+                Enabled = true,
+                CreatedDate = now,
+                CreatedBy = user,
+                ModifiedDate = now,
+                ModifiedBy = user
+            };
+
+            context.WorkdayPeriodMasters.Add(entity);
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            return Ok(new WorkdayPeriodMasterDto
+            {
+                WorkdayPeriodMasterId = entity.WorkdayPeriodMasterId,
+                AccountId = entity.AccountId,
+                PeriodName = entity.PeriodName,
+                PeriodCode = entity.PeriodCode ?? string.Empty,
+                DefaultFromTime = entity.DefaultFromTime,
+                DefaultToTime = entity.DefaultToTime,
+                DayDelta = entity.DayDelta,
+                Enabled = entity.Enabled,
+                UsageCount = 0
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating period master for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while creating the period master." });
+        }
+    }
+
+    [HttpPut("brand/{brandId:int}/period-masters/{masterId:int}")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<WorkdayPeriodMasterDto>> UpdatePeriodMaster(
+        int brandId, int masterId, UpsertWorkdayPeriodMasterDto payload,
+        [FromQuery] bool cascadeRename = false)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(payload.PeriodName))
+                return BadRequest(new { message = "Period name is required." });
+
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var user = GetCurrentUserIdentifier();
+
+            var entity = await context.WorkdayPeriodMasters
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.WorkdayPeriodMasterId == masterId,
+                    HttpContext.RequestAborted);
+
+            if (entity == null)
+                return NotFound(new { message = "Period master not found." });
+
+            var newName = Clip(payload.PeriodName, 50);
+            var oldName = entity.PeriodName;
+
+            entity.PeriodName = newName;
+            entity.PeriodCode = Clip(payload.PeriodCode, 50);
+            entity.DefaultFromTime = payload.DefaultFromTime;
+            entity.DefaultToTime = payload.DefaultToTime;
+            entity.DayDelta = payload.DayDelta;
+            entity.ModifiedDate = now;
+            entity.ModifiedBy = user;
+
+            // Cascade rename: update all ShopWorkdayPeriods referencing this master
+            var affectedCount = 0;
+            if (cascadeRename && oldName != newName)
+            {
+                var affectedPeriods = await context.ShopWorkdayPeriods
+                    .Where(x => x.AccountId == accountId && x.WorkdayPeriodMasterId == masterId && x.Enabled)
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                foreach (var p in affectedPeriods)
+                {
+                    p.PeriodName = newName;
+                    p.ModifiedDate = now;
+                    p.ModifiedBy = user;
+                }
+                affectedCount = affectedPeriods.Count;
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            var usageCount = await context.ShopWorkdayPeriods
+                .AsNoTracking()
+                .CountAsync(x => x.AccountId == accountId && x.WorkdayPeriodMasterId == masterId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            return Ok(new WorkdayPeriodMasterDto
+            {
+                WorkdayPeriodMasterId = entity.WorkdayPeriodMasterId,
+                AccountId = entity.AccountId,
+                PeriodName = entity.PeriodName,
+                PeriodCode = entity.PeriodCode ?? string.Empty,
+                DefaultFromTime = entity.DefaultFromTime,
+                DefaultToTime = entity.DefaultToTime,
+                DayDelta = entity.DayDelta,
+                Enabled = entity.Enabled,
+                UsageCount = usageCount
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating period master for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while updating the period master." });
+        }
+    }
+
+    [HttpDelete("brand/{brandId:int}/period-masters/{masterId:int}")]
+    [RequireBrandAdmin]
+    public async Task<IActionResult> DeactivatePeriodMaster(int brandId, int masterId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var entity = await context.WorkdayPeriodMasters
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.WorkdayPeriodMasterId == masterId,
+                    HttpContext.RequestAborted);
+
+            if (entity == null)
+                return NotFound(new { message = "Period master not found." });
+
+            // Block deletion if in use
+            var usageCount = await context.ShopWorkdayPeriods
+                .AsNoTracking()
+                .CountAsync(x => x.AccountId == accountId && x.WorkdayPeriodMasterId == masterId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (usageCount > 0)
+                return BadRequest(new { message = $"Cannot remove: {usageCount} active period(s) are using \"{entity.PeriodName}\"." });
+
+            entity.Enabled = false;
+            entity.ModifiedDate = DateTime.UtcNow;
+            entity.ModifiedBy = GetCurrentUserIdentifier();
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            return Ok(new { message = "Period master deactivated." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deactivating period master for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while deactivating the period master." });
+        }
+    }
 }
