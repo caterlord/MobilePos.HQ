@@ -46,10 +46,18 @@ import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage
 import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
 import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
 
-// Session-level flag: survives component remounts AND Vite HMR during auth re-sync
-const HAS_AUTH_KEY = '__x1_has_ever_authenticated';
-const getHasEverAuthenticated = () => sessionStorage.getItem(HAS_AUTH_KEY) === '1';
-const setHasEverAuthenticated = () => sessionStorage.setItem(HAS_AUTH_KEY, '1');
+// Module-level flag: tracks if user was ever authenticated in this page lifecycle.
+// In dev mode, Vite HMR preserves this via import.meta.hot.
+let _hasEverAuthenticated = false;
+if (import.meta.hot) {
+  // Preserve across Vite HMR reloads
+  if (import.meta.hot.data._hasEverAuthenticated) {
+    _hasEverAuthenticated = true;
+  }
+  import.meta.hot.dispose((data) => {
+    data._hasEverAuthenticated = _hasEverAuthenticated;
+  });
+}
 
 // Protected Route Component
 function ProtectedRoute({ children, requireTenant = true }: { children: React.ReactNode, requireTenant?: boolean }) {
@@ -67,12 +75,12 @@ function ProtectedRoute({ children, requireTenant = true }: { children: React.Re
   const isAuthenticated = !!isSignedIn;
   const authLoading = !isLoaded;
 
-  // Track if user was ever fully loaded — persists in sessionStorage
+  // Track if user was ever fully loaded
   if (isAuthenticated && user) {
-    setHasEverAuthenticated();
+    _hasEverAuthenticated = true;
   }
 
-  const isResync = getHasEverAuthenticated();
+  const isResync = _hasEverAuthenticated;
 
   // Initial load: show full-page spinner. Re-sync: show overlay over existing content.
   if (!isResync) {
@@ -121,13 +129,13 @@ function AppContent() {
   const isAuthenticated = !!isSignedIn;
 
   // On initial load, show spinner. On re-sync (backend reconnect), render routes + overlay.
-  if (!isLoaded && !getHasEverAuthenticated()) {
+  if (!isLoaded && !_hasEverAuthenticated) {
     return <LoadingSpinner message="Loading authentication..." />;
   }
 
   return (
     <>
-    {!isLoaded && getHasEverAuthenticated() && (
+    {!isLoaded && _hasEverAuthenticated && (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 3000,
         background: 'rgba(255,255,255,0.7)',
