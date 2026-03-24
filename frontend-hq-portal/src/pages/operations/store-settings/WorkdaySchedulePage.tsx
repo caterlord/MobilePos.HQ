@@ -595,8 +595,21 @@ export function WorkdaySchedulePage() {
         )}
 
         {!loading && selectedShopId && (
-          <Stack gap="xs">
-            {DAYS.map((day) => {
+          <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+            {/* Hour header row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, 1fr)', borderBottom: '1px solid #e9ecef' }}>
+              <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
+              {Array.from({ length: 24 }, (_, i) => (
+                <div key={i} style={{
+                  padding: '4px 0', textAlign: 'center', fontSize: 10, color: '#868e96',
+                  background: '#f8f9fa', borderRight: i < 23 ? '1px solid #f1f3f5' : 'none',
+                }}>
+                  {String(i).padStart(2, '0')}
+                </div>
+              ))}
+            </div>
+            {/* Day rows */}
+            {DAYS.map((day, dayIdx) => {
               const entry = entryByDay.get(day.code);
               const dayPeriods = entry ? (periodsByHeaderId.get(entry.workdayHeaderId) ?? []) : [];
               const editablePeriods: PeriodEdit[] = dayPeriods.map((p) => ({
@@ -607,46 +620,95 @@ export function WorkdaySchedulePage() {
                 dayDelta: p.dayDelta,
                 workdayPeriodMasterId: p.workdayPeriodMasterId ?? null,
               }));
-
               const dayOverflows = overflowsByDay.get(day.code);
-              // Holiday cross-day overflow info (shown as text since next day is unknown)
-              const holidayEntry = entryByDay.get('H');
-              const holidayCrossDayPeriods = day.code === 'H' && holidayEntry?.dayDelta
-                ? (periodsByHeaderId.get(holidayEntry.workdayHeaderId) ?? []).filter((p) => p.dayDelta > 0)
-                : [];
 
               return (
-                <Paper key={day.code} withBorder p="sm" radius="md"
-                  style={{ cursor: 'pointer' }}
+                <div key={day.code}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '56px 1fr',
+                    borderBottom: dayIdx < DAYS.length - 1 ? '1px solid #e9ecef' : 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.1s',
+                  }}
                   onClick={() => openDayEditor(day.code)}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8f9fa'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
                 >
-                  <Group gap="md" wrap="nowrap">
-                    <Box w={70}>
-                      <Text fw={600} size="sm">{day.short}</Text>
-                    </Box>
-                    <Box style={{ flex: 1, minWidth: 0 }}>
-                      {entry ? (
-                        <Box pt={14}>
-                          <TimelineBar entry={entry} periods={editablePeriods} overflows={dayOverflows} />
-                        </Box>
-                      ) : (
-                        <Text size="sm" c="dimmed" fs="italic">Closed</Text>
-                      )}
-                      {day.code === 'H' && holidayCrossDayPeriods.length > 0 && (
-                        <Text size="xs" c="dimmed" mt={2} fs="italic">
-                          +1d overflow: {holidayCrossDayPeriods.map((p) => `${p.periodName} until ${p.toTime.substring(0, 5)}`).join(', ')}
-                        </Text>
-                      )}
-                    </Box>
-                    <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'}
-                      onClick={(e) => { e.stopPropagation(); openDayEditor(day.code); }}>
-                      {entry ? <IconEdit size={16} /> : <IconPlus size={16} />}
-                    </ActionIcon>
-                  </Group>
-                </Paper>
+                  {/* Day label */}
+                  <div style={{
+                    padding: '8px 8px', borderRight: '1px solid #e9ecef',
+                    display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13,
+                    color: day.code === 'H' ? '#e8590c' : undefined,
+                  }}>
+                    {day.short}
+                  </div>
+                  {/* Timeline cell */}
+                  <div style={{ position: 'relative', height: 44, minWidth: 0 }}>
+                    {/* Hour gridlines */}
+                    {Array.from({ length: 23 }, (_, i) => (
+                      <div key={i} style={{
+                        position: 'absolute', left: `${((i + 1) / 24) * 100}%`, top: 0, bottom: 0,
+                        width: 1, background: '#f1f3f5',
+                      }} />
+                    ))}
+                    {/* Overflow from previous day */}
+                    {dayOverflows && dayOverflows.map((ov, i) => {
+                      const ovWidth = (ov.endMinutes / 1440) * 100;
+                      return (
+                        <Tooltip key={`ov-${i}`} label={`${ov.periodName} (prev day until ${fmtTime(ov.endMinutes)})`}>
+                          <div style={{
+                            position: 'absolute', left: 0, width: `${ovWidth}%`, top: 2, bottom: 2,
+                            background: 'repeating-linear-gradient(45deg, #dee2e6, #dee2e6 3px, #e9ecef 3px, #e9ecef 6px)',
+                            borderRadius: 2, opacity: 0.7,
+                          }} />
+                        </Tooltip>
+                      );
+                    })}
+                    {entry ? (
+                      <>
+                        {/* Business hours block */}
+                        {(() => {
+                          const open = parseTime(entry.openTime);
+                          const close = parseTime(entry.closeTime) + entry.dayDelta * 1440;
+                          const left = (open / 1440) * 100;
+                          const width = ((Math.min(close, 1440) - open) / 1440) * 100;
+                          return (
+                            <div style={{
+                              position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2,
+                              background: '#d0ebff', borderRadius: 3, border: '1px solid #74c0fc',
+                            }} />
+                          );
+                        })()}
+                        {/* Period blocks */}
+                        {editablePeriods.map((p, i) => {
+                          const pFrom = parseTime(p.fromTime);
+                          const pTo = parseTime(p.toTime) + p.dayDelta * 1440;
+                          const left = (pFrom / 1440) * 100;
+                          const width = ((Math.min(pTo, 1440) - pFrom) / 1440) * 100;
+                          const color = PERIOD_COLORS[i % PERIOD_COLORS.length];
+                          return (
+                            <Tooltip key={i} label={`${p.periodName}: ${fmtTime(pFrom)}–${fmtTime(pTo % 1440)}${p.dayDelta > 0 ? ' +1d' : ''}`}>
+                              <div style={{
+                                position: 'absolute', left: `${left}%`, width: `${Math.max(width, 0.5)}%`, top: 5, bottom: 5,
+                                borderRadius: 2, background: `var(--mantine-color-${color}-4)`, opacity: 0.9,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                              }}>
+                                <span style={{ fontSize: 10, color: 'white', fontWeight: 600, whiteSpace: 'nowrap' }}>{p.periodName}</span>
+                              </div>
+                            </Tooltip>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', height: '100%', paddingLeft: 8 }}>
+                        <Text size="xs" c="dimmed" fs="italic">Closed</Text>
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })}
-          </Stack>
+          </Paper>
         )}
       </Stack>
 
