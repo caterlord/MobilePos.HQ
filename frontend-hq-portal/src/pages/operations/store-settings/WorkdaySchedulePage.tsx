@@ -849,10 +849,14 @@ export function WorkdaySchedulePage() {
                         <ActionIcon variant="subtle" color="blue" size="sm" onClick={() => openMasterEdit(m)}>
                           <IconEdit size={14} />
                         </ActionIcon>
-                        <ActionIcon variant="subtle" color="red" size="sm" onClick={() => void handleMasterDelete(m)}
-                          loading={masterSubmitting}>
-                          <IconTrash size={14} />
-                        </ActionIcon>
+                        <Tooltip label={m.usageCount > 0 ? `Cannot remove: ${m.usageCount} period(s) in use` : 'Remove'}>
+                          <ActionIcon variant="subtle" color="red" size="sm"
+                            disabled={m.usageCount > 0}
+                            onClick={() => void handleMasterDelete(m)}
+                            loading={masterSubmitting}>
+                            <IconTrash size={14} />
+                          </ActionIcon>
+                        </Tooltip>
                       </Group>
                     </Group>
                   </Paper>
