@@ -144,9 +144,57 @@ const findGaps = (periods: PeriodEdit[], openTime: string, closeTime: string, hD
   return gaps;
 };
 
+// ── Overflow info: cross-midnight bleed from previous day ──
+
+interface OverflowInfo {
+  periodName: string;
+  endMinutes: number; // minutes into the next day (e.g., 240 for 04:00)
+}
+
+/** Get the next day code in the weekly cycle (Mon→Tue...Sun→Mon). Holiday has no next day. */
+const NEXT_DAY: Record<string, string> = { '1': '2', '2': '3', '3': '4', '4': '5', '5': '6', '6': '0', '0': '1' };
+
+/** Compute overflows: periods that bleed into the next day */
+function computeOverflows(entries: StoreWorkdayEntry[], periodsByHeaderId: Map<number, StoreWorkdayPeriod[]>): Map<string, OverflowInfo[]> {
+  const result = new Map<string, OverflowInfo[]>();
+  for (const entry of entries) {
+    const nextDay = NEXT_DAY[entry.day]; // undefined for Holiday
+    if (!nextDay) continue;
+    const dayPeriods = periodsByHeaderId.get(entry.workdayHeaderId) ?? [];
+    for (const p of dayPeriods) {
+      if (p.dayDelta > 0) {
+        const endMins = parseTime(p.toTime); // minutes into the next day
+        if (endMins > 0) {
+          const list = result.get(nextDay) ?? [];
+          list.push({ periodName: p.periodName, endMinutes: endMins });
+          result.set(nextDay, list);
+        }
+      }
+    }
+    // Also check if business hours overflow bleeds (even without a named period)
+    if (entry.dayDelta > 0) {
+      const closeMins = parseTime(entry.closeTime);
+      const existingOverflows = result.get(nextDay) ?? [];
+      const latestPeriodEnd = dayPeriods
+        .filter((p) => p.dayDelta > 0)
+        .reduce((max, p) => Math.max(max, parseTime(p.toTime)), 0);
+      // If business hours extend beyond last period, show business hours overflow
+      if (closeMins > latestPeriodEnd && existingOverflows.length === 0) {
+        existingOverflows.push({ periodName: `${dayLabel(entry.day)} overflow`, endMinutes: closeMins });
+        result.set(nextDay, existingOverflows);
+      }
+    }
+  }
+  return result;
+}
+
 // ── Timeline bar component ──
 
-function TimelineBar({ entry, periods }: { entry: StoreWorkdayEntry; periods: PeriodEdit[] }) {
+function TimelineBar({ entry, periods, overflows }: {
+  entry: StoreWorkdayEntry;
+  periods: PeriodEdit[];
+  overflows?: OverflowInfo[];
+}) {
   const open = parseTime(entry.openTime);
   const close = parseTime(entry.closeTime) + entry.dayDelta * 1440;
   const scaleMax = Math.max(close, 1440); // at least 24h
@@ -158,6 +206,19 @@ function TimelineBar({ entry, periods }: { entry: StoreWorkdayEntry; periods: Pe
 
   return (
     <Box style={{ position: 'relative', height: 40, background: '#f1f3f5', borderRadius: 4, overflow: 'hidden' }}>
+      {/* Previous day overflow (hatched/grey) */}
+      {overflows && overflows.map((ov, i) => {
+        const ovWidth = toPercent(ov.endMinutes);
+        return (
+          <Tooltip key={`ov-${i}`} label={`${ov.periodName} (prev day overflow until ${fmtTime(ov.endMinutes)})`}>
+            <Box style={{
+              position: 'absolute', left: 0, width: `${ovWidth}%`, top: 0, bottom: 0,
+              background: 'repeating-linear-gradient(45deg, #dee2e6, #dee2e6 4px, #e9ecef 4px, #e9ecef 8px)',
+              borderRadius: '4px 0 0 4px', opacity: 0.7,
+            }} />
+          </Tooltip>
+        );
+      })}
       {/* Business hours bar */}
       <Box style={{
         position: 'absolute', left: `${barLeft}%`, width: `${barWidth}%`, top: 0, bottom: 0,
@@ -182,7 +243,7 @@ function TimelineBar({ entry, periods }: { entry: StoreWorkdayEntry; periods: Pe
         const pWidth = toPercent(pTo - pFrom);
         const color = PERIOD_COLORS[i % PERIOD_COLORS.length];
         return (
-          <Tooltip key={i} label={`${p.periodName}: ${fmtTime(pFrom)}–${fmtTime(pTo)}`}>
+          <Tooltip key={i} label={`${p.periodName}: ${fmtTime(pFrom)}–${fmtTime(pTo % 1440)}${p.dayDelta > 0 ? ' +1d' : ''}`}>
             <Box style={{
               position: 'absolute', left: `${pLeft}%`, width: `${Math.max(pWidth, 1)}%`, top: 4, bottom: 4,
               borderRadius: 3, background: `var(--mantine-color-${color}-4)`, opacity: 0.85,
@@ -198,7 +259,7 @@ function TimelineBar({ entry, periods }: { entry: StoreWorkdayEntry; periods: Pe
         {fmtTime(open)}
       </Text>
       <Text size="10px" c="dimmed" style={{ position: 'absolute', left: `${barLeft + barWidth}%`, top: -14, whiteSpace: 'nowrap', transform: 'translateX(-100%)' }}>
-        {fmtTime(close)}{entry.dayDelta > 0 ? ' +1d' : ''}
+        {fmtTime(close % 1440)}{entry.dayDelta > 0 ? ' +1d' : ''}
       </Text>
     </Box>
   );
@@ -267,6 +328,11 @@ export function WorkdaySchedulePage() {
     for (const e of entries) map.set(e.day, e);
     return map;
   }, [entries]);
+
+  const overflowsByDay = useMemo(
+    () => computeOverflows(entries, periodsByHeaderId),
+    [entries, periodsByHeaderId],
+  );
 
   // ── Open editor ──
 
@@ -457,6 +523,13 @@ export function WorkdaySchedulePage() {
                 workdayPeriodMasterId: p.workdayPeriodMasterId ?? null,
               }));
 
+              const dayOverflows = overflowsByDay.get(day.code);
+              // Holiday cross-day overflow info (shown as text since next day is unknown)
+              const holidayEntry = entryByDay.get('H');
+              const holidayCrossDayPeriods = day.code === 'H' && holidayEntry?.dayDelta
+                ? (periodsByHeaderId.get(holidayEntry.workdayHeaderId) ?? []).filter((p) => p.dayDelta > 0)
+                : [];
+
               return (
                 <Paper key={day.code} withBorder p="sm" radius="md"
                   style={{ cursor: 'pointer' }}
@@ -469,10 +542,15 @@ export function WorkdaySchedulePage() {
                     <Box style={{ flex: 1, minWidth: 0 }}>
                       {entry ? (
                         <Box pt={14}>
-                          <TimelineBar entry={entry} periods={editablePeriods} />
+                          <TimelineBar entry={entry} periods={editablePeriods} overflows={dayOverflows} />
                         </Box>
                       ) : (
                         <Text size="sm" c="dimmed" fs="italic">Closed</Text>
+                      )}
+                      {day.code === 'H' && holidayCrossDayPeriods.length > 0 && (
+                        <Text size="xs" c="dimmed" mt={2} fs="italic">
+                          +1d overflow: {holidayCrossDayPeriods.map((p) => `${p.periodName} until ${p.toTime.substring(0, 5)}`).join(', ')}
+                        </Text>
                       )}
                     </Box>
                     <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'}
