@@ -107,13 +107,13 @@ interface PeriodEdit {
 
 const findOverlappingPeriods = (periods: PeriodEdit[]): string | null => {
   const sorted = [...periods].sort((a, b) => {
-    const aFrom = parseTime(a.fromTime) + a.dayDelta * 1440;
-    const bFrom = parseTime(b.fromTime) + b.dayDelta * 1440;
+    const aFrom = parseTime(a.fromTime);
+    const bFrom = parseTime(b.fromTime);
     return aFrom - bFrom;
   });
   for (let i = 0; i < sorted.length - 1; i++) {
     const curEnd = parseTime(sorted[i].toTime) + sorted[i].dayDelta * 1440;
-    const nextStart = parseTime(sorted[i + 1].fromTime) + sorted[i + 1].dayDelta * 1440;
+    const nextStart = parseTime(sorted[i + 1].fromTime);
     if (curEnd > nextStart) {
       return `"${sorted[i].periodName}" overlaps with "${sorted[i + 1].periodName}".`;
     }
@@ -128,14 +128,14 @@ const findGaps = (periods: PeriodEdit[], openTime: string, closeTime: string, hD
   const close = parseTime(closeTime) + hDayDelta * 1440;
   if (periods.length === 0) return [{ from: open, to: close }];
   const sorted = [...periods].sort((a, b) => {
-    const aFrom = parseTime(a.fromTime) + a.dayDelta * 1440;
-    const bFrom = parseTime(b.fromTime) + b.dayDelta * 1440;
+    const aFrom = parseTime(a.fromTime);
+    const bFrom = parseTime(b.fromTime);
     return aFrom - bFrom;
   });
   const gaps: GapRange[] = [];
   let cursor = open;
   for (const p of sorted) {
-    const pFrom = parseTime(p.fromTime) + p.dayDelta * 1440;
+    const pFrom = parseTime(p.fromTime);
     const pTo = parseTime(p.toTime) + p.dayDelta * 1440;
     if (pFrom > cursor + 1) gaps.push({ from: cursor, to: pFrom });
     cursor = Math.max(cursor, pTo);
@@ -176,7 +176,7 @@ function TimelineBar({ entry, periods }: { entry: StoreWorkdayEntry; periods: Pe
       })}
       {/* Period blocks */}
       {periods.map((p, i) => {
-        const pFrom = parseTime(p.fromTime) + p.dayDelta * 1440;
+        const pFrom = parseTime(p.fromTime);
         const pTo = parseTime(p.toTime) + p.dayDelta * 1440;
         const pLeft = toPercent(pFrom);
         const pWidth = toPercent(pTo - pFrom);
