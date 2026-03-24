@@ -640,9 +640,9 @@ export function WorkdaySchedulePage() {
           <Alert icon={<IconAlertCircle size={16} />} color="yellow">Select a brand to manage workday schedules.</Alert>
         )}
 
-        {selectedShopId && (
+        {brandId && (
           <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
-          {loading && (
+          {(loading || !selectedShopId) && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 10,
               background: 'rgba(255,255,255,0.7)', borderRadius: 8,
