@@ -645,9 +645,10 @@ export function WorkdaySchedulePage() {
         )}
 
         {!loading && selectedShopId && (
-          <Paper withBorder radius="md" style={{ overflow: 'hidden', width: '100%' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+          <Paper withBorder radius="md" style={{ overflow: 'hidden', flex: 1, minWidth: 0 }}>
             {/* Hour header row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, minmax(0, 1fr)) 72px', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(24, minmax(0, 1fr))', borderBottom: '1px solid #e9ecef' }}>
               <div style={{ padding: '6px 8px', background: '#f8f9fa', borderRight: '1px solid #e9ecef' }} />
               {Array.from({ length: 24 }, (_, i) => (
                 <div key={i} style={{
@@ -657,7 +658,6 @@ export function WorkdaySchedulePage() {
                   {String(i).padStart(2, '0')}
                 </div>
               ))}
-              <div style={{ background: '#f8f9fa' }} />
             </div>
             {/* Day rows */}
             {DAYS.map((day, dayIdx) => {
@@ -676,7 +676,7 @@ export function WorkdaySchedulePage() {
               return (
                 <div key={day.code}
                   style={{
-                    display: 'grid', gridTemplateColumns: '56px 1fr 40px',
+                    display: 'grid', gridTemplateColumns: '56px 1fr',
                     borderBottom: dayIdx < DAYS.length - 1 ? '1px solid #e9ecef' : 'none',
                     cursor: 'pointer',
                     transition: 'background 0.1s',
@@ -756,23 +756,33 @@ export function WorkdaySchedulePage() {
                       </div>
                     )}
                   </div>
-                  {/* Action icons */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingRight: 8 }}>
-                    {entry && (
-                      <ActionIcon variant="subtle" color="gray" size="sm"
-                        onClick={(e) => { e.stopPropagation(); openCopyModal(day.code); }}>
-                        <IconCopy size={14} />
-                      </ActionIcon>
-                    )}
-                    <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'} size="sm"
-                      onClick={(e) => { e.stopPropagation(); openDayEditor(day.code); }}>
-                      {entry ? <IconEdit size={14} /> : <IconPlus size={14} />}
-                    </ActionIcon>
-                  </div>
                 </div>
               );
             })}
           </Paper>
+          {/* Action icons column — outside the grid */}
+          <div style={{ display: 'flex', flexDirection: 'column', width: 56, flexShrink: 0 }}>
+            {/* Spacer for header row */}
+            <div style={{ height: 28 }} />
+            {DAYS.map((day) => {
+              const entry = entryByDay.get(day.code);
+              return (
+                <div key={day.code} style={{ height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  {entry && (
+                    <ActionIcon variant="subtle" color="gray" size="sm"
+                      onClick={() => openCopyModal(day.code)}>
+                      <IconCopy size={14} />
+                    </ActionIcon>
+                  )}
+                  <ActionIcon variant="subtle" color={entry ? 'blue' : 'green'} size="sm"
+                    onClick={() => openDayEditor(day.code)}>
+                    {entry ? <IconEdit size={14} /> : <IconPlus size={14} />}
+                  </ActionIcon>
+                </div>
+              );
+            })}
+          </div>
+          </div>
         )}
       </Stack>
 
