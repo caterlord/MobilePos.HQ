@@ -25,6 +25,7 @@ import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
   IconAlertTriangle,
+  IconArrowBackUp,
   IconDeviceFloppy,
   IconDownload,
   IconLock,
@@ -69,6 +70,7 @@ export function StoreSystemParametersPage() {
   const [error, setError] = useState<string | null>(null);
   const [savingParamCode, setSavingParamCode] = useState<string | null>(null);
   const [parameters, setParameters] = useState<StoreSystemParameter[]>([]);
+  const [originalParameters, setOriginalParameters] = useState<StoreSystemParameter[]>([]);
 
   // Lock state — all rows locked by default
   const [unlocked, setUnlocked] = useState(false);
@@ -94,6 +96,7 @@ export function StoreSystemParametersPage() {
       setError(null);
       const response = await storeSettingsService.getSnapshot(brandId, selectedShopId);
       setParameters(response.systemParameters);
+      setOriginalParameters(response.systemParameters);
       setUnlocked(false); // Re-lock on load
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load system parameters';
@@ -127,6 +130,13 @@ export function StoreSystemParametersPage() {
         const next = [...prev];
         const idx = next.findIndex((p) => p.paramCode === normalizedCode);
         if (idx >= 0) next[idx] = response;
+        return next;
+      });
+      setOriginalParameters((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((p) => p.paramCode === normalizedCode);
+        if (idx >= 0) next[idx] = response;
+        else next.push(response);
         return next;
       });
       notifications.show({ color: 'green', message: `Parameter ${normalizedCode} saved` });
@@ -287,6 +297,31 @@ export function StoreSystemParametersPage() {
     }
   };
 
+  // ── Dirty detection and reset ──
+  const originalMap = useMemo(
+    () => new Map(originalParameters.map((p) => [p.paramCode, p])),
+    [originalParameters],
+  );
+
+  const isRowDirty = (param: StoreSystemParameter): boolean => {
+    const orig = originalMap.get(param.paramCode);
+    if (!orig) return true; // newly added
+    return orig.description !== param.description
+      || orig.paramValue !== param.paramValue
+      || orig.enabled !== param.enabled;
+  };
+
+  const resetRow = (paramCode: string) => {
+    const orig = originalMap.get(paramCode);
+    if (!orig) return;
+    setParameters((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex((p) => p.paramCode === paramCode);
+      if (idx >= 0) next[idx] = { ...orig };
+      return next;
+    });
+  };
+
   const shopOptions = useMemo(
     () => shops.map((s) => ({ value: String(s.shopId), label: `${s.shopName}${s.enabled ? '' : ' (Disabled)'}` })),
     [shops],
@@ -377,7 +412,7 @@ export function StoreSystemParametersPage() {
                     <Table.Th style={{ width: 250 }}>Description</Table.Th>
                     <Table.Th>Value</Table.Th>
                     <Table.Th style={{ width: 80 }}>Enabled</Table.Th>
-                    <Table.Th style={{ width: 80 }}></Table.Th>
+                    <Table.Th style={{ width: 64 }}></Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -415,11 +450,23 @@ export function StoreSystemParametersPage() {
                       </Table.Td>
                       <Table.Td>
                         {unlocked && (
-                          <Button size="xs" variant="light" leftSection={<IconDeviceFloppy size={14} />}
-                            loading={savingParamCode === param.paramCode}
-                            onClick={() => void saveParameter(param)}>
-                            Save
-                          </Button>
+                          <Group gap={4} wrap="nowrap">
+                            <Tooltip label="Save">
+                              <ActionIcon variant="subtle" color="blue" size="sm"
+                                disabled={!isRowDirty(param)}
+                                loading={savingParamCode === param.paramCode}
+                                onClick={() => void saveParameter(param)}>
+                                <IconDeviceFloppy size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Reset">
+                              <ActionIcon variant="subtle" color="gray" size="sm"
+                                disabled={!isRowDirty(param)}
+                                onClick={() => resetRow(param.paramCode)}>
+                                <IconArrowBackUp size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
                         )}
                       </Table.Td>
                     </Table.Tr>
