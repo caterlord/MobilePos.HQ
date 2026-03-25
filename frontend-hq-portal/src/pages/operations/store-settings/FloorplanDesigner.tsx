@@ -24,6 +24,8 @@ import {
   IconLayoutAlignMiddle,
   IconLayoutAlignRight,
   IconLayoutAlignTop,
+  IconArrowBackUp,
+  IconArrowForwardUp,
   IconPlus,
   IconRotate,
   IconRotateClockwise,
@@ -173,6 +175,10 @@ export function FloorplanDesigner({
   const [rightTab, setRightTab] = useState<string | null>('palette');
   const [alignToSelection, setAlignToSelection] = useState(false);
 
+  // Undo/Redo stacks
+  const undoStack = useRef<TableMaster[][]>([]);
+  const redoStack = useRef<TableMaster[][]>([]);
+
   // Resize state
   const resizeRef = useRef<{ tableId: number; startX: number; startY: number; startW: number; startH: number } | null>(null);
 
@@ -195,6 +201,49 @@ export function FloorplanDesigner({
   const hasSelection = selectedIds.size > 0;
 
   const hasPendingChanges = pendingChanges.size > 0;
+  const canUndo = undoStack.current.length > 0;
+  const canRedo = redoStack.current.length > 0;
+
+
+  // Wrap onTablesChange to push to undo stack
+  const applyTablesChange = useCallback((newTables: TableMaster[]) => {
+    undoStack.current.push(tables);
+    redoStack.current = []; // Clear redo on new change
+    onTablesChange(newTables);
+  }, [tables, onTablesChange]);
+
+  const undo = useCallback(() => {
+    if (undoStack.current.length === 0) return;
+    const prev = undoStack.current.pop()!;
+    redoStack.current.push(tables);
+    onTablesChange(prev);
+    // Rebuild pending changes by diffing with original loaded data
+    // For simplicity, clear pending changes on undo (user should save after undo if satisfied)
+    setPendingChanges(new Map());
+  }, [tables, onTablesChange]);
+
+  const redo = useCallback(() => {
+    if (redoStack.current.length === 0) return;
+    const next = redoStack.current.pop()!;
+    undoStack.current.push(tables);
+    onTablesChange(next);
+    setPendingChanges(new Map());
+  }, [tables, onTablesChange]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
 
   // Auto-switch to properties tab when single-selecting
   useEffect(() => {
@@ -244,9 +293,9 @@ export function FloorplanDesigner({
     const newX = Math.max(0, snapEnabled ? snapToGrid(rawX, GRID_SIZE) : Math.round(rawX));
     const newY = Math.max(0, snapEnabled ? snapToGrid(rawY, GRID_SIZE) : Math.round(rawY));
 
-    onTablesChange(tables.map((t) => t.tableId === table.tableId ? { ...t, positionX: newX, positionY: newY } : t));
+    applyTablesChange(tables.map((t) => t.tableId === table.tableId ? { ...t, positionX: newX, positionY: newY } : t));
     trackChange(table.tableId, { positionX: newX, positionY: newY });
-  }, [tables, snapEnabled, onTablesChange, trackChange]);
+  }, [tables, snapEnabled, applyTablesChange, trackChange]);
 
   // ── Resize ──
 
@@ -257,6 +306,10 @@ export function FloorplanDesigner({
       tableId, startX: e.clientX, startY: e.clientY,
       startW: table.iconWidth ?? 100, startH: table.iconHeight ?? 60,
     };
+
+    // Push undo snapshot once at start of resize
+    undoStack.current.push(tables);
+    redoStack.current = [];
 
     let lastW = resizeRef.current.startW;
     let lastH = resizeRef.current.startH;
@@ -293,7 +346,7 @@ export function FloorplanDesigner({
         positionX: GRID_SIZE * 2, positionY: GRID_SIZE * 2, isAppearOnFloorPlan: true,
         iconWidth: table.iconWidth ?? 100, iconHeight: table.iconHeight ?? 60,
       }));
-      onTablesChange(tables.map((t) => t.tableId === table.tableId
+      applyTablesChange(tables.map((t) => t.tableId === table.tableId
         ? { ...t, isAppearOnFloorPlan: true, positionX: GRID_SIZE * 2, positionY: GRID_SIZE * 2 } : t));
       notifications.show({ color: 'green', message: `${table.tableCode} added to canvas` });
     } catch (err) {
@@ -305,7 +358,7 @@ export function FloorplanDesigner({
 
   const removeFromCanvas = useCallback((tablesToRemove: TableMaster[]) => {
     const ids = new Set(tablesToRemove.map((t) => t.tableId));
-    onTablesChange(tables.map((t) => ids.has(t.tableId)
+    applyTablesChange(tables.map((t) => ids.has(t.tableId)
       ? { ...t, isAppearOnFloorPlan: false, positionX: null, positionY: null, iconWidth: null, iconHeight: null, rotation: null, shapeType: '' }
       : t,
     ));
@@ -324,7 +377,7 @@ export function FloorplanDesigner({
   const rotateSelected = useCallback((degrees: number) => {
     if (!selectedTable) return;
     const newRotation = ((selectedTable.rotation ?? 0) + degrees) % 360;
-    onTablesChange(tables.map((t) => t.tableId === selectedTable.tableId ? { ...t, rotation: newRotation } : t));
+    applyTablesChange(tables.map((t) => t.tableId === selectedTable.tableId ? { ...t, rotation: newRotation } : t));
     trackChange(selectedTable.tableId, { rotation: newRotation });
   }, [selectedTable, tables, onTablesChange, trackChange]);
 
@@ -364,14 +417,14 @@ export function FloorplanDesigner({
       updated = updated.map((t) => t.tableId === sel.tableId ? { ...t, positionX: newX, positionY: newY } : t);
       trackChange(sel.tableId, { positionX: newX, positionY: newY });
     }
-    onTablesChange(updated);
+    applyTablesChange(updated);
   }, [selectedTables, alignToSelection, snapEnabled, tables, onTablesChange, trackChange]);
 
   // ── Update selected table property (inline edit) ──
 
   const updateSelectedProp = useCallback((changes: Partial<TableMaster & UpsertTableMasterRequest>) => {
     if (!selectedTable) return;
-    onTablesChange(tables.map((t) => t.tableId === selectedTable.tableId ? { ...t, ...changes } : t));
+    applyTablesChange(tables.map((t) => t.tableId === selectedTable.tableId ? { ...t, ...changes } : t));
     trackChange(selectedTable.tableId, changes);
   }, [selectedTable, tables, onTablesChange, trackChange]);
 
@@ -400,6 +453,16 @@ export function FloorplanDesigner({
                 disabled={!hasPendingChanges} loading={saving}
                 onClick={() => void saveAllChanges()}>
                 <IconDeviceFloppy size={14} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Undo (Ctrl+Z)">
+              <ActionIcon size="sm" variant="subtle" disabled={!canUndo} onClick={undo}>
+                <IconArrowBackUp size={14} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Redo (Ctrl+Shift+Z)">
+              <ActionIcon size="sm" variant="subtle" disabled={!canRedo} onClick={redo}>
+                <IconArrowForwardUp size={14} />
               </ActionIcon>
             </Tooltip>
             <Box w={4} />
