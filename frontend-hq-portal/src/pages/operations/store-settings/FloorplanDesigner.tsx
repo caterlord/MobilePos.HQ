@@ -87,7 +87,7 @@ function DraggableTable({
   table: TableMaster;
   isSelected: boolean;
   snap: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   onResizeStart: (tableId: number, e: React.PointerEvent) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -107,7 +107,7 @@ function DraggableTable({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => { e.stopPropagation(); onClick(e); }}
       style={{
         position: 'absolute',
         left: x + dx,
@@ -166,11 +166,12 @@ export function FloorplanDesigner({
   brandId, shopId, tables, sectionOptions, sectionFilter,
   onSectionFilterChange, loading, onTablesChange, onEditTable,
 }: FloorplanDesignerProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<Map<number, Partial<UpsertTableMasterRequest>>>(new Map());
   const [rightTab, setRightTab] = useState<string | null>('palette');
+  const [alignToSelection, setAlignToSelection] = useState(false);
 
   // Resize state
   const resizeRef = useRef<{ tableId: number; startX: number; startY: number; startW: number; startH: number } | null>(null);
@@ -189,14 +190,16 @@ export function FloorplanDesigner({
     return filtered.filter((t) => !t.isAppearOnFloorPlan);
   }, [tables, sectionFilter]);
 
-  const selectedTable = useMemo(() => tables.find((t) => t.tableId === selectedId) ?? null, [tables, selectedId]);
+  const selectedTables = useMemo(() => tables.filter((t) => selectedIds.has(t.tableId)), [tables, selectedIds]);
+  const selectedTable = selectedTables.length === 1 ? selectedTables[0] : null;
+  const hasSelection = selectedIds.size > 0;
 
   const hasPendingChanges = pendingChanges.size > 0;
 
-  // Auto-switch to properties tab when selecting
+  // Auto-switch to properties tab when single-selecting
   useEffect(() => {
-    if (selectedId) setRightTab('properties');
-  }, [selectedId]);
+    if (selectedIds.size === 1) setRightTab('properties');
+  }, [selectedIds]);
 
   // ── Track changes (no auto-save) ──
 
@@ -300,16 +303,19 @@ export function FloorplanDesigner({
     }
   }, [brandId, shopId, tables, onTablesChange]);
 
-  const removeFromCanvas = useCallback((table: TableMaster) => {
-    onTablesChange(tables.map((t) => t.tableId === table.tableId
+  const removeFromCanvas = useCallback((tablesToRemove: TableMaster[]) => {
+    const ids = new Set(tablesToRemove.map((t) => t.tableId));
+    onTablesChange(tables.map((t) => ids.has(t.tableId)
       ? { ...t, isAppearOnFloorPlan: false, positionX: null, positionY: null, iconWidth: null, iconHeight: null, rotation: null, shapeType: '' }
       : t,
     ));
-    trackChange(table.tableId, {
-      isAppearOnFloorPlan: false, positionX: null, positionY: null,
-      iconWidth: null, iconHeight: null, rotation: null, shapeType: '',
-    });
-    setSelectedId(null);
+    for (const tbl of tablesToRemove) {
+      trackChange(tbl.tableId, {
+        isAppearOnFloorPlan: false, positionX: null, positionY: null,
+        iconWidth: null, iconHeight: null, rotation: null, shapeType: '',
+      });
+    }
+    setSelectedIds(new Set());
     setRightTab('palette');
   }, [tables, onTablesChange, trackChange]);
 
@@ -325,25 +331,41 @@ export function FloorplanDesigner({
   // ── Alignment ──
 
   const alignSelected = useCallback((alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
-    if (!selectedTable) return;
-    const w = selectedTable.iconWidth ?? 100;
-    const h = selectedTable.iconHeight ?? 60;
-    let newX = selectedTable.positionX ?? 0;
-    let newY = selectedTable.positionY ?? 0;
+    if (selectedTables.length === 0) return;
 
-    switch (alignment) {
-      case 'left': newX = 0; break;
-      case 'center': newX = Math.round((CANVAS_WIDTH - w) / 2); break;
-      case 'right': newX = CANVAS_WIDTH - w; break;
-      case 'top': newY = 0; break;
-      case 'middle': newY = Math.round((CANVAS_HEIGHT - h) / 2); break;
-      case 'bottom': newY = CANVAS_HEIGHT - h; break;
+    // Determine bounding box: canvas or selection
+    let boundsX = 0, boundsY = 0, boundsW = CANVAS_WIDTH, boundsH = CANVAS_HEIGHT;
+
+    if (alignToSelection && selectedTables.length > 1) {
+      const minX = Math.min(...selectedTables.map((t) => t.positionX ?? 0));
+      const minY = Math.min(...selectedTables.map((t) => t.positionY ?? 0));
+      const maxX = Math.max(...selectedTables.map((t) => (t.positionX ?? 0) + (t.iconWidth ?? 100)));
+      const maxY = Math.max(...selectedTables.map((t) => (t.positionY ?? 0) + (t.iconHeight ?? 60)));
+      boundsX = minX; boundsY = minY; boundsW = maxX - minX; boundsH = maxY - minY;
     }
-    if (snapEnabled) { newX = snapToGrid(newX, GRID_SIZE); newY = snapToGrid(newY, GRID_SIZE); }
 
-    onTablesChange(tables.map((t) => t.tableId === selectedTable.tableId ? { ...t, positionX: newX, positionY: newY } : t));
-    trackChange(selectedTable.tableId, { positionX: newX, positionY: newY });
-  }, [selectedTable, snapEnabled, tables, onTablesChange, trackChange]);
+    let updated = [...tables];
+    for (const sel of selectedTables) {
+      const w = sel.iconWidth ?? 100;
+      const h = sel.iconHeight ?? 60;
+      let newX = sel.positionX ?? 0;
+      let newY = sel.positionY ?? 0;
+
+      switch (alignment) {
+        case 'left': newX = boundsX; break;
+        case 'center': newX = boundsX + Math.round((boundsW - w) / 2); break;
+        case 'right': newX = boundsX + boundsW - w; break;
+        case 'top': newY = boundsY; break;
+        case 'middle': newY = boundsY + Math.round((boundsH - h) / 2); break;
+        case 'bottom': newY = boundsY + boundsH - h; break;
+      }
+      if (snapEnabled) { newX = snapToGrid(newX, GRID_SIZE); newY = snapToGrid(newY, GRID_SIZE); }
+
+      updated = updated.map((t) => t.tableId === sel.tableId ? { ...t, positionX: newX, positionY: newY } : t);
+      trackChange(sel.tableId, { positionX: newX, positionY: newY });
+    }
+    onTablesChange(updated);
+  }, [selectedTables, alignToSelection, snapEnabled, tables, onTablesChange, trackChange]);
 
   // ── Update selected table property (inline edit) ──
 
@@ -363,8 +385,12 @@ export function FloorplanDesigner({
           <Group gap="xs">
             <Select size="xs" data={[{ value: 'all', label: 'All sections' }, ...sectionOptions]}
               value={sectionFilter} onChange={(v) => onSectionFilterChange(v || 'all')} style={{ minWidth: 180 }} />
-            <Switch size="xs" label="Snap to grid" checked={snapEnabled}
+            <Switch size="xs" label="Snap" checked={snapEnabled}
               onChange={(e) => setSnapEnabled(e.currentTarget.checked)} />
+            {selectedIds.size > 1 && (
+              <Switch size="xs" label="Align to selection" checked={alignToSelection}
+                onChange={(e) => setAlignToSelection(e.currentTarget.checked)} />
+            )}
             {saving && <Loader size={14} />}
           </Group>
 
@@ -377,27 +403,27 @@ export function FloorplanDesigner({
               </ActionIcon>
             </Tooltip>
             <Box w={4} />
-            <Tooltip label="Align left"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align left"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('left')}><IconLayoutAlignLeft size={14} /></ActionIcon></Tooltip>
-            <Tooltip label="Align center"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align center"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('center')}><IconLayoutAlignCenter size={14} /></ActionIcon></Tooltip>
-            <Tooltip label="Align right"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align right"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('right')}><IconLayoutAlignRight size={14} /></ActionIcon></Tooltip>
             <Box w={4} />
-            <Tooltip label="Align top"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align top"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('top')}><IconLayoutAlignTop size={14} /></ActionIcon></Tooltip>
-            <Tooltip label="Align middle"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align middle"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('middle')}><IconLayoutAlignMiddle size={14} /></ActionIcon></Tooltip>
-            <Tooltip label="Align bottom"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
+            <Tooltip label="Align bottom"><ActionIcon size="sm" variant="subtle" disabled={!hasSelection}
               onClick={() => alignSelected('bottom')}><IconLayoutAlignBottom size={14} /></ActionIcon></Tooltip>
             <Box w={4} />
             <Tooltip label="Rotate -90°"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
-              onClick={() => rotateSelected(-90)}><IconRotate size={14} /></ActionIcon></Tooltip>
+              onClick={() => selectedTable && rotateSelected(-90)}><IconRotate size={14} /></ActionIcon></Tooltip>
             <Tooltip label="Rotate +90°"><ActionIcon size="sm" variant="subtle" disabled={!selectedTable}
-              onClick={() => rotateSelected(90)}><IconRotateClockwise size={14} /></ActionIcon></Tooltip>
+              onClick={() => selectedTable && rotateSelected(90)}><IconRotateClockwise size={14} /></ActionIcon></Tooltip>
             <Box w={4} />
-            <Tooltip label="Remove from canvas"><ActionIcon size="sm" variant="subtle" color="red" disabled={!selectedTable}
-              onClick={() => selectedTable && removeFromCanvas(selectedTable)}><IconTrash size={14} /></ActionIcon></Tooltip>
+            <Tooltip label="Remove from canvas"><ActionIcon size="sm" variant="subtle" color="red" disabled={!hasSelection}
+              onClick={() => selectedTables.length > 0 && removeFromCanvas(selectedTables)}><IconTrash size={14} /></ActionIcon></Tooltip>
           </Group>
         </Group>
       </Paper>
@@ -416,7 +442,7 @@ export function FloorplanDesigner({
           )}
             <ScrollArea>
               <DndContext sensors={sensors} modifiers={[restrictToParentElement]} onDragEnd={handleDragEnd}>
-                <Box onClick={() => setSelectedId(null)} style={{
+                <Box onClick={() => setSelectedIds(new Set())} style={{
                   position: 'relative', width: CANVAS_WIDTH, height: CANVAS_HEIGHT, cursor: 'default',
                   background: snapEnabled
                     ? `linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / ${GRID_SIZE}px ${GRID_SIZE}px, linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / ${GRID_SIZE}px ${GRID_SIZE}px, #fafbfc`
@@ -431,8 +457,19 @@ export function FloorplanDesigner({
                   )}
                   {canvasTables.map((table) => (
                     <DraggableTable key={table.tableId} table={table}
-                      isSelected={table.tableId === selectedId} snap={snapEnabled}
-                      onClick={() => setSelectedId(table.tableId)}
+                      isSelected={selectedIds.has(table.tableId)} snap={snapEnabled}
+                      onClick={(e) => {
+                        if (e.shiftKey || e.metaKey) {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(table.tableId)) next.delete(table.tableId);
+                            else next.add(table.tableId);
+                            return next;
+                          });
+                        } else {
+                          setSelectedIds(new Set([table.tableId]));
+                        }
+                      }}
                       onResizeStart={handleResizeStart} />
                   ))}
                 </Box>
@@ -517,13 +554,17 @@ export function FloorplanDesigner({
                       Full Edit
                     </Button>
                     <Button size="compact-xs" variant="light" color="red" fullWidth
-                      onClick={() => removeFromCanvas(selectedTable)}>
+                      onClick={() => selectedTable && removeFromCanvas([selectedTable])}>
                       Remove
                     </Button>
                   </Group>
                 </Stack>
               ) : (
-                <Text size="xs" c="dimmed" fs="italic" ta="center" py="md">Select a table on the canvas.</Text>
+                <Text size="xs" c="dimmed" fs="italic" ta="center" py="md">
+                  {selectedIds.size > 1
+                    ? `${selectedIds.size} tables selected. Use toolbar to align or remove.`
+                    : 'Select a table on the canvas.'}
+                </Text>
               )}
             </Tabs.Panel>
           </Tabs>
