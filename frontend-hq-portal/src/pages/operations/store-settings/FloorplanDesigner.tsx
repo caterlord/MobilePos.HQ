@@ -419,7 +419,7 @@ export function FloorplanDesigner({
                     ? `linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / ${GRID_SIZE}px ${GRID_SIZE}px, linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px) 0 0 / ${GRID_SIZE}px ${GRID_SIZE}px, #fafbfc`
                     : '#fafbfc',
                 }}>
-                  {canvasTables.length === 0 && (
+                  {canvasTables.length === 0 && !loading && (
                     <Group justify="center" style={{ position: 'absolute', inset: 0 }}>
                       <Text size="sm" c="dimmed">
                         {tables.length === 0 ? 'No tables exist yet.' : 'No tables on canvas. Add from the palette.'}
