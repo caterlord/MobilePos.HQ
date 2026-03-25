@@ -46,6 +46,7 @@ import tableSettingsService from '../../../services/tableSettingsService';
 // ── Constants ──
 
 const GRID_SIZE = 24;
+const MAX_UNDO_STACK = 20;
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 600;
 const MIN_TABLE_SIZE = 40;
@@ -175,9 +176,10 @@ export function FloorplanDesigner({
   const [rightTab, setRightTab] = useState<string | null>('palette');
   const [alignToSelection, setAlignToSelection] = useState(false);
 
-  // Undo/Redo stacks
-  const undoStack = useRef<TableMaster[][]>([]);
-  const redoStack = useRef<TableMaster[][]>([]);
+  // Undo/Redo stacks (snapshots of tables + pendingChanges)
+  type Snapshot = { tables: TableMaster[]; changes: Map<number, Partial<UpsertTableMasterRequest>> };
+  const undoStack = useRef<Snapshot[]>([]);
+  const redoStack = useRef<Snapshot[]>([]);
 
   // Resize state
   const resizeRef = useRef<{ tableId: number; startX: number; startY: number; startW: number; startH: number } | null>(null);
@@ -207,28 +209,27 @@ export function FloorplanDesigner({
 
   // Wrap onTablesChange to push to undo stack
   const applyTablesChange = useCallback((newTables: TableMaster[]) => {
-    undoStack.current.push(tables);
-    redoStack.current = []; // Clear redo on new change
+    undoStack.current.push({ tables, changes: new Map(pendingChanges) });
+    if (undoStack.current.length > MAX_UNDO_STACK) undoStack.current.shift();
+    redoStack.current = [];
     onTablesChange(newTables);
-  }, [tables, onTablesChange]);
+  }, [tables, pendingChanges, onTablesChange]);
 
   const undo = useCallback(() => {
     if (undoStack.current.length === 0) return;
-    const prev = undoStack.current.pop()!;
-    redoStack.current.push(tables);
-    onTablesChange(prev);
-    // Rebuild pending changes by diffing with original loaded data
-    // For simplicity, clear pending changes on undo (user should save after undo if satisfied)
-    setPendingChanges(new Map());
-  }, [tables, onTablesChange]);
+    const snapshot = undoStack.current.pop()!;
+    redoStack.current.push({ tables, changes: new Map(pendingChanges) });
+    onTablesChange(snapshot.tables);
+    setPendingChanges(snapshot.changes);
+  }, [tables, pendingChanges, onTablesChange]);
 
   const redo = useCallback(() => {
     if (redoStack.current.length === 0) return;
-    const next = redoStack.current.pop()!;
-    undoStack.current.push(tables);
-    onTablesChange(next);
-    setPendingChanges(new Map());
-  }, [tables, onTablesChange]);
+    const snapshot = redoStack.current.pop()!;
+    undoStack.current.push({ tables, changes: new Map(pendingChanges) });
+    onTablesChange(snapshot.tables);
+    setPendingChanges(snapshot.changes);
+  }, [tables, pendingChanges, onTablesChange]);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -308,7 +309,8 @@ export function FloorplanDesigner({
     };
 
     // Push undo snapshot once at start of resize
-    undoStack.current.push(tables);
+    undoStack.current.push({ tables, changes: new Map(pendingChanges) });
+    if (undoStack.current.length > MAX_UNDO_STACK) undoStack.current.shift();
     redoStack.current = [];
 
     let lastW = resizeRef.current.startW;
