@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Alert,
   Badge,
-  Box,
   Button,
   Container,
   Group,
@@ -31,6 +30,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useStoreSettingsShopSelection } from './useStoreSettingsShopSelection';
+import { FloorplanDesigner } from './FloorplanDesigner';
 import tableSettingsService, {
   type LinkTableSectionToShopRequest,
   type TableMaster,
@@ -735,91 +735,20 @@ export function StoreTableSettingsPage() {
           <Tabs.Panel value="floorplan" pt="md">
             {!selectedShopId ? (
               <Alert icon={<IconAlertCircle size={16} />} color="yellow">
-                Select a shop to view its floorplan.
+                Select a shop to design its floorplan.
               </Alert>
             ) : (
-              <Paper withBorder p="md" radius="md">
-                <Group justify="space-between" mb="md">
-                  <Group gap="xs">
-                    <Text fw={600}>Floorplan Designer</Text>
-                    {selectedShop ? <Badge variant="light">{selectedShop.shopName}</Badge> : null}
-                  </Group>
-                  <Select
-                    data={[
-                      { value: 'all', label: 'All linked sections' },
-                      ...linkedSectionOptions,
-                    ]}
-                    value={floorplanSectionFilter}
-                    onChange={(value) => setFloorplanSectionFilter(value || 'all')}
-                    disabled={linkedSectionOptions.length === 0}
-                    style={{ minWidth: 220 }}
-                  />
-                </Group>
-
-                {loading ? (
-                  <Group justify="center" py="xl">
-                    <Loader size="sm" />
-                    <Text size="sm" c="dimmed">Loading floorplan...</Text>
-                  </Group>
-                ) : (
-                  <Paper withBorder p="md" radius="md" bg="gray.0">
-                    <Group justify="space-between" mb="sm">
-                      <Text size="sm" fw={600}>Preview</Text>
-                      <Text size="xs" c="dimmed">Click a table to edit its layout.</Text>
-                    </Group>
-                    <Box
-                      style={{
-                        position: 'relative',
-                        minHeight: 460,
-                        overflow: 'auto',
-                        borderRadius: 12,
-                        border: '1px dashed var(--mantine-color-gray-4)',
-                        background:
-                          'linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%)',
-                      }}
-                    >
-                      {filteredFloorplanTables.filter((t) => t.isAppearOnFloorPlan).length === 0 ? (
-                        <Group justify="center" py="xl">
-                          <Text size="sm" c="dimmed">No visible tables in the current filter.</Text>
-                        </Group>
-                      ) : (
-                        filteredFloorplanTables
-                          .filter((t) => t.isAppearOnFloorPlan)
-                          .map((table) => (
-                            <Box
-                              key={table.tableId}
-                              component="button"
-                              type="button"
-                              onClick={() => openEditTableModal(table)}
-                              style={{
-                                position: 'absolute',
-                                left: table.positionX ?? 24,
-                                top: table.positionY ?? 24,
-                                width: table.iconWidth ?? 120,
-                                height: table.iconHeight ?? 64,
-                                transform: `rotate(${table.rotation ?? 0}deg)`,
-                                borderRadius: (table.shapeType ?? '').toLowerCase() === 'circle' ? '999px' : 14,
-                                border: '1px solid var(--mantine-color-blue-4)',
-                                background: 'linear-gradient(180deg, rgba(59,130,246,0.18) 0%, rgba(29,78,216,0.08) 100%)',
-                                color: 'var(--mantine-color-blue-9)',
-                                boxShadow: '0 10px 24px rgba(30, 64, 175, 0.12)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                padding: 8,
-                              }}
-                            >
-                              <Text size="sm" fw={700}>{table.tableCode}</Text>
-                              <Text size="xs">{table.sectionName || `Section ${table.sectionId}`}</Text>
-                            </Box>
-                          ))
-                      )}
-                    </Box>
-                  </Paper>
-                )}
-              </Paper>
+              <FloorplanDesigner
+                brandId={brandId!}
+                shopId={selectedShopId}
+                tables={tables}
+                sectionOptions={linkedSectionOptions}
+                sectionFilter={floorplanSectionFilter}
+                onSectionFilterChange={(v) => setFloorplanSectionFilter(v)}
+                loading={loading}
+                onTablesChange={setTables}
+                onEditTable={openEditTableModal}
+              />
             )}
           </Tabs.Panel>
         </Tabs>
