@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -19,10 +17,10 @@ public class Address
     public int? DisplayIndex { get; set; }
 
     [MaxLength(200)]
-    public string Caption { get; set; }
+    public string Caption { get; set; } = null!;
 
     [MaxLength(200)]
-    public string CaptionAlt { get; set; }
+    public string CaptionAlt { get; set; } = null!;
 
     public int? DisplayLevel { get; set; }
 
@@ -55,6 +53,6 @@ public class Address
     public decimal? Lng { get; set; }
 
     [MaxLength(50)]
-    public string RefKey { get; set; }
+    public string RefKey { get; set; } = null!;
 
 }

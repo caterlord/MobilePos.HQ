@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -27,7 +25,7 @@ public class PriceRule
     public string RuleName { get; set; } = string.Empty;
 
     [MaxLength(1000)]
-    public string Description { get; set; }
+    public string Description { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

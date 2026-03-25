@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -18,7 +16,7 @@ public class CommandLog
     public string? ObjectName { get; set; }
 
     [MaxLength(2)]
-    public string ObjectType { get; set; }
+    public string ObjectType { get; set; } = null!;
 
     public string? IndexName { get; set; }
 
@@ -45,6 +43,6 @@ public class CommandLog
     public int? ErrorNumber { get; set; }
 
     [MaxLengthUnlimited]
-    public string ErrorMessage { get; set; }
+    public string ErrorMessage { get; set; } = null!;
 
 }

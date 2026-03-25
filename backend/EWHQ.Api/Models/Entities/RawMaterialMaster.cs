@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,7 +23,7 @@ public class RawMaterialMaster
     public string RawMaterialName { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string RawMaterialNameAlt { get; set; }
+    public string RawMaterialNameAlt { get; set; } = null!;
 
     [MaxLength(50)]
     [Required]
@@ -54,7 +52,7 @@ public class RawMaterialMaster
     public decimal? MinWarningQty { get; set; }
 
     [MaxLength(1000)]
-    public string ExcludeRawMaterialIdList { get; set; }
+    public string ExcludeRawMaterialIdList { get; set; } = null!;
 
     public bool? IsCalculateOnce { get; set; }
 

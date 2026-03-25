@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -19,7 +17,7 @@ public class TaiwanUniformInvoiceHeader
     public string POSNumber { get; set; } = string.Empty;
 
     [MaxLength(10)]
-    public string InvoiceNumber { get; set; }
+    public string InvoiceNumber { get; set; } = null!;
 
     [MaxLength(50)]
     [Required]
@@ -71,19 +69,19 @@ public class TaiwanUniformInvoiceHeader
     public string RandomNumber { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string MainRemark { get; set; }
+    public string MainRemark { get; set; } = null!;
 
     [MaxLength(50)]
-    public string CarrierType { get; set; }
+    public string CarrierType { get; set; } = null!;
 
     [MaxLength(200)]
-    public string CarrierId1 { get; set; }
+    public string CarrierId1 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string CarrierId2 { get; set; }
+    public string CarrierId2 { get; set; } = null!;
 
     [MaxLength(8)]
-    public string NPOBAN { get; set; }
+    public string NPOBAN { get; set; } = null!;
 
     [MaxLength(50)]
     [Required]

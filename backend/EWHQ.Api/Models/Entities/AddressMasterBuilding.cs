@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,16 +19,16 @@ public class AddressMasterBuilding
     public string BuildingName { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string BuildingNameAlt { get; set; }
+    public string BuildingNameAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string BuildingPath { get; set; }
+    public string BuildingPath { get; set; } = null!;
 
     [MaxLength(400)]
-    public string BuildingPathAlt { get; set; }
+    public string BuildingPathAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string BuildingDesc { get; set; }
+    public string BuildingDesc { get; set; } = null!;
 
     public int ClickCount { get; set; }
 

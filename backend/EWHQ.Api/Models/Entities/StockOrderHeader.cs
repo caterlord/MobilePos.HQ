@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -35,32 +33,32 @@ public class StockOrderHeader
     public int? OrderToShopId { get; set; }
 
     [MaxLength(4000)]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     public int OrderStatusId { get; set; }
 
     public DateTime? OrderSubmittedDatetime { get; set; }
 
     [MaxLength(50)]
-    public string OrderSubmittedBy { get; set; }
+    public string OrderSubmittedBy { get; set; } = null!;
 
     public DateTime? OrderReceivedDatetime { get; set; }
 
     [MaxLength(50)]
-    public string OrderReceivedBy { get; set; }
+    public string OrderReceivedBy { get; set; } = null!;
 
     public DateTime? StockSendToShopDatetime { get; set; }
 
     [MaxLength(50)]
-    public string StockSendToShopBy { get; set; }
+    public string StockSendToShopBy { get; set; } = null!;
 
     public DateTime? StockReceivedByShopDatetime { get; set; }
 
     [MaxLength(50)]
-    public string StockReceivedByShopBy { get; set; }
+    public string StockReceivedByShopBy { get; set; } = null!;
 
     [MaxLength(200)]
-    public string OrderRef2 { get; set; }
+    public string OrderRef2 { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

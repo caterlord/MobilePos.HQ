@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,16 +19,16 @@ public class RawMaterialCategoryOnline
     public string Name { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string NameAlt1 { get; set; }
+    public string NameAlt1 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string NameAlt2 { get; set; }
+    public string NameAlt2 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string NameAlt3 { get; set; }
+    public string NameAlt3 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string CategoryType { get; set; }
+    public string CategoryType { get; set; } = null!;
 
     public int? ParentCategoryId { get; set; }
 
@@ -39,14 +37,14 @@ public class RawMaterialCategoryOnline
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
     [MaxLength(50)]
-    public string CategoryCode { get; set; }
+    public string CategoryCode { get; set; } = null!;
 
 }

@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,16 +19,16 @@ public class AddressMasterDistrict
     public string DistrictName { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string DistrictNameAlt { get; set; }
+    public string DistrictNameAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string DistrictPath { get; set; }
+    public string DistrictPath { get; set; } = null!;
 
     [MaxLength(400)]
-    public string DistrictPathAlt { get; set; }
+    public string DistrictPathAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string DistrictDesc { get; set; }
+    public string DistrictDesc { get; set; } = null!;
 
     public int ClickCount { get; set; }
 

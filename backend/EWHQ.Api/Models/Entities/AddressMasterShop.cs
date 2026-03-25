@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,16 +19,16 @@ public class AddressMasterShop
     public string ShopName { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string ShopNameAlt { get; set; }
+    public string ShopNameAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string ShopPath { get; set; }
+    public string ShopPath { get; set; } = null!;
 
     [MaxLength(400)]
-    public string ShopPathAlt { get; set; }
+    public string ShopPathAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string ShopDesc { get; set; }
+    public string ShopDesc { get; set; } = null!;
 
     public int ClickCount { get; set; }
 

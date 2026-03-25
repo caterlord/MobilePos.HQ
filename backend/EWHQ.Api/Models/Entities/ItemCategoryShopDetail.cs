@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,7 +13,7 @@ public class ItemCategoryShopDetail
     public int AccountId { get; set; }
 
     [MaxLength(200)]
-    public string DisplayName { get; set; }
+    public string DisplayName { get; set; } = null!;
 
     public int? DisplayIndex { get; set; }
 

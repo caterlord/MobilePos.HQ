@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -19,24 +17,24 @@ public class MemberOnlineDetail
     public int? MemberDetailId { get; set; }
 
     [MaxLength(200)]
-    public string SocialMediaId { get; set; }
+    public string SocialMediaId { get; set; } = null!;
 
     public int? SocialMediaTypeId { get; set; }
 
     [MaxLength(100)]
-    public string FirstName { get; set; }
+    public string FirstName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string LastName { get; set; }
+    public string LastName { get; set; } = null!;
 
     [MaxLength(2)]
-    public string GenderCode { get; set; }
+    public string GenderCode { get; set; } = null!;
 
     [MaxLength(100)]
-    public string GenderDesc { get; set; }
+    public string GenderDesc { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ImageUrl { get; set; }
+    public string ImageUrl { get; set; } = null!;
 
     public DateTime? DateOfBirth { get; set; }
 
@@ -47,7 +45,7 @@ public class MemberOnlineDetail
     public int? DateOfBirthDay { get; set; }
 
     [MaxLength(200)]
-    public string Email { get; set; }
+    public string Email { get; set; } = null!;
 
     public DateTime? RegistrationDateTime { get; set; }
 
@@ -66,34 +64,34 @@ public class MemberOnlineDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string ReferralSourceId { get; set; }
+    public string ReferralSourceId { get; set; } = null!;
 
     [MaxLength(50)]
-    public string LocaleCode { get; set; }
+    public string LocaleCode { get; set; } = null!;
 
     public int? AgeRangeMin { get; set; }
 
     public int? AgeRangeMax { get; set; }
 
     [MaxLength(200)]
-    public string FBRealUserId { get; set; }
+    public string FBRealUserId { get; set; } = null!;
 
     [MaxLength(50)]
-    public string RegStatus { get; set; }
+    public string RegStatus { get; set; } = null!;
 
     [MaxLength(200)]
-    public string ContactName { get; set; }
+    public string ContactName { get; set; } = null!;
 
     [MaxLength(200)]
-    public string ContactEmail { get; set; }
+    public string ContactEmail { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ContactPhone { get; set; }
+    public string ContactPhone { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string ContactAddress { get; set; }
+    public string ContactAddress { get; set; } = null!;
 
     [MaxLength(100)]
-    public string Phone { get; set; }
+    public string Phone { get; set; } = null!;
 
 }

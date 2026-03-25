@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -18,13 +16,13 @@ public class CouponCampaign
     public int CouponCampaignId { get; set; }
 
     [MaxLength(50)]
-    public string CampaignCode { get; set; }
+    public string CampaignCode { get; set; } = null!;
 
     [MaxLength(500)]
-    public string CampaignName { get; set; }
+    public string CampaignName { get; set; } = null!;
 
     [MaxLength(2000)]
-    public string CampaignDesc { get; set; }
+    public string CampaignDesc { get; set; } = null!;
 
     public bool AllowMultipleUse { get; set; }
 
@@ -55,7 +53,7 @@ public class CouponCampaign
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(4000)]
-    public string CampaignTnc { get; set; }
+    public string CampaignTnc { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? BenefitValue { get; set; }
@@ -126,6 +124,6 @@ public class CouponCampaign
     public int MaxUsedCount { get; set; }
 
     [MaxLengthUnlimited]
-    public string BenefitExtraInfo { get; set; }
+    public string BenefitExtraInfo { get; set; } = null!;
 
 }

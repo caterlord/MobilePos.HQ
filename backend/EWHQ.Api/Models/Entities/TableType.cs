@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -21,13 +19,13 @@ public class TableType
     public string TypeName { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string TypeNameAlt { get; set; }
+    public string TypeNameAlt { get; set; } = null!;
 
     [MaxLength(100)]
-    public string Desc { get; set; }
+    public string Desc { get; set; } = null!;
 
     [MaxLength(200)]
-    public string DescAlt { get; set; }
+    public string DescAlt { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

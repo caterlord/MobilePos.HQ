@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,7 +23,7 @@ public class ShopGroupSettingHeader
     public string ShopGroupName { get; set; } = string.Empty;
 
     [MaxLength(4000)]
-    public string ShopGroupDesc { get; set; }
+    public string ShopGroupDesc { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

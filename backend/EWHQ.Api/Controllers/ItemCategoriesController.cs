@@ -268,11 +268,11 @@ public class ItemCategoriesController : ControllerBase
             if (updateDto.CategoryCode != null)
                 category.CategoryCode = updateDto.CategoryCode;
 
-            // Ensure required fields have values (handle legacy data with NULLs)
+            // Ensure required fields have values before persisting updates.
             if (string.IsNullOrEmpty(category.CategoryName))
                 category.CategoryName = "Unnamed Category";
 
-            if (!category.CreatedDate.HasValue)
+            if (category.CreatedDate == default)
                 category.CreatedDate = DateTime.UtcNow;
 
             if (string.IsNullOrEmpty(category.CreatedBy))

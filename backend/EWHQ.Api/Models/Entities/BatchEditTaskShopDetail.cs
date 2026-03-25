@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -18,7 +16,7 @@ public class BatchEditTaskShopDetail
     public int StatusId { get; set; }
 
     [MaxLengthUnlimited]
-    public string TaskShopDetailData { get; set; }
+    public string TaskShopDetailData { get; set; } = null!;
 
     public DateTime? ExecutionDatetime { get; set; }
 

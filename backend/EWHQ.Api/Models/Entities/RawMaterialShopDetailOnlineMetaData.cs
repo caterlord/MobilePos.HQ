@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -19,12 +17,12 @@ public class RawMaterialShopDetailOnlineMetaData
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
     [Column(TypeName = "decimal(13, 5)")]
     public decimal? CostPerUnit { get; set; }

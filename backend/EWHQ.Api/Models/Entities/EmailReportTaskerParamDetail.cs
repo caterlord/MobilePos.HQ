@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,7 +13,7 @@ public class EmailReportTaskerParamDetail
     public int ParamTypeId { get; set; }
 
     [MaxLength(4000)]
-    public string Value { get; set; }
+    public string Value { get; set; } = null!;
 
     public bool IsDefault { get; set; }
 

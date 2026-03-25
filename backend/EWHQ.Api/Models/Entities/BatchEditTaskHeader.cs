@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -22,17 +20,17 @@ public class BatchEditTaskHeader
     public string TaskName { get; set; } = string.Empty;
 
     [MaxLength(2000)]
-    public string TaskDesc { get; set; }
+    public string TaskDesc { get; set; } = null!;
 
     public int StatusId { get; set; }
 
     public DateTime? LastStatusUpdatedDate { get; set; }
 
     [MaxLengthUnlimited]
-    public string DataScope { get; set; }
+    public string DataScope { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string ShopScope { get; set; }
+    public string ShopScope { get; set; } = null!;
 
     public int EffectiveTypeId { get; set; }
 

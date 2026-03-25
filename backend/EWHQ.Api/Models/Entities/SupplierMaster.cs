@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -25,51 +23,51 @@ public class SupplierMaster
     public decimal? DefaultMarkup { get; set; }
 
     [MaxLengthUnlimited]
-    public string Description { get; set; }
+    public string Description { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactCompany { get; set; }
+    public string ContactCompany { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactFirstName { get; set; }
+    public string ContactFirstName { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactLastName { get; set; }
+    public string ContactLastName { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactPhone { get; set; }
+    public string ContactPhone { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactMobile { get; set; }
+    public string ContactMobile { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactFax { get; set; }
+    public string ContactFax { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactEmail { get; set; }
+    public string ContactEmail { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ContactWebsite { get; set; }
+    public string ContactWebsite { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string ContactOther { get; set; }
+    public string ContactOther { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string AddressPhysical { get; set; }
+    public string AddressPhysical { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string AddressPostal { get; set; }
+    public string AddressPostal { get; set; } = null!;
 
     public bool Enabled { get; set; }
 
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
 }

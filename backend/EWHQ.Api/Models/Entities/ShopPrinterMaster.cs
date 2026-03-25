@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -41,10 +39,10 @@ public class ShopPrinterMaster
     public bool? IsKds { get; set; }
 
     [MaxLength(200)]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     [MaxLength(50)]
-    public string RedirectToPrinterName { get; set; }
+    public string RedirectToPrinterName { get; set; } = null!;
 
     public DateTime? RedirectDateTime { get; set; }
 

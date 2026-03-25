@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -17,14 +15,14 @@ public class SystemParameter
     public int AccountId { get; set; }
 
     [MaxLength(100)]
-    public string ParamCode { get; set; }
+    public string ParamCode { get; set; } = null!;
 
     [MaxLength(200)]
     [Required]
     public string Description { get; set; } = string.Empty;
 
     [MaxLength(1000)]
-    public string ParamValue { get; set; }
+    public string ParamValue { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

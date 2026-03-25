@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -17,13 +15,13 @@ public class ShopType
     public string TypeName { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string AltTypeName { get; set; }
+    public string AltTypeName { get; set; } = null!;
 
     [MaxLength(500)]
-    public string TypeDesc { get; set; }
+    public string TypeDesc { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string AltTypeDesc { get; set; }
+    public string AltTypeDesc { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

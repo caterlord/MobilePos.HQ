@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -25,15 +23,15 @@ public class StaffAttendanceDetailOnline
     public int Slot { get; set; }
 
     [MaxLength(50)]
-    public string LeaveType { get; set; }
+    public string LeaveType { get; set; } = null!;
 
     public int UserId { get; set; }
 
     [MaxLength(50)]
-    public string UserName { get; set; }
+    public string UserName { get; set; } = null!;
 
     [MaxLength(50)]
-    public string StaffCode { get; set; }
+    public string StaffCode { get; set; } = null!;
 
     public int? RefRosterId { get; set; }
 

@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -28,13 +26,13 @@ public class TxSalesDeliveryService
     public string Service { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string OrderId { get; set; }
+    public string OrderId { get; set; } = null!;
 
     [MaxLength(500)]
-    public string OrderInfo { get; set; }
+    public string OrderInfo { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string OrderDetail { get; set; }
+    public string OrderDetail { get; set; } = null!;
 
     public bool Enabled { get; set; }
 
@@ -47,11 +45,11 @@ public class TxSalesDeliveryService
     public DateTime ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
     public DateTime? CancelledDate { get; set; }
 
     [MaxLength(50)]
-    public string CancelledBy { get; set; }
+    public string CancelledBy { get; set; } = null!;
 
 }

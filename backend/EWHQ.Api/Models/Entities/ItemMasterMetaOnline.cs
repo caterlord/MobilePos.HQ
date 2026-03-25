@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -13,13 +11,13 @@ public class ItemMasterMetaOnline
     public int AccountId { get; set; }
 
     [MaxLength(200)]
-    public string OdoImageFileName1 { get; set; }
+    public string OdoImageFileName1 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string OdoImageFileName2 { get; set; }
+    public string OdoImageFileName2 { get; set; } = null!;
 
     [MaxLength(200)]
-    public string OdoImageFileName3 { get; set; }
+    public string OdoImageFileName3 { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

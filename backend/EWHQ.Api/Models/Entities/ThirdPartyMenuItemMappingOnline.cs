@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -28,7 +26,7 @@ public class ThirdPartyMenuItemMappingOnline
     public bool IsFollowSet { get; set; }
 
     [MaxLengthUnlimited]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

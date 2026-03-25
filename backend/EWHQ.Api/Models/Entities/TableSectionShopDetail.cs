@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,7 +13,7 @@ public class TableSectionShopDetail
     public int SectionId { get; set; }
 
     [MaxLength(200)]
-    public string TableMapBackgroundImagePath { get; set; }
+    public string TableMapBackgroundImagePath { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

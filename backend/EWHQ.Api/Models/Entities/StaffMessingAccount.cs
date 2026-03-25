@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -23,7 +21,7 @@ public class StaffMessingAccount
     public string StaffFirstName { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string StaffLastName { get; set; }
+    public string StaffLastName { get; set; } = null!;
 
     [MaxLength(200)]
     [Required]

@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -37,7 +35,7 @@ public class StockTakeDetail
     public decimal? DifferenceInCost { get; set; }
 
     [MaxLength(1000)]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     public bool Enabled { get; set; }
 
@@ -54,22 +52,22 @@ public class StockTakeDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string RawMaterialCode { get; set; }
+    public string RawMaterialCode { get; set; } = null!;
 
     [MaxLength(200)]
-    public string RawMaterialNameAlt { get; set; }
+    public string RawMaterialNameAlt { get; set; } = null!;
 
     [MaxLength(200)]
-    public string RawMaterialName { get; set; }
+    public string RawMaterialName { get; set; } = null!;
 
     [MaxLength(50)]
-    public string BulkUnitName { get; set; }
+    public string BulkUnitName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? BulkUnitCount { get; set; }
 
     [MaxLength(50)]
-    public string OriginalUnitName { get; set; }
+    public string OriginalUnitName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? OriginalCount { get; set; }

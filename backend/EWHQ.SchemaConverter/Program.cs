@@ -7,8 +7,9 @@ class Program
 {
     static void Main(string[] args)
     {
-        var schemaPath = args.Length > 0 ? args[0] : "/Users/michaelyung/RiderProjects/ewhq/docs/db_schema_ewpos_userdata.txt";
-        var outputPath = args.Length > 1 ? args[1] : "/Users/michaelyung/RiderProjects/ewhq/backend/EWHQ.Api/Models/Entities";
+        var projectRoot = GetProjectRoot();
+        var schemaPath = args.Length > 0 ? args[0] : Path.Combine(projectRoot, "docs", "db_schema_ewpos_userdata.txt");
+        var outputPath = args.Length > 1 ? args[1] : Path.Combine(projectRoot, "backend", "EWHQ.Api", "Models", "Entities");
 
         if (!File.Exists(schemaPath))
         {
@@ -33,6 +34,22 @@ class Program
         }
 
         Console.WriteLine($"\nSuccessfully generated {tables.Count} entity classes.");
+    }
+
+    static string GetProjectRoot()
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        while (!File.Exists(Path.Combine(currentDir, "ewhq.sln")) && currentDir != Path.GetPathRoot(currentDir))
+        {
+            currentDir = Directory.GetParent(currentDir)?.FullName ?? currentDir;
+        }
+
+        if (!File.Exists(Path.Combine(currentDir, "ewhq.sln")))
+        {
+            currentDir = Directory.GetParent(Directory.GetCurrentDirectory())?.Parent?.FullName ?? currentDir;
+        }
+
+        return currentDir;
     }
 
     static List<TableDefinition> ParseTables(string schemaContent)
@@ -147,9 +164,14 @@ class Program
             }
             
             // Add property
-            var nullableSymbol = column.IsNullable && column.CSharpType != "string" ? "?" : "";
-            var defaultValue = column.CSharpType == "string" && !column.IsNullable ? " = string.Empty;" : "";
-            
+            var nullableSymbol = column.IsNullable ? "?" : "";
+            var defaultValue = column.CSharpType switch
+            {
+                "string" when !column.IsNullable => " = string.Empty;",
+                "byte[]" when !column.IsNullable => " = null!;",
+                _ => ""
+            };
+
             sb.AppendLine($"    public {column.CSharpType}{nullableSymbol} {column.ColumnName} {{ get; set; }}{defaultValue}");
             sb.AppendLine();
         }

@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -55,10 +53,10 @@ public class TxSalesDetail
     public string ItemCode { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string ItemName { get; set; }
+    public string ItemName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemNameAlt2 { get; set; }
+    public string ItemNameAlt2 { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 3)")]
     public decimal Qty { get; set; }
@@ -78,19 +76,19 @@ public class TxSalesDetail
     public int? PrintedKitchenByUserId { get; set; }
 
     [MaxLength(50)]
-    public string PrintedKitchenByUserName { get; set; }
+    public string PrintedKitchenByUserName { get; set; } = null!;
 
     public DateTime? PrintedKitchenDateTime { get; set; }
 
     public int? DisabledReasonId { get; set; }
 
     [MaxLength(500)]
-    public string DisabledReasonDesc { get; set; }
+    public string DisabledReasonDesc { get; set; } = null!;
 
     public int? DisabledByUserId { get; set; }
 
     [MaxLength(50)]
-    public string DisabledByUserName { get; set; }
+    public string DisabledByUserName { get; set; } = null!;
 
     public DateTime? DisabledDateTime { get; set; }
 
@@ -99,7 +97,7 @@ public class TxSalesDetail
     public int? ChaseUserId { get; set; }
 
     [MaxLength(50)]
-    public string ChaseUserName { get; set; }
+    public string ChaseUserName { get; set; } = null!;
 
     public DateTime? ChaseDateTime { get; set; }
 
@@ -122,24 +120,24 @@ public class TxSalesDetail
     public int ShopId { get; set; }
 
     [MaxLength(100)]
-    public string ItemNameAlt { get; set; }
+    public string ItemNameAlt { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemNameAl3 { get; set; }
+    public string ItemNameAl3 { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemNameAl4 { get; set; }
+    public string ItemNameAl4 { get; set; } = null!;
 
     [MaxLength(50)]
-    public string ItemPosName { get; set; }
+    public string ItemPosName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemPosNameAlt { get; set; }
+    public string ItemPosNameAlt { get; set; } = null!;
 
     public int? DepartmentId { get; set; }
 
     [MaxLength(100)]
-    public string DepartmentName { get; set; }
+    public string DepartmentName { get; set; } = null!;
 
     public bool? IsPointPaidItem { get; set; }
 
@@ -158,7 +156,7 @@ public class TxSalesDetail
     public int? ItemOnHoldUserId { get; set; }
 
     [MaxLength(50)]
-    public string ItemOnHoldUserName { get; set; }
+    public string ItemOnHoldUserName { get; set; } = null!;
 
     public bool? IsItemFired { get; set; }
 
@@ -167,7 +165,7 @@ public class TxSalesDetail
     public int? ItemFiredUserId { get; set; }
 
     [MaxLength(50)]
-    public string ItemFiredUserName { get; set; }
+    public string ItemFiredUserName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? TakeawaySurcharge { get; set; }
@@ -177,12 +175,12 @@ public class TxSalesDetail
     public bool? IsPrepaidRechargeItem { get; set; }
 
     [MaxLength(200)]
-    public string ApiGatewayName { get; set; }
+    public string ApiGatewayName { get; set; } = null!;
 
     public int? ApiGatewayRefId { get; set; }
 
     [MaxLength(1000)]
-    public string ApiGatewayRefRemark { get; set; }
+    public string ApiGatewayRefRemark { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? AmountItemDiscount { get; set; }
@@ -205,21 +203,21 @@ public class TxSalesDetail
     public decimal? PromoRevenueOffset { get; set; }
 
     [MaxLength(50)]
-    public string CategoryName { get; set; }
+    public string CategoryName { get; set; } = null!;
 
     public int? OrderSourceTypeId { get; set; }
 
     [MaxLength(100)]
-    public string ItemPublicDisplayName { get; set; }
+    public string ItemPublicDisplayName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemPublicDisplayNameAlt { get; set; }
+    public string ItemPublicDisplayNameAlt { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemPublicPrintedName { get; set; }
+    public string ItemPublicPrintedName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemPublicPrintedNameAlt { get; set; }
+    public string ItemPublicPrintedNameAlt { get; set; } = null!;
 
     public int? LinkedItemOrderRunningIndex { get; set; }
 
@@ -235,51 +233,51 @@ public class TxSalesDetail
     public decimal? DepartmentRevenueAmount { get; set; }
 
     [MaxLength(50)]
-    public string PromoCode { get; set; }
+    public string PromoCode { get; set; } = null!;
 
     [MaxLength(200)]
-    public string PromoName { get; set; }
+    public string PromoName { get; set; } = null!;
 
     public int? itemCourseIndex { get; set; }
 
     public int? priceRuleGroupId { get; set; }
 
     [MaxLength(50)]
-    public string priceRuleGroupCode { get; set; }
+    public string priceRuleGroupCode { get; set; } = null!;
 
     [MaxLength(200)]
-    public string priceRuleGroupName { get; set; }
+    public string priceRuleGroupName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string OrderBatchTag { get; set; }
+    public string OrderBatchTag { get; set; } = null!;
 
     public bool? IsTxOnHold { get; set; }
 
     public int? SubDepartmentId { get; set; }
 
     [MaxLength(100)]
-    public string SubDepartmentName { get; set; }
+    public string SubDepartmentName { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string ApiGatewayRefCode { get; set; }
+    public string ApiGatewayRefCode { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string ApiGatewayResponseCode { get; set; }
+    public string ApiGatewayResponseCode { get; set; } = null!;
 
     public bool? IsVariance { get; set; }
 
     public int? GroupHeaderId { get; set; }
 
     [MaxLength(50)]
-    public string GroupBatchName { get; set; }
+    public string GroupBatchName { get; set; } = null!;
 
     public int? DiscountId { get; set; }
 
     [MaxLength(200)]
-    public string DiscountName { get; set; }
+    public string DiscountName { get; set; } = null!;
 
     [MaxLength(200)]
-    public string SOPLookupPath { get; set; }
+    public string SOPLookupPath { get; set; } = null!;
 
     public bool? IsNonSalesItem { get; set; }
 

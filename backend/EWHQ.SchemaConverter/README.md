@@ -31,7 +31,10 @@ cd backend/EWHQ.SchemaConverter
 dotnet run
 ```
 
-This uses the default paths configured in the application.
+This uses the repo-local default paths:
+
+- `docs/db_schema_ewpos_userdata.txt`
+- `backend/EWHQ.Api/Models/Entities`
 
 ### Custom Paths
 
@@ -159,9 +162,16 @@ For columns without specified length or with MAX length, the tool adds a custom 
 ### Decimal Precision
 Decimal columns preserve their precision and scale using `[Column(TypeName = "decimal(p, s)")]`.
 
-### Nullable Strings
+### Nullable Reference Types
 - Non-nullable strings are initialized with `= string.Empty;`
+- Non-nullable byte arrays are initialized with `= null!;`
 - Nullable strings use C# nullable reference type syntax (`string?`)
+- Nullable byte arrays use C# nullable reference type syntax (`byte[]?`)
+
+### Existing Entities With Stricter Semantics
+If an existing entity is intentionally stricter than the database for nullable columns, use
+`scripts/align_entity_nullability.py` to align only invalid DB-non-null mismatches without
+weakening those stricter properties.
 
 ### Composite Keys
 When multiple key columns are detected, they're annotated with `[Column(Order = n)]` to specify key order.

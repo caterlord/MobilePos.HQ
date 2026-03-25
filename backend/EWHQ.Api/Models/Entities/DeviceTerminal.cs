@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using EWHQ.Api.Data.Attributes;
@@ -26,20 +24,20 @@ public class DeviceTerminal
     public string PosCode { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string PosIpAddress { get; set; }
+    public string PosIpAddress { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string ConfigFile { get; set; }
+    public string ConfigFile { get; set; } = null!;
 
     public bool IsServer { get; set; }
 
     [MaxLength(100)]
-    public string Resolution { get; set; }
+    public string Resolution { get; set; } = null!;
 
     public bool IsCashRegister { get; set; }
 
     [MaxLength(10)]
-    public string CashRegisterCode { get; set; }
+    public string CashRegisterCode { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

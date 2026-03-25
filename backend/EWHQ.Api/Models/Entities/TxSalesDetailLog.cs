@@ -1,5 +1,3 @@
-#nullable disable warnings
-
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -27,21 +25,21 @@ public class TxSalesDetailLog
     public int? TxSalesDetailId { get; set; }
 
     [MaxLength(20)]
-    public string ItemCode { get; set; }
+    public string ItemCode { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemName { get; set; }
+    public string ItemName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ItemNameAlt2 { get; set; }
+    public string ItemNameAlt2 { get; set; } = null!;
 
     public int TxActionId { get; set; }
 
     [MaxLength(50)]
-    public string ResultSource { get; set; }
+    public string ResultSource { get; set; } = null!;
 
     [MaxLength(50)]
-    public string ResultTarget { get; set; }
+    public string ResultTarget { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 
