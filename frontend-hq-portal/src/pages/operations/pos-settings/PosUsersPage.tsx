@@ -7,6 +7,7 @@ import {
   Container,
   Group,
   Modal,
+  MultiSelect,
   Paper,
   PasswordInput,
   Select,
@@ -43,6 +44,7 @@ const defaultUserPayload: UpsertPosUserPayload = {
   enableUserIdLogin: true,
   enableCardNoLogin: false,
   enableStaffCodeLogin: false,
+  groupIds: [],
 };
 
 export function PosUsersPage() {
@@ -76,6 +78,11 @@ export function PosUsersPage() {
     users.forEach((u) => { if (!seen.has(u.shopId)) seen.set(u.shopId, u.shopName); });
     return Array.from(seen.entries()).map(([id, name]) => ({ value: String(id), label: name || `Shop ${id}` }));
   }, [users]);
+
+  // ── Group options (for MultiSelect in user editor) ──
+  const groupOptions = useMemo(() =>
+    groups.map((g) => ({ value: String(g.groupId), label: g.name })),
+  [groups]);
 
   // ── Loaders ──
 
@@ -170,6 +177,7 @@ export function PosUsersPage() {
       enableUserIdLogin: u.enableUserIdLogin,
       enableCardNoLogin: u.enableCardNoLogin,
       enableStaffCodeLogin: u.enableStaffCodeLogin,
+      groupIds: u.groupIds ?? [],
     });
     setUserModalOpened(true);
   };
@@ -288,19 +296,25 @@ export function PosUsersPage() {
                       <Table.Th>Staff Code</Table.Th>
                       <Table.Th>Card No</Table.Th>
                       <Table.Th>Shop</Table.Th>
+                      <Table.Th>Groups</Table.Th>
                       <Table.Th>Status</Table.Th>
                       <Table.Th style={{ width: 100 }}>Actions</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {users.length === 0 ? (
-                      <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="md">{userLoading ? 'Loading...' : 'No users found.'}</Text></Table.Td></Table.Tr>
+                      <Table.Tr><Table.Td colSpan={7}><Text c="dimmed" ta="center" py="md">{userLoading ? 'Loading...' : 'No users found.'}</Text></Table.Td></Table.Tr>
                     ) : users.map((u) => (
                       <Table.Tr key={`${u.userId}-${u.shopId}`}>
                         <Table.Td>{u.userName}</Table.Td>
                         <Table.Td>{u.staffCode || '—'}</Table.Td>
                         <Table.Td>{u.cardNo || '—'}</Table.Td>
                         <Table.Td>{u.shopName}</Table.Td>
+                        <Table.Td>
+                          {u.groupNames?.length > 0
+                            ? <Group gap={4}>{u.groupNames.map((name, i) => <Badge key={i} size="sm" variant="light">{name}</Badge>)}</Group>
+                            : '—'}
+                        </Table.Td>
                         <Table.Td>
                           <Badge size="sm" color={u.inactiveUserAccount ? 'red' : 'green'}>
                             {u.inactiveUserAccount ? 'Inactive' : 'Active'}
@@ -364,6 +378,17 @@ export function PosUsersPage() {
           <PasswordInput label={userEditTarget ? 'Password (leave blank to keep current)' : 'Password'} required={!userEditTarget}
             value={userPayload.password}
             onChange={(e) => setUserPayload({ ...userPayload, password: e.currentTarget.value })} />
+          {groupOptions.length > 0 && (
+            <MultiSelect
+              label="User Groups"
+              placeholder="Select groups"
+              data={groupOptions}
+              value={(userPayload.groupIds ?? []).map(String)}
+              onChange={(vals) => setUserPayload({ ...userPayload, groupIds: vals.map(Number) })}
+              searchable
+              clearable
+            />
+          )}
           {shopOptions.length > 0 && (
             <Select label="Shop" required data={shopOptions}
               value={userPayload.shopId > 0 ? String(userPayload.shopId) : null}

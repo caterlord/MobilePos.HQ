@@ -31,6 +31,8 @@ export interface PosUserSummary {
   enableStaffCodeLogin: boolean;
   modifiedDate: string;
   modifiedBy: string;
+  groupIds: number[];
+  groupNames: string[];
 }
 
 export interface UpsertPosUserPayload {
@@ -45,4 +47,5 @@ export interface UpsertPosUserPayload {
   enableUserIdLogin: boolean;
   enableCardNoLogin: boolean;
   enableStaffCodeLogin: boolean;
+  groupIds?: number[];
 }

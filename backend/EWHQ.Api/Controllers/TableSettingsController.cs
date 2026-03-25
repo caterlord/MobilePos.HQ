@@ -33,6 +33,49 @@ public class TableSettingsController : ControllerBase
         _logger = logger;
     }
 
+    private async Task SyncSectionShopRules(
+        EWHQDbContext context, int accountId, int sectionId,
+        List<SectionShopRuleDto> shopRules, string actor, DateTime now)
+    {
+        var existing = await context.TableSectionShopDetails
+            .Where(x => x.AccountId == accountId && x.SectionId == sectionId)
+            .ToListAsync(HttpContext.RequestAborted);
+
+        var existingMap = existing.ToDictionary(x => x.ShopId);
+
+        foreach (var rule in shopRules)
+        {
+            if (existingMap.TryGetValue(rule.ShopId, out var link))
+            {
+                // Update existing
+                link.Enabled = rule.Linked;
+                link.TableMapBackgroundImagePath = rule.TableMapBackgroundImagePath;
+                link.TableMapBackgroundImageWidth = rule.TableMapBackgroundImageWidth;
+                link.TableMapBackgroundImageHeight = rule.TableMapBackgroundImageHeight;
+                link.ModifiedBy = actor;
+                link.ModifiedDate = now;
+            }
+            else if (rule.Linked)
+            {
+                // Create new link
+                context.TableSectionShopDetails.Add(new TableSectionShopDetail
+                {
+                    AccountId = accountId,
+                    SectionId = sectionId,
+                    ShopId = rule.ShopId,
+                    Enabled = true,
+                    TableMapBackgroundImagePath = rule.TableMapBackgroundImagePath,
+                    TableMapBackgroundImageWidth = rule.TableMapBackgroundImageWidth,
+                    TableMapBackgroundImageHeight = rule.TableMapBackgroundImageHeight,
+                    CreatedBy = actor,
+                    CreatedDate = now,
+                    ModifiedBy = actor,
+                    ModifiedDate = now,
+                });
+            }
+        }
+    }
+
     private string GetCurrentUserIdentifier()
     {
         const int maxLength = 50;
@@ -394,13 +437,23 @@ public class TableSettingsController : ControllerBase
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
+            // Sync shop rules if provided
+            if (payload.ShopRules is { Count: > 0 })
+            {
+                await SyncSectionShopRules(context, accountId, sectionEntity.SectionId, payload.ShopRules, currentUser, now);
+                await context.SaveChangesAsync(HttpContext.RequestAborted);
+            }
+
+            var shopCount = await context.TableSectionShopDetails
+                .CountAsync(x => x.AccountId == accountId && x.SectionId == sectionEntity.SectionId && x.Enabled, HttpContext.RequestAborted);
+
             return Ok(new TableSectionLibraryDto
             {
                 SectionId = sectionEntity.SectionId,
                 SectionName = sectionEntity.SectionName ?? string.Empty,
                 Description = sectionEntity.Desc ?? string.Empty,
                 Enabled = sectionEntity.Enabled,
-                ShopCount = 0
+                ShopCount = shopCount
             });
         }
         catch (InvalidOperationException ex)
@@ -479,6 +532,13 @@ public class TableSettingsController : ControllerBase
                 HttpContext.RequestAborted);
 
             await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            // Sync shop rules if provided
+            if (payload.ShopRules != null)
+            {
+                await SyncSectionShopRules(context, accountId, sectionId, payload.ShopRules, currentUser, now);
+                await context.SaveChangesAsync(HttpContext.RequestAborted);
+            }
 
             var shopCount = await context.TableSectionShopDetails
                 .AsNoTracking()
@@ -580,6 +640,54 @@ public class TableSettingsController : ControllerBase
         {
             _logger.LogError(ex, "Error deleting section library entry {SectionId} for brand {BrandId}", sectionId, brandId);
             return StatusCode(500, new { message = "An error occurred while deleting the table section." });
+        }
+    }
+
+    [HttpGet("brand/{brandId:int}/sections/{sectionId:int}/shop-rules")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<SectionShopRuleDto>>> GetSectionShopRules(int brandId, int sectionId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var allShops = await context.Shops
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .Select(x => new { x.ShopId, x.Name })
+                .OrderBy(x => x.Name)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var linkedShops = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled)
+                .ToDictionaryAsync(x => x.ShopId, HttpContext.RequestAborted);
+
+            var result = allShops.Select(shop =>
+            {
+                linkedShops.TryGetValue(shop.ShopId, out var link);
+                return new SectionShopRuleDto
+                {
+                    ShopId = shop.ShopId,
+                    ShopName = shop.Name ?? $"Shop {shop.ShopId}",
+                    Linked = link != null,
+                    TableMapBackgroundImagePath = link?.TableMapBackgroundImagePath ?? string.Empty,
+                    TableMapBackgroundImageWidth = link?.TableMapBackgroundImageWidth,
+                    TableMapBackgroundImageHeight = link?.TableMapBackgroundImageHeight,
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching shop rules for section {SectionId} brand {BrandId}", sectionId, brandId);
+            return StatusCode(500, new { message = "An error occurred." });
         }
     }
 

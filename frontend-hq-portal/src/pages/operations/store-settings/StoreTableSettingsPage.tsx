@@ -3,7 +3,6 @@ import {
   ActionIcon,
   Alert,
   Badge,
-  Box,
   Button,
   Container,
   Group,
@@ -25,35 +24,28 @@ import {
   IconAlertCircle,
   IconDeviceFloppy,
   IconEdit,
-  IconLink,
   IconMap2,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react';
 import { useStoreSettingsShopSelection } from './useStoreSettingsShopSelection';
+import { FloorplanDesigner } from './FloorplanDesigner';
+import storeSettingsService from '../../../services/storeSettingsService';
 import tableSettingsService, {
-  type LinkTableSectionToShopRequest,
+  type SectionShopRule,
   type TableMaster,
   type TableSectionLibraryItem,
   type TableSectionShopLink,
   type TableSettingsMetadata,
-  type UpdateTableSectionShopLinkRequest,
   type UpsertTableMasterRequest,
   type UpsertTableSectionRequest,
 } from '../../../services/tableSettingsService';
 
-type TableSettingsTab = 'library' | 'relationships' | 'floorplan';
+type TableSettingsTab = 'library' | 'floorplan';
 
 const emptySectionForm: UpsertTableSectionRequest = {
   sectionName: '',
   description: '',
-};
-
-const emptyLinkForm: LinkTableSectionToShopRequest = {
-  sectionId: 0,
-  tableMapBackgroundImagePath: '',
-  tableMapBackgroundImageWidth: null,
-  tableMapBackgroundImageHeight: null,
 };
 
 const emptyTableForm: UpsertTableMasterRequest = {
@@ -89,13 +81,10 @@ export function StoreTableSettingsPage() {
 
   const [sectionModalOpened, setSectionModalOpened] = useState(false);
   const [sectionSaving, setSectionSaving] = useState(false);
+  const [sectionShopRulesLoading, setSectionShopRulesLoading] = useState(false);
   const [editingSection, setEditingSection] = useState<TableSectionLibraryItem | null>(null);
   const [sectionForm, setSectionForm] = useState<UpsertTableSectionRequest>(emptySectionForm);
-
-  const [linkModalOpened, setLinkModalOpened] = useState(false);
-  const [linkSaving, setLinkSaving] = useState(false);
-  const [editingLink, setEditingLink] = useState<TableSectionShopLink | null>(null);
-  const [linkForm, setLinkForm] = useState<LinkTableSectionToShopRequest>(emptyLinkForm);
+  const [sectionShopRules, setSectionShopRules] = useState<SectionShopRule[]>([]);
 
   const [tableModalOpened, setTableModalOpened] = useState(false);
   const [tableSaving, setTableSaving] = useState(false);
@@ -106,14 +95,6 @@ export function StoreTableSettingsPage() {
     () => shopSectionLinks.map((section) => ({ value: String(section.sectionId), label: section.sectionName })),
     [shopSectionLinks],
   );
-
-  const linkableSectionOptions = useMemo(() => {
-    const linkedSectionIds = new Set(shopSectionLinks.map((section) => section.sectionId));
-
-    return sectionLibrary
-      .filter((section) => !linkedSectionIds.has(section.sectionId) || section.sectionId === editingLink?.sectionId)
-      .map((section) => ({ value: String(section.sectionId), label: section.sectionName }));
-  }, [editingLink?.sectionId, sectionLibrary, shopSectionLinks]);
 
   const tableTypeOptions = useMemo(
     () => (metadata?.tableTypes ?? []).map((type) => ({ value: String(type.tableTypeId), label: type.typeName })),
@@ -184,10 +165,41 @@ export function StoreTableSettingsPage() {
     void loadData();
   }, [loadData]);
 
-  const openCreateSectionModal = () => {
+  const loadSectionShopRules = async (sectionId: number) => {
+    if (!brandId) return;
+    try {
+      setSectionShopRulesLoading(true);
+      const rules = await tableSettingsService.getSectionShopRules(brandId, sectionId);
+      setSectionShopRules(rules);
+    } catch {
+      setSectionShopRules([]);
+    } finally {
+      setSectionShopRulesLoading(false);
+    }
+  };
+
+  const openCreateSectionModal = async () => {
     setEditingSection(null);
     setSectionForm(emptySectionForm);
+    setSectionShopRules([]);
     setSectionModalOpened(true);
+    // For create, load all shops as unlinked
+    if (brandId) {
+      try {
+        setSectionShopRulesLoading(true);
+        const shopsData = await storeSettingsService.getShops(brandId);
+        setSectionShopRules(shopsData.map((s: { shopId: number; shopName: string }) => ({
+          shopId: s.shopId,
+          shopName: s.shopName,
+          linked: false,
+          tableMapBackgroundImagePath: '',
+          tableMapBackgroundImageWidth: null,
+          tableMapBackgroundImageHeight: null,
+        })));
+      } catch { /* non-blocking */ } finally {
+        setSectionShopRulesLoading(false);
+      }
+    }
   };
 
   const openEditSectionModal = (section: TableSectionLibraryItem) => {
@@ -196,7 +208,9 @@ export function StoreTableSettingsPage() {
       sectionName: section.sectionName,
       description: section.description,
     });
+    setSectionShopRules([]);
     setSectionModalOpened(true);
+    void loadSectionShopRules(section.sectionId);
   };
 
   const saveSection = async () => {
@@ -212,6 +226,7 @@ export function StoreTableSettingsPage() {
     const payload: UpsertTableSectionRequest = {
       sectionName: sectionForm.sectionName.trim(),
       description: sectionForm.description.trim(),
+      shopRules: sectionShopRules.length > 0 ? sectionShopRules : null,
     };
 
     try {
@@ -249,85 +264,6 @@ export function StoreTableSettingsPage() {
       await loadData();
     } catch (deleteError) {
       const message = deleteError instanceof Error ? deleteError.message : 'Failed to delete section';
-      notifications.show({ color: 'red', message });
-    }
-  };
-
-  const openCreateLinkModal = () => {
-    setEditingLink(null);
-    setLinkForm({
-      ...emptyLinkForm,
-      sectionId: linkableSectionOptions.length > 0 ? Number.parseInt(linkableSectionOptions[0].value, 10) : 0,
-    });
-    setLinkModalOpened(true);
-  };
-
-  const openEditLinkModal = (link: TableSectionShopLink) => {
-    setEditingLink(link);
-    setLinkForm({
-      sectionId: link.sectionId,
-      tableMapBackgroundImagePath: link.tableMapBackgroundImagePath,
-      tableMapBackgroundImageWidth: link.tableMapBackgroundImageWidth,
-      tableMapBackgroundImageHeight: link.tableMapBackgroundImageHeight,
-    });
-    setLinkModalOpened(true);
-  };
-
-  const saveLink = async () => {
-    if (!brandId || !selectedShopId) {
-      return;
-    }
-
-    if (!linkForm.sectionId || linkForm.sectionId <= 0) {
-      notifications.show({ color: 'red', message: 'Select a table section' });
-      return;
-    }
-
-    try {
-      setLinkSaving(true);
-
-      if (editingLink) {
-        const payload: UpdateTableSectionShopLinkRequest = {
-          tableMapBackgroundImagePath: linkForm.tableMapBackgroundImagePath.trim(),
-          tableMapBackgroundImageWidth: linkForm.tableMapBackgroundImageWidth,
-          tableMapBackgroundImageHeight: linkForm.tableMapBackgroundImageHeight,
-        };
-        await tableSettingsService.updateShopSectionLink(brandId, selectedShopId, editingLink.sectionId, payload);
-      } else {
-        await tableSettingsService.createShopSectionLink(brandId, selectedShopId, {
-          sectionId: linkForm.sectionId,
-          tableMapBackgroundImagePath: linkForm.tableMapBackgroundImagePath.trim(),
-          tableMapBackgroundImageWidth: linkForm.tableMapBackgroundImageWidth,
-          tableMapBackgroundImageHeight: linkForm.tableMapBackgroundImageHeight,
-        });
-      }
-
-      setLinkModalOpened(false);
-      notifications.show({ color: 'green', message: editingLink ? 'Shop relationship updated' : 'Section linked to shop' });
-      await loadData();
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : 'Failed to save shop relationship';
-      notifications.show({ color: 'red', message });
-    } finally {
-      setLinkSaving(false);
-    }
-  };
-
-  const deleteLink = async (link: TableSectionShopLink) => {
-    if (!brandId || !selectedShopId) {
-      return;
-    }
-
-    if (!window.confirm(`Remove section "${link.sectionName}" from shop "${selectedShop?.shopName ?? selectedShopId}"?`)) {
-      return;
-    }
-
-    try {
-      await tableSettingsService.deleteShopSectionLink(brandId, selectedShopId, link.sectionId);
-      notifications.show({ color: 'green', message: 'Shop relationship removed' });
-      await loadData();
-    } catch (deleteError) {
-      const message = deleteError instanceof Error ? deleteError.message : 'Failed to remove shop relationship';
       notifications.show({ color: 'red', message });
     }
   };
@@ -480,7 +416,7 @@ export function StoreTableSettingsPage() {
         <Tabs value={activeTab} onChange={(value) => setActiveTab((value as TableSettingsTab) || 'library')}>
           <Tabs.List>
             <Tabs.Tab value="library">Table Sections</Tabs.Tab>
-            <Tabs.Tab value="relationships" disabled={!selectedShopId}>Section-Shop Relationships</Tabs.Tab>
+            <Tabs.Tab value="tables" disabled={!selectedShopId}>Tables</Tabs.Tab>
             <Tabs.Tab value="floorplan" disabled={!selectedShopId}>Floorplan</Tabs.Tab>
           </Tabs.List>
 
@@ -547,96 +483,18 @@ export function StoreTableSettingsPage() {
             </Paper>
           </Tabs.Panel>
 
-          <Tabs.Panel value="relationships" pt="md">
+          {/* ── Tables Tab ── */}
+          <Tabs.Panel value="tables" pt="md">
             {!selectedShopId ? (
               <Alert icon={<IconAlertCircle size={16} />} color="yellow">
-                Select a shop to manage section relationships.
-              </Alert>
-            ) : (
-              <Paper withBorder p="md" radius="md">
-                <Group justify="space-between" mb="md">
-                  <Group gap="xs">
-                    <Text fw={600}>Section to Shop Relationships</Text>
-                    {selectedShop ? <Badge variant="light">{selectedShop.shopName}</Badge> : null}
-                  </Group>
-                  <Button
-                    leftSection={<IconLink size={16} />}
-                    onClick={openCreateLinkModal}
-                    disabled={linkableSectionOptions.length === 0}
-                  >
-                    Link Section
-                  </Button>
-                </Group>
-
-                {loading ? (
-                  <Group justify="center" py="xl">
-                    <Loader size="sm" />
-                    <Text size="sm" c="dimmed">Loading relationships...</Text>
-                  </Group>
-                ) : (
-                  <Table.ScrollContainer minWidth={980}>
-                    <Table verticalSpacing="sm" striped>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Section</Table.Th>
-                          <Table.Th>Description</Table.Th>
-                          <Table.Th>Tables</Table.Th>
-                          <Table.Th>Background Path</Table.Th>
-                          <Table.Th>Canvas Size</Table.Th>
-                          <Table.Th>Actions</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {shopSectionLinks.length === 0 ? (
-                          <Table.Tr>
-                            <Table.Td colSpan={6}>
-                              <Text size="sm" c="dimmed">No sections are linked to this shop.</Text>
-                            </Table.Td>
-                          </Table.Tr>
-                        ) : (
-                          shopSectionLinks.map((link) => (
-                            <Table.Tr key={`${link.shopId}-${link.sectionId}`}>
-                              <Table.Td>{link.sectionName}</Table.Td>
-                              <Table.Td>{link.description || '-'}</Table.Td>
-                              <Table.Td>{link.tableCount}</Table.Td>
-                              <Table.Td>{link.tableMapBackgroundImagePath || '-'}</Table.Td>
-                              <Table.Td>
-                                {link.tableMapBackgroundImageWidth && link.tableMapBackgroundImageHeight
-                                  ? `${link.tableMapBackgroundImageWidth} x ${link.tableMapBackgroundImageHeight}`
-                                  : '-'}
-                              </Table.Td>
-                              <Table.Td>
-                                <Group gap="xs">
-                                  <ActionIcon variant="subtle" onClick={() => openEditLinkModal(link)}>
-                                    <IconEdit size={16} />
-                                  </ActionIcon>
-                                  <ActionIcon variant="subtle" color="red" onClick={() => void deleteLink(link)}>
-                                    <IconTrash size={16} />
-                                  </ActionIcon>
-                                </Group>
-                              </Table.Td>
-                            </Table.Tr>
-                          ))
-                        )}
-                      </Table.Tbody>
-                    </Table>
-                  </Table.ScrollContainer>
-                )}
-              </Paper>
-            )}
-          </Tabs.Panel>
-
-          <Tabs.Panel value="floorplan" pt="md">
-            {!selectedShopId ? (
-              <Alert icon={<IconAlertCircle size={16} />} color="yellow">
-                Select a shop to manage its floorplan.
+                Select a shop to manage its tables.
               </Alert>
             ) : (
               <Stack gap="md">
                 <Paper withBorder p="md" radius="md">
                   <Group justify="space-between" mb="md">
                     <Group gap="xs">
-                      <Text fw={600}>Floorplan Designer</Text>
+                      <Text fw={600}>Tables</Text>
                       {selectedShop ? <Badge variant="light">{selectedShop.shopName}</Badge> : null}
                     </Group>
                     <Group>
@@ -663,76 +521,11 @@ export function StoreTableSettingsPage() {
                   {loading ? (
                     <Group justify="center" py="xl">
                       <Loader size="sm" />
-                      <Text size="sm" c="dimmed">Loading floorplan...</Text>
+                      <Text size="sm" c="dimmed">Loading tables...</Text>
                     </Group>
                   ) : (
-                    <Stack gap="md">
-                      <Paper withBorder p="md" radius="md" bg="gray.0">
-                        <Group justify="space-between" mb="sm">
-                          <Text size="sm" fw={600}>Preview</Text>
-                          <Text size="xs" c="dimmed">Click a table card to edit its layout fields.</Text>
-                        </Group>
-                        <Box
-                          style={{
-                            position: 'relative',
-                            minHeight: 460,
-                            overflow: 'auto',
-                            borderRadius: 12,
-                            border: '1px dashed var(--mantine-color-gray-4)',
-                            background:
-                              'linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%)',
-                          }}
-                        >
-                          {filteredFloorplanTables.filter((table) => table.isAppearOnFloorPlan).length === 0 ? (
-                            <Group justify="center" py="xl">
-                              <Text size="sm" c="dimmed">No visible tables in the current floorplan filter.</Text>
-                            </Group>
-                          ) : (
-                            filteredFloorplanTables
-                              .filter((table) => table.isAppearOnFloorPlan)
-                              .map((table) => {
-                                const width = table.iconWidth ?? 120;
-                                const height = table.iconHeight ?? 64;
-                                const x = table.positionX ?? 24;
-                                const y = table.positionY ?? 24;
-
-                                return (
-                                  <Box
-                                    key={table.tableId}
-                                    component="button"
-                                    type="button"
-                                    onClick={() => openEditTableModal(table)}
-                                    style={{
-                                      position: 'absolute',
-                                      left: x,
-                                      top: y,
-                                      width,
-                                      height,
-                                      transform: `rotate(${table.rotation ?? 0}deg)`,
-                                      borderRadius: table.shapeType.toLowerCase() === 'circle' ? '999px' : 14,
-                                      border: '1px solid var(--mantine-color-blue-4)',
-                                      background: 'linear-gradient(180deg, rgba(59,130,246,0.18) 0%, rgba(29,78,216,0.08) 100%)',
-                                      color: 'var(--mantine-color-blue-9)',
-                                      boxShadow: '0 10px 24px rgba(30, 64, 175, 0.12)',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer',
-                                      padding: 8,
-                                    }}
-                                  >
-                                    <Text size="sm" fw={700}>{table.tableCode}</Text>
-                                    <Text size="xs">{table.sectionName || `Section ${table.sectionId}`}</Text>
-                                  </Box>
-                                );
-                              })
-                          )}
-                        </Box>
-                      </Paper>
-
-                      <Table.ScrollContainer minWidth={1240}>
-                        <Table verticalSpacing="sm" striped>
+                    <Table.ScrollContainer minWidth={900}>
+                      <Table verticalSpacing="sm" striped>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Code</Table.Th>
@@ -787,11 +580,31 @@ export function StoreTableSettingsPage() {
                             )}
                           </Table.Tbody>
                         </Table>
-                      </Table.ScrollContainer>
-                    </Stack>
+                    </Table.ScrollContainer>
                   )}
                 </Paper>
               </Stack>
+            )}
+          </Tabs.Panel>
+
+          {/* ── Floorplan Tab ── */}
+          <Tabs.Panel value="floorplan" pt="md">
+            {!selectedShopId ? (
+              <Alert icon={<IconAlertCircle size={16} />} color="yellow">
+                Select a shop to design its floorplan.
+              </Alert>
+            ) : (
+              <FloorplanDesigner
+                brandId={brandId!}
+                shopId={selectedShopId}
+                tables={tables}
+                sectionOptions={linkedSectionOptions}
+                sectionFilter={floorplanSectionFilter}
+                onSectionFilterChange={(v) => setFloorplanSectionFilter(v)}
+                loading={loading}
+                onTablesChange={setTables}
+                onEditTable={openEditTableModal}
+              />
             )}
           </Tabs.Panel>
         </Tabs>
@@ -801,6 +614,7 @@ export function StoreTableSettingsPage() {
         opened={sectionModalOpened}
         onClose={() => setSectionModalOpened(false)}
         title={editingSection ? `Edit Section #${editingSection.sectionId}` : 'New Section'}
+        size="lg"
       >
         <Stack gap="sm">
           <TextInput
@@ -826,81 +640,92 @@ export function StoreTableSettingsPage() {
             }
           />
 
+          {sectionShopRulesLoading ? (
+            <Group justify="center" py="sm">
+              <Loader size="sm" />
+              <Text size="sm" c="dimmed">Loading shop settings...</Text>
+            </Group>
+          ) : sectionShopRules.length > 0 && (
+            <>
+              <Text fw={600} size="sm" mt="md">Shop Settings</Text>
+              <Table verticalSpacing="xs" striped>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Shop</Table.Th>
+                    <Table.Th style={{ width: 80 }}>Linked</Table.Th>
+                    <Table.Th>Background Image Path</Table.Th>
+                    <Table.Th>Canvas W</Table.Th>
+                    <Table.Th>Canvas H</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {sectionShopRules.map((rule, idx) => (
+                    <Table.Tr key={rule.shopId}>
+                      <Table.Td>{rule.shopName}</Table.Td>
+                      <Table.Td>
+                        <Switch
+                          checked={rule.linked}
+                          onChange={(e) => {
+                            const updated = [...sectionShopRules];
+                            updated[idx] = { ...rule, linked: e.currentTarget.checked };
+                            setSectionShopRules(updated);
+                          }}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          size="xs"
+                          value={rule.tableMapBackgroundImagePath}
+                          onChange={(e) => {
+                            const updated = [...sectionShopRules];
+                            updated[idx] = { ...rule, tableMapBackgroundImagePath: e.currentTarget.value };
+                            setSectionShopRules(updated);
+                          }}
+                          disabled={!rule.linked}
+                          placeholder="Optional"
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          size="xs"
+                          min={0}
+                          value={rule.tableMapBackgroundImageWidth ?? undefined}
+                          onChange={(v) => {
+                            const updated = [...sectionShopRules];
+                            updated[idx] = { ...rule, tableMapBackgroundImageWidth: typeof v === 'number' ? v : null };
+                            setSectionShopRules(updated);
+                          }}
+                          disabled={!rule.linked}
+                          style={{ width: 80 }}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          size="xs"
+                          min={0}
+                          value={rule.tableMapBackgroundImageHeight ?? undefined}
+                          onChange={(v) => {
+                            const updated = [...sectionShopRules];
+                            updated[idx] = { ...rule, tableMapBackgroundImageHeight: typeof v === 'number' ? v : null };
+                            setSectionShopRules(updated);
+                          }}
+                          disabled={!rule.linked}
+                          style={{ width: 80 }}
+                        />
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </>
+          )}
+
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={() => setSectionModalOpened(false)}>
               Cancel
             </Button>
             <Button leftSection={<IconDeviceFloppy size={16} />} onClick={() => void saveSection()} loading={sectionSaving}>
               {editingSection ? 'Save Changes' : 'Create Section'}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      <Modal
-        opened={linkModalOpened}
-        onClose={() => setLinkModalOpened(false)}
-        title={editingLink ? `Edit Shop Relationship: ${editingLink.sectionName}` : 'Link Section to Shop'}
-      >
-        <Stack gap="sm">
-          <Select
-            label="Section"
-            data={linkableSectionOptions}
-            value={linkForm.sectionId > 0 ? String(linkForm.sectionId) : null}
-            onChange={(value) =>
-              setLinkForm((previous) => ({
-                ...previous,
-                sectionId: value ? Number.parseInt(value, 10) : 0,
-              }))
-            }
-            disabled={Boolean(editingLink)}
-            searchable
-            required
-          />
-
-          <TextInput
-            label="Background Image Path"
-            value={linkForm.tableMapBackgroundImagePath}
-            onChange={(event) =>
-              setLinkForm((previous) => ({
-                ...previous,
-                tableMapBackgroundImagePath: event.currentTarget.value,
-              }))
-            }
-            placeholder="Optional floorplan image path"
-          />
-
-          <Group grow>
-            <NumberInput
-              label="Canvas Width"
-              min={0}
-              value={linkForm.tableMapBackgroundImageWidth ?? undefined}
-              onChange={(value) =>
-                setLinkForm((previous) => ({
-                  ...previous,
-                  tableMapBackgroundImageWidth: typeof value === 'number' ? value : null,
-                }))
-              }
-            />
-            <NumberInput
-              label="Canvas Height"
-              min={0}
-              value={linkForm.tableMapBackgroundImageHeight ?? undefined}
-              onChange={(value) =>
-                setLinkForm((previous) => ({
-                  ...previous,
-                  tableMapBackgroundImageHeight: typeof value === 'number' ? value : null,
-                }))
-              }
-            />
-          </Group>
-
-          <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={() => setLinkModalOpened(false)}>
-              Cancel
-            </Button>
-            <Button leftSection={<IconDeviceFloppy size={16} />} onClick={() => void saveLink()} loading={linkSaving}>
-              {editingLink ? 'Save Changes' : 'Link Section'}
             </Button>
           </Group>
         </Stack>

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Box, Group, TextInput, ActionIcon, Burger, Tooltip, Modal, Stack, Text } from '@mantine/core'
+import { Suspense, useState } from 'react'
+import { Box, Group, TextInput, ActionIcon, Burger, Tooltip, Modal, Stack, Text, Loader } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from '../components/Sidebar'
@@ -186,7 +186,14 @@ export function DashboardLayout() {
             backgroundColor: '#F6F9FC',
           }}
         >
-          <Outlet />
+          <Suspense fallback={
+            <Group justify="center" py="xl">
+              <Loader size="sm" />
+              <Text size="sm" c="dimmed">Loading page...</Text>
+            </Group>
+          }>
+            <Outlet />
+          </Suspense>
         </Box>
       </Box>
     </Box>

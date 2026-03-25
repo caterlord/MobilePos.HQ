@@ -1,51 +1,66 @@
-import { Loader, Text } from '@mantine/core'
+import { lazy, Suspense } from 'react'
+import { Loader, Text, Group } from '@mantine/core'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth as useClerkAuth } from '@clerk/react'
 import { ClerkProviderWithRoutes } from './components/ClerkProviderWithRoutes'
 import { AuthContextProvider, useAuth } from './contexts/AuthContext'
 import { BrandProvider } from './contexts/BrandContext'
 import { BookmarkProvider } from './contexts/BookmarkContext'
-import { LoginPage } from './pages/LoginPage'
-import { AccountSettingsPage } from './pages/AccountSettingsPage'
-import { DashboardLayout } from './layouts/DashboardLayout'
-import { DashboardPage } from './pages/DashboardPage'
-import { ProfilePage } from './pages/ProfilePage'
-import { OrganizationManagementPage } from './pages/OrganizationManagementPage'
-import { IntegrationsPage } from './pages/IntegrationsPage'
-import { DeviceSettingsPage } from './pages/integrations/DeviceSettingsPage'
-import OnboardingWizard from './pages/OnboardingWizard'
-import { MenuPage } from './pages/MenuPage'
-import { PosPage } from './pages/PosPage'
-import { MenuCategoriesPage } from './pages/operations/menu/MenuCategoriesPage'
-import ButtonStylesPage from './pages/operations/menu/ButtonStyles'
-import MenuItemsPage from './pages/operations/menu/MenuItems'
-import { ModifierGroupsPage } from './pages/operations/menu/ModifierGroupsPage'
-import { MealSetPage } from './pages/operations/menu/MealSetPage'
-import { PromotionsPage } from './pages/operations/menu/PromotionsPage'
-import { DiscountsPage } from './pages/operations/menu/DiscountsPage'
-import { SmartCategoriesPage } from './pages/operations/menu/smart-categories'
-import { StoreSettingsOverviewPage } from './pages/operations/store-settings/StoreSettingsOverviewPage'
-import { StoreInfoSettingsPage } from './pages/operations/store-settings/StoreInfoSettingsPage'
-import { WorkdaySchedulePage } from './pages/operations/store-settings/WorkdaySchedulePage'
-import { StoreSystemParametersPage } from './pages/operations/store-settings/StoreSystemParametersPage'
-import { StoreTableSettingsPage } from './pages/operations/store-settings/StoreTableSettingsPage'
 import { BackendConnectionOverlay } from './components/BackendConnectionOverlay'
 import { LoadingSpinner } from './components/LoadingSpinner'
-import { OnlineOrderingLayout } from './pages/online-ordering/OnlineOrderingLayout'
-import { OnlineOrderingMenuPage } from './pages/online-ordering/OnlineOrderingMenuPage'
-import { OnlineOrderingDisplayOrderPage } from './pages/online-ordering/OnlineOrderingDisplayOrderPage'
-import { OnlineOrderingModifiersPage } from './pages/online-ordering/OnlineOrderingModifiersPage'
-import { OnlineOrderingCallToActionPage } from './pages/online-ordering/OnlineOrderingCallToActionPage'
-import { OnlineOrderingSettingsPage } from './pages/online-ordering/OnlineOrderingSettingsPage'
-import { OnlineOrderingChannelMappingPage } from './pages/online-ordering/OnlineOrderingChannelMappingPage'
-import { OnlineOrderingMenuCombinationsPage } from './pages/online-ordering/OnlineOrderingMenuCombinationsPage'
-import { OnlineOrderingUiI18nPage } from './pages/online-ordering/OnlineOrderingUiI18nPage'
-import { PosSettingsPage } from './pages/operations/pos-settings/PosSettingsPage'
-import { PaymentMethodsPage } from './pages/operations/pos-settings/PaymentMethodsPage'
-import { TaxSurchargePage } from './pages/operations/pos-settings/TaxSurchargePage'
-import { DepartmentsPage } from './pages/operations/pos-settings/DepartmentsPage'
-import { ReasonsPage } from './pages/operations/pos-settings/ReasonsPage'
-import { PosUsersPage } from './pages/operations/pos-settings/PosUsersPage'
+
+// Eagerly loaded (needed on every page)
+import { DashboardLayout } from './layouts/DashboardLayout'
+import { LoginPage } from './pages/LoginPage'
+
+// Lazy-loaded pages (code-split into separate chunks)
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })))
+const AccountSettingsPage = lazy(() => import('./pages/AccountSettingsPage').then(m => ({ default: m.AccountSettingsPage })))
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })))
+const OrganizationManagementPage = lazy(() => import('./pages/OrganizationManagementPage').then(m => ({ default: m.OrganizationManagementPage })))
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage').then(m => ({ default: m.IntegrationsPage })))
+const DeviceSettingsPage = lazy(() => import('./pages/integrations/DeviceSettingsPage').then(m => ({ default: m.DeviceSettingsPage })))
+const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'))
+const PosPage = lazy(() => import('./pages/PosPage').then(m => ({ default: m.PosPage })))
+const MenuPage = lazy(() => import('./pages/MenuPage').then(m => ({ default: m.MenuPage })))
+const MenuCategoriesPage = lazy(() => import('./pages/operations/menu/MenuCategoriesPage').then(m => ({ default: m.MenuCategoriesPage })))
+const ButtonStylesPage = lazy(() => import('./pages/operations/menu/ButtonStyles'))
+const MenuItemsPage = lazy(() => import('./pages/operations/menu/MenuItems'))
+const ModifierGroupsPage = lazy(() => import('./pages/operations/menu/ModifierGroupsPage').then(m => ({ default: m.ModifierGroupsPage })))
+const MealSetPage = lazy(() => import('./pages/operations/menu/MealSetPage').then(m => ({ default: m.MealSetPage })))
+const PromotionsPage = lazy(() => import('./pages/operations/menu/PromotionsPage').then(m => ({ default: m.PromotionsPage })))
+const DiscountsPage = lazy(() => import('./pages/operations/menu/DiscountsPage').then(m => ({ default: m.DiscountsPage })))
+const SmartCategoriesPage = lazy(() => import('./pages/operations/menu/smart-categories').then(m => ({ default: m.SmartCategoriesPage })))
+const StoreSettingsOverviewPage = lazy(() => import('./pages/operations/store-settings/StoreSettingsOverviewPage').then(m => ({ default: m.StoreSettingsOverviewPage })))
+const StoreInfoSettingsPage = lazy(() => import('./pages/operations/store-settings/StoreInfoSettingsPage').then(m => ({ default: m.StoreInfoSettingsPage })))
+const WorkdaySchedulePage = lazy(() => import('./pages/operations/store-settings/WorkdaySchedulePage').then(m => ({ default: m.WorkdaySchedulePage })))
+const StoreSystemParametersPage = lazy(() => import('./pages/operations/store-settings/StoreSystemParametersPage').then(m => ({ default: m.StoreSystemParametersPage })))
+const StoreTableSettingsPage = lazy(() => import('./pages/operations/store-settings/StoreTableSettingsPage').then(m => ({ default: m.StoreTableSettingsPage })))
+const OnlineOrderingLayout = lazy(() => import('./pages/online-ordering/OnlineOrderingLayout').then(m => ({ default: m.OnlineOrderingLayout })))
+const OnlineOrderingMenuPage = lazy(() => import('./pages/online-ordering/OnlineOrderingMenuPage').then(m => ({ default: m.OnlineOrderingMenuPage })))
+const OnlineOrderingDisplayOrderPage = lazy(() => import('./pages/online-ordering/OnlineOrderingDisplayOrderPage').then(m => ({ default: m.OnlineOrderingDisplayOrderPage })))
+const OnlineOrderingModifiersPage = lazy(() => import('./pages/online-ordering/OnlineOrderingModifiersPage').then(m => ({ default: m.OnlineOrderingModifiersPage })))
+const OnlineOrderingCallToActionPage = lazy(() => import('./pages/online-ordering/OnlineOrderingCallToActionPage').then(m => ({ default: m.OnlineOrderingCallToActionPage })))
+const OnlineOrderingSettingsPage = lazy(() => import('./pages/online-ordering/OnlineOrderingSettingsPage').then(m => ({ default: m.OnlineOrderingSettingsPage })))
+const OnlineOrderingChannelMappingPage = lazy(() => import('./pages/online-ordering/OnlineOrderingChannelMappingPage').then(m => ({ default: m.OnlineOrderingChannelMappingPage })))
+const OnlineOrderingMenuCombinationsPage = lazy(() => import('./pages/online-ordering/OnlineOrderingMenuCombinationsPage').then(m => ({ default: m.OnlineOrderingMenuCombinationsPage })))
+const OnlineOrderingUiI18nPage = lazy(() => import('./pages/online-ordering/OnlineOrderingUiI18nPage').then(m => ({ default: m.OnlineOrderingUiI18nPage })))
+const PosSettingsPage = lazy(() => import('./pages/operations/pos-settings/PosSettingsPage').then(m => ({ default: m.PosSettingsPage })))
+const PaymentMethodsPage = lazy(() => import('./pages/operations/pos-settings/PaymentMethodsPage').then(m => ({ default: m.PaymentMethodsPage })))
+const TaxSurchargePage = lazy(() => import('./pages/operations/pos-settings/TaxSurchargePage').then(m => ({ default: m.TaxSurchargePage })))
+const DepartmentsPage = lazy(() => import('./pages/operations/pos-settings/DepartmentsPage').then(m => ({ default: m.DepartmentsPage })))
+const ReasonsPage = lazy(() => import('./pages/operations/pos-settings/ReasonsPage').then(m => ({ default: m.ReasonsPage })))
+const PosUsersPage = lazy(() => import('./pages/operations/pos-settings/PosUsersPage').then(m => ({ default: m.PosUsersPage })))
+
+// Suspense fallback for lazy-loaded pages
+function PageLoader() {
+  return (
+    <Group justify="center" py="xl">
+      <Loader size="sm" />
+      <Text size="sm" c="dimmed">Loading page...</Text>
+    </Group>
+  )
+}
 
 // Track if user was ever fully loaded in this page lifecycle.
 let _hasEverAuthenticated = false;
@@ -139,7 +154,7 @@ function AppContent() {
       <Route path="/sign-up" element={!isAuthenticated ? <LoginPage mode="sign-up" /> : <Navigate to="/" replace />} />
       <Route path="/onboarding" element={
         <ProtectedRoute requireTenant={false}>
-          <OnboardingWizard />
+          <Suspense fallback={<PageLoader />}><OnboardingWizard /></Suspense>
         </ProtectedRoute>
       } />
       <Route path="/" element={

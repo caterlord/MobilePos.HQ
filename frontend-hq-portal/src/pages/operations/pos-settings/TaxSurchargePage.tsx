@@ -20,6 +20,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { IconAlertCircle, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useBrands } from '../../../contexts/BrandContext';
+import storeSettingsService from '../../../services/storeSettingsService';
 import taxSurchargeService from '../../../services/taxSurchargeService';
 import type {
   TaxationSummary,
@@ -93,6 +94,19 @@ export function TaxSurchargePage() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Shops (for create modal shop rules) ──
+  const [shops, setShops] = useState<{ shopId: number; name: string }[]>([]);
+
+  const loadShops = useCallback(async () => {
+    if (!brandId) { setShops([]); return; }
+    try {
+      const data = await storeSettingsService.getShops(brandId);
+      setShops(data.map((s: { shopId: number; shopName: string }) => ({ shopId: s.shopId, name: s.shopName })));
+    } catch { /* non-blocking */ }
+  }, [brandId]);
+
+  useEffect(() => { void loadShops(); }, [loadShops]);
+
   // ── Loaders ──
 
   const loadTaxations = useCallback(async () => {
@@ -127,7 +141,7 @@ export function TaxSurchargePage() {
   const openTaxCreate = () => {
     setTaxEditTarget(null);
     setTaxPayload({ ...defaultTaxPayload });
-    setTaxShopRules([]);
+    setTaxShopRules(shops.map((s) => ({ shopId: s.shopId, shopName: s.name, enabled: true })));
     setTaxModalOpened(true);
   };
 
@@ -174,7 +188,7 @@ export function TaxSurchargePage() {
         ...taxPayload,
         taxationCode: taxPayload.taxationCode.trim(),
         taxationName: taxPayload.taxationName.trim(),
-        shopRules: taxEditTarget ? taxShopRules : null,
+        shopRules: taxShopRules.length > 0 ? taxShopRules : null,
       };
       if (taxEditTarget) {
         await taxSurchargeService.updateTaxation(brandId, taxEditTarget.taxationId, request);
@@ -213,7 +227,7 @@ export function TaxSurchargePage() {
   const openSurchargeCreate = () => {
     setSurchargeEditTarget(null);
     setSurchargePayload({ ...defaultSurchargePayload });
-    setSurchargeShopRules([]);
+    setSurchargeShopRules(shops.map((s) => ({ shopId: s.shopId, shopName: s.name, enabled: true })));
     setSurchargeModalOpened(true);
   };
 
@@ -260,7 +274,7 @@ export function TaxSurchargePage() {
         ...surchargePayload,
         serviceChargeCode: surchargePayload.serviceChargeCode.trim(),
         serviceChargeName: surchargePayload.serviceChargeName.trim(),
-        shopRules: surchargeEditTarget ? surchargeShopRules : null,
+        shopRules: surchargeShopRules.length > 0 ? surchargeShopRules : null,
       };
       if (surchargeEditTarget) {
         await taxSurchargeService.updateSurcharge(brandId, surchargeEditTarget.serviceChargeId, request);
@@ -516,7 +530,7 @@ export function TaxSurchargePage() {
             <Switch label="Open Amount" checked={taxPayload.isOpenAmount}
               onChange={(e) => setTaxPayload({ ...taxPayload, isOpenAmount: e.currentTarget.checked })} />
           </Group>
-          {taxEditTarget && shopRulesSection(taxShopRules, setTaxShopRules)}
+          {shopRulesSection(taxShopRules, setTaxShopRules)}
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setTaxModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleTaxSave()} loading={submitting}>{taxEditTarget ? 'Update' : 'Create'}</Button>
@@ -564,7 +578,7 @@ export function TaxSurchargePage() {
             <Switch label="Open Amount" checked={surchargePayload.isOpenAmount}
               onChange={(e) => setSurchargePayload({ ...surchargePayload, isOpenAmount: e.currentTarget.checked })} />
           </Group>
-          {surchargeEditTarget && shopRulesSection(surchargeShopRules, setSurchargeShopRules)}
+          {shopRulesSection(surchargeShopRules, setSurchargeShopRules)}
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setSurchargeModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleSurchargeSave()} loading={submitting}>{surchargeEditTarget ? 'Update' : 'Create'}</Button>

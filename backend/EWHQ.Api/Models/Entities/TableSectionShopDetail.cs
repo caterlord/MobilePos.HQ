@@ -13,7 +13,7 @@ public class TableSectionShopDetail
     public int SectionId { get; set; }
 
     [MaxLength(200)]
-    public string TableMapBackgroundImagePath { get; set; } = null!;
+    public string? TableMapBackgroundImagePath { get; set; }
 
     public bool Enabled { get; set; }
 
