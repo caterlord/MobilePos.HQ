@@ -481,6 +481,7 @@ export function StoreTableSettingsPage() {
           <Tabs.List>
             <Tabs.Tab value="library">Table Sections</Tabs.Tab>
             <Tabs.Tab value="relationships" disabled={!selectedShopId}>Section-Shop Relationships</Tabs.Tab>
+            <Tabs.Tab value="tables" disabled={!selectedShopId}>Tables</Tabs.Tab>
             <Tabs.Tab value="floorplan" disabled={!selectedShopId}>Floorplan</Tabs.Tab>
           </Tabs.List>
 
@@ -626,17 +627,18 @@ export function StoreTableSettingsPage() {
             )}
           </Tabs.Panel>
 
-          <Tabs.Panel value="floorplan" pt="md">
+          {/* ── Tables Tab ── */}
+          <Tabs.Panel value="tables" pt="md">
             {!selectedShopId ? (
               <Alert icon={<IconAlertCircle size={16} />} color="yellow">
-                Select a shop to manage its floorplan.
+                Select a shop to manage its tables.
               </Alert>
             ) : (
               <Stack gap="md">
                 <Paper withBorder p="md" radius="md">
                   <Group justify="space-between" mb="md">
                     <Group gap="xs">
-                      <Text fw={600}>Floorplan Designer</Text>
+                      <Text fw={600}>Tables</Text>
                       {selectedShop ? <Badge variant="light">{selectedShop.shopName}</Badge> : null}
                     </Group>
                     <Group>
@@ -663,76 +665,11 @@ export function StoreTableSettingsPage() {
                   {loading ? (
                     <Group justify="center" py="xl">
                       <Loader size="sm" />
-                      <Text size="sm" c="dimmed">Loading floorplan...</Text>
+                      <Text size="sm" c="dimmed">Loading tables...</Text>
                     </Group>
                   ) : (
-                    <Stack gap="md">
-                      <Paper withBorder p="md" radius="md" bg="gray.0">
-                        <Group justify="space-between" mb="sm">
-                          <Text size="sm" fw={600}>Preview</Text>
-                          <Text size="xs" c="dimmed">Click a table card to edit its layout fields.</Text>
-                        </Group>
-                        <Box
-                          style={{
-                            position: 'relative',
-                            minHeight: 460,
-                            overflow: 'auto',
-                            borderRadius: 12,
-                            border: '1px dashed var(--mantine-color-gray-4)',
-                            background:
-                              'linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%)',
-                          }}
-                        >
-                          {filteredFloorplanTables.filter((table) => table.isAppearOnFloorPlan).length === 0 ? (
-                            <Group justify="center" py="xl">
-                              <Text size="sm" c="dimmed">No visible tables in the current floorplan filter.</Text>
-                            </Group>
-                          ) : (
-                            filteredFloorplanTables
-                              .filter((table) => table.isAppearOnFloorPlan)
-                              .map((table) => {
-                                const width = table.iconWidth ?? 120;
-                                const height = table.iconHeight ?? 64;
-                                const x = table.positionX ?? 24;
-                                const y = table.positionY ?? 24;
-
-                                return (
-                                  <Box
-                                    key={table.tableId}
-                                    component="button"
-                                    type="button"
-                                    onClick={() => openEditTableModal(table)}
-                                    style={{
-                                      position: 'absolute',
-                                      left: x,
-                                      top: y,
-                                      width,
-                                      height,
-                                      transform: `rotate(${table.rotation ?? 0}deg)`,
-                                      borderRadius: table.shapeType.toLowerCase() === 'circle' ? '999px' : 14,
-                                      border: '1px solid var(--mantine-color-blue-4)',
-                                      background: 'linear-gradient(180deg, rgba(59,130,246,0.18) 0%, rgba(29,78,216,0.08) 100%)',
-                                      color: 'var(--mantine-color-blue-9)',
-                                      boxShadow: '0 10px 24px rgba(30, 64, 175, 0.12)',
-                                      display: 'flex',
-                                      flexDirection: 'column',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      cursor: 'pointer',
-                                      padding: 8,
-                                    }}
-                                  >
-                                    <Text size="sm" fw={700}>{table.tableCode}</Text>
-                                    <Text size="xs">{table.sectionName || `Section ${table.sectionId}`}</Text>
-                                  </Box>
-                                );
-                              })
-                          )}
-                        </Box>
-                      </Paper>
-
-                      <Table.ScrollContainer minWidth={1240}>
-                        <Table verticalSpacing="sm" striped>
+                    <Table.ScrollContainer minWidth={900}>
+                      <Table verticalSpacing="sm" striped>
                           <Table.Thead>
                             <Table.Tr>
                               <Table.Th>Code</Table.Th>
@@ -787,11 +724,102 @@ export function StoreTableSettingsPage() {
                             )}
                           </Table.Tbody>
                         </Table>
-                      </Table.ScrollContainer>
-                    </Stack>
+                    </Table.ScrollContainer>
                   )}
                 </Paper>
               </Stack>
+            )}
+          </Tabs.Panel>
+
+          {/* ── Floorplan Tab ── */}
+          <Tabs.Panel value="floorplan" pt="md">
+            {!selectedShopId ? (
+              <Alert icon={<IconAlertCircle size={16} />} color="yellow">
+                Select a shop to view its floorplan.
+              </Alert>
+            ) : (
+              <Paper withBorder p="md" radius="md">
+                <Group justify="space-between" mb="md">
+                  <Group gap="xs">
+                    <Text fw={600}>Floorplan Designer</Text>
+                    {selectedShop ? <Badge variant="light">{selectedShop.shopName}</Badge> : null}
+                  </Group>
+                  <Select
+                    data={[
+                      { value: 'all', label: 'All linked sections' },
+                      ...linkedSectionOptions,
+                    ]}
+                    value={floorplanSectionFilter}
+                    onChange={(value) => setFloorplanSectionFilter(value || 'all')}
+                    disabled={linkedSectionOptions.length === 0}
+                    style={{ minWidth: 220 }}
+                  />
+                </Group>
+
+                {loading ? (
+                  <Group justify="center" py="xl">
+                    <Loader size="sm" />
+                    <Text size="sm" c="dimmed">Loading floorplan...</Text>
+                  </Group>
+                ) : (
+                  <Paper withBorder p="md" radius="md" bg="gray.0">
+                    <Group justify="space-between" mb="sm">
+                      <Text size="sm" fw={600}>Preview</Text>
+                      <Text size="xs" c="dimmed">Click a table to edit its layout.</Text>
+                    </Group>
+                    <Box
+                      style={{
+                        position: 'relative',
+                        minHeight: 460,
+                        overflow: 'auto',
+                        borderRadius: 12,
+                        border: '1px dashed var(--mantine-color-gray-4)',
+                        background:
+                          'linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%)',
+                      }}
+                    >
+                      {filteredFloorplanTables.filter((t) => t.isAppearOnFloorPlan).length === 0 ? (
+                        <Group justify="center" py="xl">
+                          <Text size="sm" c="dimmed">No visible tables in the current filter.</Text>
+                        </Group>
+                      ) : (
+                        filteredFloorplanTables
+                          .filter((t) => t.isAppearOnFloorPlan)
+                          .map((table) => (
+                            <Box
+                              key={table.tableId}
+                              component="button"
+                              type="button"
+                              onClick={() => openEditTableModal(table)}
+                              style={{
+                                position: 'absolute',
+                                left: table.positionX ?? 24,
+                                top: table.positionY ?? 24,
+                                width: table.iconWidth ?? 120,
+                                height: table.iconHeight ?? 64,
+                                transform: `rotate(${table.rotation ?? 0}deg)`,
+                                borderRadius: (table.shapeType ?? '').toLowerCase() === 'circle' ? '999px' : 14,
+                                border: '1px solid var(--mantine-color-blue-4)',
+                                background: 'linear-gradient(180deg, rgba(59,130,246,0.18) 0%, rgba(29,78,216,0.08) 100%)',
+                                color: 'var(--mantine-color-blue-9)',
+                                boxShadow: '0 10px 24px rgba(30, 64, 175, 0.12)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                padding: 8,
+                              }}
+                            >
+                              <Text size="sm" fw={700}>{table.tableCode}</Text>
+                              <Text size="xs">{table.sectionName || `Section ${table.sectionId}`}</Text>
+                            </Box>
+                          ))
+                      )}
+                    </Box>
+                  </Paper>
+                )}
+              </Paper>
             )}
           </Tabs.Panel>
         </Tabs>
