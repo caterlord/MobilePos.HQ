@@ -258,22 +258,22 @@ export function FloorplanDesigner({
       startW: table.iconWidth ?? 100, startH: table.iconHeight ?? 60,
     };
 
+    let lastW = resizeRef.current.startW;
+    let lastH = resizeRef.current.startH;
+
     const onMove = (ev: PointerEvent) => {
       if (!resizeRef.current) return;
       const dx = ev.clientX - resizeRef.current.startX;
       const dy = ev.clientY - resizeRef.current.startY;
-      let newW = Math.max(MIN_TABLE_SIZE, resizeRef.current.startW + dx);
-      let newH = Math.max(MIN_TABLE_SIZE, resizeRef.current.startH + dy);
-      if (snapEnabled) { newW = snapToGrid(newW, GRID_SIZE); newH = snapToGrid(newH, GRID_SIZE); }
-      onTablesChange(tables.map((t) => t.tableId === tableId ? { ...t, iconWidth: newW, iconHeight: newH } : t));
+      lastW = Math.max(MIN_TABLE_SIZE, resizeRef.current.startW + dx);
+      lastH = Math.max(MIN_TABLE_SIZE, resizeRef.current.startH + dy);
+      if (snapEnabled) { lastW = snapToGrid(lastW, GRID_SIZE); lastH = snapToGrid(lastH, GRID_SIZE); }
+      onTablesChange(tables.map((t) => t.tableId === tableId ? { ...t, iconWidth: lastW, iconHeight: lastH } : t));
     };
 
     const onUp = () => {
       if (resizeRef.current) {
-        const table = tables.find((t) => t.tableId === resizeRef.current!.tableId);
-        if (table) {
-          trackChange(tableId, { iconWidth: table.iconWidth, iconHeight: table.iconHeight });
-        }
+        trackChange(tableId, { iconWidth: lastW, iconHeight: lastH });
       }
       resizeRef.current = null;
       window.removeEventListener('pointermove', onMove);
