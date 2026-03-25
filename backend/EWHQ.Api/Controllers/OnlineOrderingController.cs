@@ -148,6 +148,183 @@ public class OnlineOrderingController : ControllerBase
         }
     }
 
+    // ════════════════════════════════════════════════════════════════
+    //  PER-SHOP ODO SETTINGS (stored in ShopSystemParameter)
+    // ════════════════════════════════════════════════════════════════
+
+    [HttpGet("brand/{brandId:int}/shop-settings")]
+    [RequireBrandView]
+    public async Task<IActionResult> GetShopSettingsList(int brandId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var shops = await context.Shops
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .OrderBy(x => x.Name)
+                .Select(x => new { x.ShopId, x.Name })
+                .ToListAsync(cancellationToken);
+
+            var odoParams = await context.ShopSystemParameters
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled
+                    && (x.ParamCode == "ODO_SETTING" || x.ParamCode == "ODO_ENABLED"))
+                .Select(x => new { x.ShopId, x.ParamCode, x.ParamValue })
+                .ToListAsync(cancellationToken);
+
+            var paramsByShop = odoParams.ToLookup(x => x.ShopId);
+
+            var result = shops.Select(shop =>
+            {
+                var shopParams = paramsByShop[shop.ShopId].ToList();
+                var hasSettings = shopParams.Any(p => p.ParamCode == "ODO_SETTING");
+                var enabledParam = shopParams.FirstOrDefault(p => p.ParamCode == "ODO_ENABLED");
+                var isEnabled = enabledParam != null
+                    && string.Equals(enabledParam.ParamValue, "True", StringComparison.OrdinalIgnoreCase);
+
+                return new
+                {
+                    shopId = shop.ShopId,
+                    shopName = shop.Name ?? $"Shop {shop.ShopId}",
+                    hasSettings,
+                    odoEnabled = isEnabled
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching shop settings list for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred." });
+        }
+    }
+
+    [HttpGet("brand/{brandId:int}/shop-settings/{shopId:int}")]
+    [RequireBrandView]
+    public async Task<IActionResult> GetShopSettings(int brandId, int shopId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var param = await context.ShopSystemParameters
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId
+                        && x.ParamCode == "ODO_SETTING" && x.Enabled,
+                    cancellationToken);
+
+            if (param == null)
+            {
+                // Return empty settings object
+                return Ok(new { });
+            }
+
+            // Return raw JSON — the frontend handles the schema
+            return Content(param.ParamValue, "application/json");
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching shop settings for brand {BrandId} shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred." });
+        }
+    }
+
+    [HttpPut("brand/{brandId:int}/shop-settings/{shopId:int}")]
+    [RequireBrandAdmin]
+    public async Task<IActionResult> UpdateShopSettings(
+        int brandId, int shopId,
+        [FromBody] JsonElement settings,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+            var jsonString = JsonSerializer.Serialize(settings, JsonOptions);
+
+            var param = await context.ShopSystemParameters
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId
+                        && x.ParamCode == "ODO_SETTING",
+                    cancellationToken);
+
+            if (param == null)
+            {
+                // Create new — need next ParamId
+                var nextId = (await context.ShopSystemParameters
+                    .Where(x => x.AccountId == accountId && x.ShopId == shopId)
+                    .Select(x => (int?)x.ParamId)
+                    .MaxAsync(cancellationToken) ?? 0) + 1;
+
+                param = new ShopSystemParameter
+                {
+                    ParamId = nextId,
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    ParamCode = "ODO_SETTING",
+                    Description = "ODO Settings",
+                    ParamValue = jsonString,
+                    Enabled = true,
+                    CreatedDate = now,
+                    CreatedBy = actor,
+                    ModifiedDate = now,
+                    ModifiedBy = actor
+                };
+                context.ShopSystemParameters.Add(param);
+            }
+            else
+            {
+                param.ParamValue = jsonString;
+                param.Enabled = true;
+                param.ModifiedDate = now;
+                param.ModifiedBy = actor;
+            }
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "ONLINE_ORDERING",
+                    ActionType = "UPSERT_SHOP_SETTINGS",
+                    ActionRefId = $"ODO_SETTING:{shopId}",
+                    ActionRefDescription = "ODO per-shop settings",
+                    Details = "Updated online ordering settings for shop.",
+                    Actor = actor
+                },
+                cancellationToken);
+
+            await context.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Settings saved." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving shop settings for brand {BrandId} shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred while saving settings." });
+        }
+    }
+
     [HttpGet("brand/{brandId:int}/display-order")]
     [RequireBrandView]
     public async Task<ActionResult<IReadOnlyList<OnlineOrderingDisplayOrderNodeDto>>> GetDisplayOrder(

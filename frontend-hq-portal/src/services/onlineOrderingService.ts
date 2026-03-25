@@ -138,6 +138,22 @@ class OnlineOrderingService {
     await api.delete(`/online-ordering/brand/${brandId}/menu-combinations/${menuId}`);
   }
 
+  // ── Per-Shop Settings ──
+
+  async getShopSettingsList(brandId: number): Promise<{ shopId: number; shopName: string; hasSettings: boolean; odoEnabled: boolean }[]> {
+    const response = await api.get(`/online-ordering/brand/${brandId}/shop-settings`);
+    return response.data;
+  }
+
+  async getShopSettings(brandId: number, shopId: number): Promise<Record<string, unknown>> {
+    const response = await api.get(`/online-ordering/brand/${brandId}/shop-settings/${shopId}`);
+    return response.data;
+  }
+
+  async updateShopSettings(brandId: number, shopId: number, settings: Record<string, unknown>): Promise<void> {
+    await api.put(`/online-ordering/brand/${brandId}/shop-settings/${shopId}`, settings);
+  }
+
   private normalizeMenuCombinationPayload(
     payload: UpsertOnlineOrderingMenuCombinationRequest | UpsertOnlineOrderingMenuCombinationPayload,
   ): UpsertOnlineOrderingMenuCombinationPayload {

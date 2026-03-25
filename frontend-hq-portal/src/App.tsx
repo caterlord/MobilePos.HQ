@@ -42,6 +42,7 @@ const OnlineOrderingDisplayOrderPage = lazy(() => import('./pages/online-orderin
 const OnlineOrderingModifiersPage = lazy(() => import('./pages/online-ordering/OnlineOrderingModifiersPage').then(m => ({ default: m.OnlineOrderingModifiersPage })))
 const OnlineOrderingCallToActionPage = lazy(() => import('./pages/online-ordering/OnlineOrderingCallToActionPage').then(m => ({ default: m.OnlineOrderingCallToActionPage })))
 const OnlineOrderingSettingsPage = lazy(() => import('./pages/online-ordering/OnlineOrderingSettingsPage').then(m => ({ default: m.OnlineOrderingSettingsPage })))
+const OnlineOrderingShopSettingsEditor = lazy(() => import('./pages/online-ordering/OnlineOrderingShopSettingsEditor').then(m => ({ default: m.OnlineOrderingShopSettingsEditor })))
 const OnlineOrderingChannelMappingPage = lazy(() => import('./pages/online-ordering/OnlineOrderingChannelMappingPage').then(m => ({ default: m.OnlineOrderingChannelMappingPage })))
 const OnlineOrderingMenuCombinationsPage = lazy(() => import('./pages/online-ordering/OnlineOrderingMenuCombinationsPage').then(m => ({ default: m.OnlineOrderingMenuCombinationsPage })))
 const OnlineOrderingUiI18nPage = lazy(() => import('./pages/online-ordering/OnlineOrderingUiI18nPage').then(m => ({ default: m.OnlineOrderingUiI18nPage })))
@@ -200,6 +201,7 @@ function AppContent() {
           <Route path="menus/call-to-action" element={<OnlineOrderingCallToActionPage />} />
           <Route path="menus/menu-combinations" element={<OnlineOrderingMenuCombinationsPage />} />
           <Route path="general-settings" element={<OnlineOrderingSettingsPage />} />
+          <Route path="general-settings/:shopId" element={<OnlineOrderingShopSettingsEditor />} />
           <Route path="channel-settings" element={<OnlineOrderingChannelMappingPage />} />
           <Route path="ui-i18n" element={<OnlineOrderingUiI18nPage />} />
           <Route path="menu" element={<Navigate to="/online-ordering/menus" replace />} />
