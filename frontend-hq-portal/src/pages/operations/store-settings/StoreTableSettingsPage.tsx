@@ -153,24 +153,28 @@ export function StoreTableSettingsPage() {
       setLoading(true);
       setError(null);
 
-      const [metadataResponse, libraryResponse, linksResponse, tablesResponse] = await Promise.all([
+      const [metadataResult, libraryResult, linksResult, tablesResult] = await Promise.allSettled([
         selectedShopId ? tableSettingsService.getMetadata(brandId, selectedShopId) : Promise.resolve(null),
         tableSettingsService.getSectionLibrary(brandId),
         selectedShopId ? tableSettingsService.getShopSectionLinks(brandId, selectedShopId) : Promise.resolve([]),
         selectedShopId ? tableSettingsService.getTables(brandId, selectedShopId) : Promise.resolve([]),
       ]);
 
-      setMetadata(metadataResponse);
-      setSectionLibrary(libraryResponse);
-      setShopSectionLinks(linksResponse);
-      setTables(tablesResponse);
+      setMetadata(metadataResult.status === 'fulfilled' ? metadataResult.value : null);
+      setSectionLibrary(libraryResult.status === 'fulfilled' ? libraryResult.value : []);
+      setShopSectionLinks(linksResult.status === 'fulfilled' ? linksResult.value : []);
+      setTables(tablesResult.status === 'fulfilled' ? tablesResult.value : []);
+
+      // Show error for any failed requests
+      const failures = [metadataResult, libraryResult, linksResult, tablesResult]
+        .filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        const firstError = (failures[0] as PromiseRejectedResult).reason;
+        setError(firstError instanceof Error ? firstError.message : 'Some data failed to load');
+      }
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load table settings';
       setError(message);
-      setMetadata(null);
-      setSectionLibrary([]);
-      setShopSectionLinks([]);
-      setTables([]);
     } finally {
       setLoading(false);
     }
