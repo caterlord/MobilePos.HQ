@@ -56,7 +56,7 @@ const SHAPE_OPTIONS = [
 ];
 
 const getShapeBorderRadius = (shape: string) =>
-  (shape ?? '').toLowerCase() === 'circle' ? '999px' : '8px';
+  (shape ?? '').toLowerCase() === 'circle' ? '50%' : '8px';
 
 const snapToGrid = (value: number, gridSize: number) =>
   Math.round(value / gridSize) * gridSize;
