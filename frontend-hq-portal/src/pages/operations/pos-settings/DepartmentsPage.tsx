@@ -136,8 +136,15 @@ export function DepartmentsPage() {
     }
   };
 
-  const deptTable = (items: DepartmentSummary[], emptyMsg: string) => (
-    <Paper withBorder>
+  const deptTable = (items: DepartmentSummary[], emptyMsg: string, createLabel: string) => (
+    <Stack gap="md">
+      <Group justify="flex-end">
+        <Button variant="subtle" onClick={() => void loadDepartments()} loading={loading}>Refresh</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={openCreate} disabled={!brandId}>
+          {createLabel}
+        </Button>
+      </Group>
+      <Paper withBorder>
       <Table striped highlightOnHover>
         <Table.Thead>
           <Table.Tr>
@@ -178,20 +185,13 @@ export function DepartmentsPage() {
         </Table.Tbody>
       </Table>
     </Paper>
+    </Stack>
   );
 
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
-        <Group justify="space-between">
-          <Title order={2}>Departments</Title>
-          <Group>
-            <Button variant="subtle" onClick={() => void loadDepartments()} loading={loading}>Refresh</Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate} disabled={!brandId}>
-              New Department
-            </Button>
-          </Group>
-        </Group>
+        <Title order={2}>Departments</Title>
 
         {!brandId && (
           <Alert icon={<IconAlertCircle size={16} />} color="yellow">
@@ -206,13 +206,13 @@ export function DepartmentsPage() {
             <Tabs.Tab value="revenue-centers">Revenue Centers</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="departments" pt="md">
-            {deptTable(topDepartments, 'No departments found.')}
+            {deptTable(topDepartments, 'No departments found.', 'New Department')}
           </Tabs.Panel>
           <Tabs.Panel value="sub-departments" pt="md">
-            {deptTable(subDepartments, 'No sub-departments found.')}
+            {deptTable(subDepartments, 'No sub-departments found.', 'New Sub-Department')}
           </Tabs.Panel>
           <Tabs.Panel value="revenue-centers" pt="md">
-            {deptTable(revenueCenters, 'No revenue centers found.')}
+            {deptTable(revenueCenters, 'No revenue centers found.', 'New Revenue Center')}
           </Tabs.Panel>
         </Tabs>
       </Stack>

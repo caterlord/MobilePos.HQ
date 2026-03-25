@@ -42,6 +42,8 @@ public class PosUserSummaryDto
     public bool EnableStaffCodeLogin { get; set; }
     public DateTime ModifiedDate { get; set; }
     public string ModifiedBy { get; set; } = string.Empty;
+    public List<int> GroupIds { get; set; } = new();
+    public List<string> GroupNames { get; set; } = new();
 }
 
 public class UpsertPosUserDto
@@ -57,4 +59,5 @@ public class UpsertPosUserDto
     public bool EnableUserIdLogin { get; set; } = true;
     public bool EnableCardNoLogin { get; set; }
     public bool EnableStaffCodeLogin { get; set; }
+    public List<int>? GroupIds { get; set; }
 }

@@ -33,10 +33,21 @@ public class TableSectionShopLinkDto
     public int? TableMapBackgroundImageHeight { get; set; }
 }
 
+public class SectionShopRuleDto
+{
+    public int ShopId { get; set; }
+    public string ShopName { get; set; } = string.Empty;
+    public bool Linked { get; set; }
+    public string TableMapBackgroundImagePath { get; set; } = string.Empty;
+    public int? TableMapBackgroundImageWidth { get; set; }
+    public int? TableMapBackgroundImageHeight { get; set; }
+}
+
 public class UpsertTableSectionRequestDto
 {
     public string SectionName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public List<SectionShopRuleDto>? ShopRules { get; set; }
 }
 
 public class LinkTableSectionToShopRequestDto

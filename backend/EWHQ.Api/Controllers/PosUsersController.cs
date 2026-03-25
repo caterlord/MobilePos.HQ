@@ -57,7 +57,7 @@ public class PosUsersController : ControllerBase
 
             var items = await context.UserGroupHeaders
                 .AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.Enabled && x.GroupType == null)
+                .Where(x => x.AccountId == accountId && x.Enabled && (x.GroupType == null || x.GroupType == ""))
                 .OrderBy(x => x.GroupId)
                 .Select(x => new PosUserGroupSummaryDto
                 {
@@ -271,7 +271,7 @@ public class PosUsersController : ControllerBase
                 })
                 .ToListAsync(HttpContext.RequestAborted);
 
-            // Populate shop names in memory
+            // Populate shop names
             var shopIds = items.Select(x => x.ShopId).Distinct().ToList();
             if (shopIds.Count > 0)
             {
@@ -285,6 +285,40 @@ public class PosUsersController : ControllerBase
                 {
                     if (shops.TryGetValue(item.ShopId, out var shopName))
                         item.ShopName = shopName;
+                }
+            }
+
+            // Populate group memberships
+            var userKeys = items.Select(x => new { x.UserId, x.ShopId }).ToList();
+            if (userKeys.Count > 0)
+            {
+                var allGroupDetails = await context.UserGroupDetails
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.Enabled)
+                    .Select(x => new { x.UserId, x.ShopId, x.GroupId })
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                var groupIds = allGroupDetails.Select(x => x.GroupId).Distinct().ToList();
+                var groupNames = groupIds.Count > 0
+                    ? await context.UserGroupHeaders
+                        .AsNoTracking()
+                        .Where(x => x.AccountId == accountId && groupIds.Contains(x.GroupId) && x.Enabled)
+                        .ToDictionaryAsync(x => x.GroupId, x => x.Name ?? string.Empty, HttpContext.RequestAborted)
+                    : new Dictionary<int, string>();
+
+                var groupLookup = allGroupDetails
+                    .GroupBy(x => (x.UserId, x.ShopId))
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.GroupId).OrderBy(x => x).ToList());
+
+                foreach (var item in items)
+                {
+                    if (groupLookup.TryGetValue((item.UserId, item.ShopId), out var gids))
+                    {
+                        item.GroupIds = gids;
+                        item.GroupNames = gids
+                            .Select(id => groupNames.TryGetValue(id, out var name) ? name : $"Group {id}")
+                            .ToList();
+                    }
                 }
             }
 
@@ -344,6 +378,27 @@ public class PosUsersController : ControllerBase
             };
 
             context.Users.Add(entity);
+
+            // Add group memberships
+            if (payload.GroupIds is { Count: > 0 })
+            {
+                foreach (var gid in payload.GroupIds)
+                {
+                    context.UserGroupDetails.Add(new UserGroupDetail
+                    {
+                        UserId = nextId,
+                        GroupId = gid,
+                        AccountId = accountId,
+                        ShopId = payload.ShopId,
+                        Enabled = true,
+                        CreatedDate = now,
+                        CreatedBy = user,
+                        ModifiedDate = now,
+                        ModifiedBy = user
+                    });
+                }
+            }
+
             await context.SaveChangesAsync(HttpContext.RequestAborted);
 
             return Ok(new PosUserSummaryDto
@@ -361,7 +416,8 @@ public class PosUsersController : ControllerBase
                 EnableCardNoLogin = entity.EnableCardNoLogin,
                 EnableStaffCodeLogin = entity.EnableStaffCodeLogin,
                 ModifiedDate = entity.ModifiedDate,
-                ModifiedBy = entity.ModifiedBy
+                ModifiedBy = entity.ModifiedBy,
+                GroupIds = payload.GroupIds ?? new List<int>()
             });
         }
         catch (InvalidOperationException ex)
@@ -410,7 +466,58 @@ public class PosUsersController : ControllerBase
             if (!string.IsNullOrWhiteSpace(payload.Password))
                 entity.Password = Clip(payload.Password, 50);
 
+            // Sync group memberships if provided
+            if (payload.GroupIds != null)
+            {
+                var existing = await context.UserGroupDetails
+                    .Where(x => x.AccountId == accountId && x.UserId == userId && x.ShopId == shopId)
+                    .ToListAsync(HttpContext.RequestAborted);
+
+                var desiredSet = new HashSet<int>(payload.GroupIds);
+                var existingMap = existing.ToDictionary(x => x.GroupId);
+
+                // Remove groups no longer assigned
+                foreach (var e in existing)
+                {
+                    if (!desiredSet.Contains(e.GroupId))
+                        context.UserGroupDetails.Remove(e);
+                    else if (!e.Enabled)
+                    {
+                        e.Enabled = true;
+                        e.ModifiedDate = now;
+                        e.ModifiedBy = user;
+                    }
+                }
+
+                // Add new groups
+                foreach (var gid in payload.GroupIds)
+                {
+                    if (!existingMap.ContainsKey(gid))
+                    {
+                        context.UserGroupDetails.Add(new UserGroupDetail
+                        {
+                            UserId = userId,
+                            GroupId = gid,
+                            AccountId = accountId,
+                            ShopId = shopId,
+                            Enabled = true,
+                            CreatedDate = now,
+                            CreatedBy = user,
+                            ModifiedDate = now,
+                            ModifiedBy = user
+                        });
+                    }
+                }
+            }
+
             await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            // Fetch updated group info for response
+            var updatedGroupIds = await context.UserGroupDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.UserId == userId && x.ShopId == shopId && x.Enabled)
+                .Select(x => x.GroupId)
+                .ToListAsync(HttpContext.RequestAborted);
 
             return Ok(new PosUserSummaryDto
             {
@@ -427,7 +534,8 @@ public class PosUsersController : ControllerBase
                 EnableCardNoLogin = entity.EnableCardNoLogin,
                 EnableStaffCodeLogin = entity.EnableStaffCodeLogin,
                 ModifiedDate = entity.ModifiedDate,
-                ModifiedBy = entity.ModifiedBy
+                ModifiedBy = entity.ModifiedBy,
+                GroupIds = updatedGroupIds
             });
         }
         catch (InvalidOperationException ex)

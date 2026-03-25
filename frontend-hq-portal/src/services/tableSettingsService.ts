@@ -28,9 +28,19 @@ export interface TableSectionShopLink {
   tableMapBackgroundImageHeight: number | null;
 }
 
+export interface SectionShopRule {
+  shopId: number;
+  shopName: string;
+  linked: boolean;
+  tableMapBackgroundImagePath: string;
+  tableMapBackgroundImageWidth: number | null;
+  tableMapBackgroundImageHeight: number | null;
+}
+
 export interface UpsertTableSectionRequest {
   sectionName: string;
   description: string;
+  shopRules?: SectionShopRule[] | null;
 }
 
 export interface LinkTableSectionToShopRequest {
@@ -136,6 +146,10 @@ const tableSettingsService = {
 
   async deleteSectionLibrary(brandId: number, sectionId: number): Promise<void> {
     await api.delete(`/table-settings/brand/${brandId}/sections/${sectionId}`);
+  },
+
+  async getSectionShopRules(brandId: number, sectionId: number): Promise<SectionShopRule[]> {
+    return unwrap(await api.get(`/table-settings/brand/${brandId}/sections/${sectionId}/shop-rules`));
   },
 
   async getShopSectionLinks(brandId: number, shopId: number): Promise<TableSectionShopLink[]> {
