@@ -300,20 +300,18 @@ export function FloorplanDesigner({
     }
   }, [brandId, shopId, tables, onTablesChange]);
 
-  const removeFromCanvas = useCallback(async (table: TableMaster) => {
-    try {
-      setSaving(true);
-      await tableSettingsService.updateTable(brandId, shopId, table.tableId, buildPayload(table, { isAppearOnFloorPlan: false }));
-      onTablesChange(tables.map((t) => t.tableId === table.tableId ? { ...t, isAppearOnFloorPlan: false } : t));
-      setSelectedId(null);
-      setPendingChanges((prev) => { const n = new Map(prev); n.delete(table.tableId); return n; });
-      notifications.show({ color: 'green', message: `${table.tableCode} removed` });
-    } catch (err) {
-      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed' });
-    } finally {
-      setSaving(false);
-    }
-  }, [brandId, shopId, tables, onTablesChange]);
+  const removeFromCanvas = useCallback((table: TableMaster) => {
+    onTablesChange(tables.map((t) => t.tableId === table.tableId
+      ? { ...t, isAppearOnFloorPlan: false, positionX: null, positionY: null, iconWidth: null, iconHeight: null, rotation: null, shapeType: '' }
+      : t,
+    ));
+    trackChange(table.tableId, {
+      isAppearOnFloorPlan: false, positionX: null, positionY: null,
+      iconWidth: null, iconHeight: null, rotation: null, shapeType: '',
+    });
+    setSelectedId(null);
+    setRightTab('palette');
+  }, [tables, onTablesChange, trackChange]);
 
   // ── Rotation ──
 
@@ -399,7 +397,7 @@ export function FloorplanDesigner({
               onClick={() => rotateSelected(90)}><IconRotateClockwise size={14} /></ActionIcon></Tooltip>
             <Box w={4} />
             <Tooltip label="Remove from canvas"><ActionIcon size="sm" variant="subtle" color="red" disabled={!selectedTable}
-              onClick={() => selectedTable && void removeFromCanvas(selectedTable)}><IconTrash size={14} /></ActionIcon></Tooltip>
+              onClick={() => selectedTable && removeFromCanvas(selectedTable)}><IconTrash size={14} /></ActionIcon></Tooltip>
           </Group>
         </Group>
       </Paper>
@@ -515,7 +513,7 @@ export function FloorplanDesigner({
                       Full Edit
                     </Button>
                     <Button size="compact-xs" variant="light" color="red" fullWidth
-                      onClick={() => void removeFromCanvas(selectedTable)}>
+                      onClick={() => removeFromCanvas(selectedTable)}>
                       Remove
                     </Button>
                   </Group>
