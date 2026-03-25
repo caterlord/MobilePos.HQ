@@ -619,8 +619,8 @@ public class OnlineOrderingController : ControllerBase
                 AccountId = accountId,
                 MenuId = menuId,
                 MenuName = request.MenuName.Trim(),
-                MenuNameAlt = NullIfEmpty(request.MenuNameAlt),
-                MenuCode = NullIfEmpty(request.MenuCode),
+                MenuNameAlt = NullIfEmpty(request.MenuNameAlt) ?? string.Empty,
+                MenuCode = NullIfEmpty(request.MenuCode) ?? string.Empty,
                 DisplayOrder = request.DisplayOrder,
                 Enabled = request.Enabled,
                 IsPublished = request.IsPublished,
@@ -724,8 +724,8 @@ public class OnlineOrderingController : ControllerBase
             var actor = GetCurrentUserIdentifier();
             var now = DateTime.UtcNow;
             header.MenuName = request.MenuName.Trim();
-            header.MenuNameAlt = NullIfEmpty(request.MenuNameAlt);
-            header.MenuCode = NullIfEmpty(request.MenuCode);
+            header.MenuNameAlt = NullIfEmpty(request.MenuNameAlt) ?? string.Empty;
+            header.MenuCode = NullIfEmpty(request.MenuCode) ?? string.Empty;
             header.DisplayOrder = request.DisplayOrder;
             header.Enabled = request.Enabled;
             header.IsPublished = request.IsPublished;
@@ -1111,9 +1111,9 @@ public class OnlineOrderingController : ControllerBase
             ShopId = source.ShopId,
             Enabled = source.Enabled,
             IsPublicDisplay = source.IsPublicDisplay,
-            DaysOfWeek = NullIfEmpty(source.DaysOfWeek),
-            Dates = NullIfEmpty(source.Dates),
-            Months = NullIfEmpty(source.Months),
+            DaysOfWeek = NullIfEmpty(source.DaysOfWeek) ?? string.Empty,
+            Dates = NullIfEmpty(source.Dates) ?? string.Empty,
+            Months = NullIfEmpty(source.Months) ?? string.Empty,
             DisplayFromTime = ParseTime(source.DisplayFromTime),
             DisplayToTime = ParseTime(source.DisplayToTime),
             CreatedDate = now,

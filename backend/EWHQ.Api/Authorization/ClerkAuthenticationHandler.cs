@@ -21,10 +21,9 @@ public sealed class ClerkAuthenticationHandler : AuthenticationHandler<Authentic
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        ISystemClock clock,
         ClerkAuthenticationSettings settings,
         IClerkJwksService jwksService)
-        : base(options, logger, encoder, clock)
+        : base(options, logger, encoder)
     {
         _settings = settings;
         _jwksService = jwksService;

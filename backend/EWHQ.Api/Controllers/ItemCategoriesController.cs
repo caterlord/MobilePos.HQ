@@ -41,7 +41,7 @@ public class ItemCategoriesController : ControllerBase
                 {
                     CategoryId = c.CategoryId,
                     AccountId = c.AccountId,
-                    CategoryName = c.CategoryName,
+                    CategoryName = c.CategoryName ?? string.Empty,
                     CategoryNameAlt = c.CategoryNameAlt,
                     DisplayIndex = c.DisplayIndex,
                     ParentCategoryId = c.ParentCategoryId,
@@ -97,7 +97,7 @@ public class ItemCategoriesController : ControllerBase
             {
                 CategoryId = category.CategoryId,
                 AccountId = category.AccountId,
-                CategoryName = category.CategoryName,
+                CategoryName = category.CategoryName ?? string.Empty,
                 CategoryNameAlt = category.CategoryNameAlt,
                 DisplayIndex = category.DisplayIndex,
                 ParentCategoryId = category.ParentCategoryId,
