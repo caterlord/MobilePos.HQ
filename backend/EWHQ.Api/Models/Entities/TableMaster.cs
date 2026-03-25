@@ -25,17 +25,17 @@ public class TableMaster
     public int SectionId { get; set; }
 
     [MaxLength(50)]
-    public string Description { get; set; }
+    public string? Description { get; set; }
 
     [MaxLength(100)]
-    public string DescriptionAlt { get; set; }
+    public string? DescriptionAlt { get; set; }
 
     public int TableTypeId { get; set; }
 
     public int TableStatusId { get; set; }
 
     [MaxLength(50)]
-    public string PosCode { get; set; }
+    public string? PosCode { get; set; }
 
     public bool ShowPosCode { get; set; }
 
@@ -74,7 +74,7 @@ public class TableMaster
     public int? ShopPrinterMasterId { get; set; }
 
     [MaxLength(50)]
-    public string ShapeType { get; set; }
+    public string? ShapeType { get; set; }
 
     public int? IconWidth { get; set; }
 

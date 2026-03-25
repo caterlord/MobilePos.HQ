@@ -19,13 +19,13 @@ public class TableSection
     public string SectionName { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string SectionNameAlt { get; set; }
+    public string? SectionNameAlt { get; set; }
 
     [MaxLength(200)]
-    public string Desc { get; set; }
+    public string? Desc { get; set; }
 
     [MaxLength(400)]
-    public string DescAlt { get; set; }
+    public string? DescAlt { get; set; }
 
     public bool Enabled { get; set; }
 
@@ -42,6 +42,6 @@ public class TableSection
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string TableMapBackgroundImagePath { get; set; }
+    public string? TableMapBackgroundImagePath { get; set; }
 
 }
