@@ -29,10 +29,10 @@ public class AuditTrailLog
     public string ActionName { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string ActionRefId { get; set; }
+    public string ActionRefId { get; set; } = null!;
 
     [MaxLength(200)]
-    public string ActionRefDesc { get; set; }
+    public string ActionRefDesc { get; set; } = null!;
 
     public int ActionUserId { get; set; }
 
@@ -43,16 +43,16 @@ public class AuditTrailLog
     public int? SecondaryActionUserId { get; set; }
 
     [MaxLength(200)]
-    public string SecondaryActionUserName { get; set; }
+    public string SecondaryActionUserName { get; set; } = null!;
 
     [MaxLength(200)]
-    public string SourceName { get; set; }
+    public string SourceName { get; set; } = null!;
 
     [MaxLength(50)]
-    public string SourceRefId { get; set; }
+    public string SourceRefId { get; set; } = null!;
 
     [MaxLength(200)]
-    public string SourceRefDesc { get; set; }
+    public string SourceRefDesc { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

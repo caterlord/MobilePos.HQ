@@ -17,23 +17,23 @@ public class CouponDistributionLog
     public int CouponCampaignId { get; set; }
 
     [MaxLength(500)]
-    public string CampaignName { get; set; }
+    public string CampaignName { get; set; } = null!;
 
     public int? DistributionRuleTypeId { get; set; }
 
     [MaxLength(200)]
-    public string QRCodeImageUrl { get; set; }
+    public string QRCodeImageUrl { get; set; } = null!;
 
     [MaxLength(100)]
-    public string FirstName { get; set; }
+    public string FirstName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string LastName { get; set; }
+    public string LastName { get; set; } = null!;
 
     public int? MemberDetailId { get; set; }
 
     [MaxLength(200)]
-    public string SocialMediaId { get; set; }
+    public string SocialMediaId { get; set; } = null!;
 
     public int? SocialMediaTypeId { get; set; }
 

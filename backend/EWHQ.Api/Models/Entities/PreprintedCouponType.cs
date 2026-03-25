@@ -20,23 +20,23 @@ public class PreprintedCouponType
     public string CouponTypeName { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string CouponPrefix { get; set; }
+    public string CouponPrefix { get; set; } = null!;
 
     public int LinkedItemId { get; set; }
 
     public int? PaymentMethodId { get; set; }
 
     [MaxLengthUnlimited]
-    public string MandatoryIncludedItemIdList { get; set; }
+    public string MandatoryIncludedItemIdList { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string MandatoryIncludedCategoryIdList { get; set; }
+    public string MandatoryIncludedCategoryIdList { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string MandatoryExcludedItemIdList { get; set; }
+    public string MandatoryExcludedItemIdList { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string MandatoryExcludedCategoryIdList { get; set; }
+    public string MandatoryExcludedCategoryIdList { get; set; } = null!;
 
     public bool IsPublicDisplay { get; set; }
 

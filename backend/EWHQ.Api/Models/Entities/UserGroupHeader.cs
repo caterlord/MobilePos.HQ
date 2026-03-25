@@ -37,6 +37,6 @@ public class UserGroupHeader
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string GroupType { get; set; }
+    public string GroupType { get; set; } = null!;
 
 }

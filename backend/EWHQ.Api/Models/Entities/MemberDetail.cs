@@ -32,19 +32,19 @@ public class MemberDetail
     public decimal? OverrideDiscount { get; set; }
 
     [MaxLength(100)]
-    public string MemberCardNum { get; set; }
+    public string MemberCardNum { get; set; } = null!;
 
     [MaxLength(100)]
-    public string MemberFormNum { get; set; }
+    public string MemberFormNum { get; set; } = null!;
 
     [MaxLength(200)]
-    public string MemberName { get; set; }
+    public string MemberName { get; set; } = null!;
 
     [MaxLength(200)]
-    public string MemberEmail { get; set; }
+    public string MemberEmail { get; set; } = null!;
 
     [MaxLength(200)]
-    public string MemberPhone { get; set; }
+    public string MemberPhone { get; set; } = null!;
 
     public DateTime? MemberEffectiveDate { get; set; }
 
@@ -65,53 +65,53 @@ public class MemberDetail
     public DateTime? MemberDateOfBirth { get; set; }
 
     [MaxLength(50)]
-    public string MemberGender { get; set; }
+    public string MemberGender { get; set; } = null!;
 
     [MaxLength(50)]
-    public string MemberEnglishName { get; set; }
+    public string MemberEnglishName { get; set; } = null!;
 
     public int? CreditTotalBalance { get; set; }
 
     public bool IsMemberExpired { get; set; }
 
     [MaxLength(50)]
-    public string MemberIdCardNum { get; set; }
+    public string MemberIdCardNum { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark { get; set; }
+    public string MemberRemark { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberAddess { get; set; }
+    public string MemberAddess { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark2 { get; set; }
+    public string MemberRemark2 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark3 { get; set; }
+    public string MemberRemark3 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark4 { get; set; }
+    public string MemberRemark4 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark5 { get; set; }
+    public string MemberRemark5 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark6 { get; set; }
+    public string MemberRemark6 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark7 { get; set; }
+    public string MemberRemark7 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark8 { get; set; }
+    public string MemberRemark8 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark9 { get; set; }
+    public string MemberRemark9 { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string MemberRemark10 { get; set; }
+    public string MemberRemark10 { get; set; } = null!;
 
     [MaxLength(50)]
-    public string MemberPassword { get; set; }
+    public string MemberPassword { get; set; } = null!;
 
     public DateTime? MemberExpiryDate { get; set; }
 
@@ -121,13 +121,13 @@ public class MemberDetail
     public bool? IsOnlineMember { get; set; }
 
     [MaxLength(200)]
-    public string QRCodeImageUrl { get; set; }
+    public string QRCodeImageUrl { get; set; } = null!;
 
     [MaxLength(100)]
-    public string FirstName { get; set; }
+    public string FirstName { get; set; } = null!;
 
     [MaxLength(100)]
-    public string LastName { get; set; }
+    public string LastName { get; set; } = null!;
 
     public int? DateOfBirthYear { get; set; }
 

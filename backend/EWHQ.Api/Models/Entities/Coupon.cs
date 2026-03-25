@@ -31,14 +31,14 @@ public class Coupon
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string QRCodeImageUrl { get; set; }
+    public string QRCodeImageUrl { get; set; } = null!;
 
     public DateTime? ValidDateFrom { get; set; }
 
     public DateTime? ValidDateTo { get; set; }
 
     [MaxLength(100)]
-    public string NumericCouponCode { get; set; }
+    public string NumericCouponCode { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? FaceValue { get; set; }

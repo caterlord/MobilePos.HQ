@@ -19,16 +19,16 @@ public class AddressMasterArea
     public string AreaName { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string AreaNameAlt { get; set; }
+    public string AreaNameAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string AreaPath { get; set; }
+    public string AreaPath { get; set; } = null!;
 
     [MaxLength(400)]
-    public string AreaPathAlt { get; set; }
+    public string AreaPathAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string AreaDesc { get; set; }
+    public string AreaDesc { get; set; } = null!;
 
     public int ClickCount { get; set; }
 

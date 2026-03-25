@@ -25,6 +25,6 @@ public class ModifierGroupOnlineDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string OdoGroupType { get; set; }
+    public string OdoGroupType { get; set; } = null!;
 
 }

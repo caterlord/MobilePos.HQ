@@ -16,7 +16,7 @@ public class EmailReportLog
     public bool IsSuccess { get; set; }
 
     [MaxLength(4000)]
-    public string ErrorMessage { get; set; }
+    public string ErrorMessage { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

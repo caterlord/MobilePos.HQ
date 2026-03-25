@@ -33,19 +33,19 @@ public class TxSalesHeaderOnlineMeta
     public int? AcceptedByUserId { get; set; }
 
     [MaxLength(50)]
-    public string AcceptedBy { get; set; }
+    public string AcceptedBy { get; set; } = null!;
 
     public DateTime? RejectedDateTime { get; set; }
 
     public int? RejectedByUserId { get; set; }
 
     [MaxLength(50)]
-    public string RejectedBy { get; set; }
+    public string RejectedBy { get; set; } = null!;
 
     public int? RejectedReasonId { get; set; }
 
     [MaxLength(500)]
-    public string RejectedReasonDesc { get; set; }
+    public string RejectedReasonDesc { get; set; } = null!;
 
     public bool Enabled { get; set; }
 
@@ -62,13 +62,13 @@ public class TxSalesHeaderOnlineMeta
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string ContactName { get; set; }
+    public string ContactName { get; set; } = null!;
 
     [MaxLength(400)]
-    public string ContactEmail { get; set; }
+    public string ContactEmail { get; set; } = null!;
 
     [MaxLength(100)]
-    public string ContactPhone { get; set; }
+    public string ContactPhone { get; set; } = null!;
 
     public bool? IsPickup { get; set; }
 
@@ -84,7 +84,7 @@ public class TxSalesHeaderOnlineMeta
     public decimal? DeliveryMin { get; set; }
 
     [MaxLength(400)]
-    public string PaypalTxnId { get; set; }
+    public string PaypalTxnId { get; set; } = null!;
 
     public bool? IsDeliveryOutOfRange { get; set; }
 
@@ -93,34 +93,34 @@ public class TxSalesHeaderOnlineMeta
     public bool? IsReceiptPrinted { get; set; }
 
     [MaxLength(1000)]
-    public string DeliveryAddress { get; set; }
+    public string DeliveryAddress { get; set; } = null!;
 
     public bool? IsFacebookMessengerOrder { get; set; }
 
     [MaxLength(100)]
-    public string FacebookUserId { get; set; }
+    public string FacebookUserId { get; set; } = null!;
 
     public int? TransferredFromShopId { get; set; }
 
     public int? TransferredByUserId { get; set; }
 
     [MaxLength(50)]
-    public string TransferredByUserName { get; set; }
+    public string TransferredByUserName { get; set; } = null!;
 
     public bool? IsCODOrder { get; set; }
 
     public int? CODCompleteShopId { get; set; }
 
     [MaxLength(100)]
-    public string CODCompleteShopName { get; set; }
+    public string CODCompleteShopName { get; set; } = null!;
 
     public int? CODCompleteByUserId { get; set; }
 
     [MaxLength(50)]
-    public string CODCompleteByUserName { get; set; }
+    public string CODCompleteByUserName { get; set; } = null!;
 
     [MaxLength(10)]
-    public string CODCashDrawerCode { get; set; }
+    public string CODCashDrawerCode { get; set; } = null!;
 
     public int? CODWorkdayDetailId { get; set; }
 

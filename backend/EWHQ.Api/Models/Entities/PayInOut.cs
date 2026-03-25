@@ -61,9 +61,9 @@ public class PayInOut
     public bool? IsCashPayment { get; set; }
 
     [MaxLengthUnlimited]
-    public string RemarkData { get; set; }
+    public string RemarkData { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string RemarkString { get; set; }
+    public string RemarkString { get; set; } = null!;
 
 }

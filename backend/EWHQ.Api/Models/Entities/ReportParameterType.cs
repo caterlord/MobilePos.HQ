@@ -20,7 +20,7 @@ public class ReportParameterType
     public bool AllowNull { get; set; }
 
     [MaxLength(255)]
-    public string DefaultValue { get; set; }
+    public string DefaultValue { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

@@ -19,16 +19,16 @@ public class AddressMasterEstate
     public string EstateName { get; set; } = string.Empty;
 
     [MaxLength(400)]
-    public string EstateNameAlt { get; set; }
+    public string EstateNameAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string EstatePath { get; set; }
+    public string EstatePath { get; set; } = null!;
 
     [MaxLength(400)]
-    public string EstatePathAlt { get; set; }
+    public string EstatePathAlt { get; set; } = null!;
 
     [MaxLength(400)]
-    public string EstateDesc { get; set; }
+    public string EstateDesc { get; set; } = null!;
 
     public int ClickCount { get; set; }
 

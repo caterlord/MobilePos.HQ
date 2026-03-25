@@ -25,7 +25,7 @@ public class AddressDeliveryMapping
     public int? AddressShopId { get; set; }
 
     [MaxLength(25)]
-    public string KinShunId { get; set; }
+    public string KinShunId { get; set; } = null!;
 
     public bool Enabled { get; set; }
 
@@ -38,6 +38,6 @@ public class AddressDeliveryMapping
     public DateTime ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
 }

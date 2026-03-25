@@ -44,46 +44,46 @@ public class TxPayment
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(10)]
-    public string OclNum { get; set; }
+    public string OclNum { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 1)")]
     public decimal? OclRemainValue { get; set; }
 
     [MaxLength(10)]
-    public string OclDeviceNum { get; set; }
+    public string OclDeviceNum { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string RefNum { get; set; }
+    public string RefNum { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string Remark1 { get; set; }
+    public string Remark1 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark2 { get; set; }
+    public string Remark2 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark3 { get; set; }
+    public string Remark3 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark4 { get; set; }
+    public string Remark4 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark5 { get; set; }
+    public string Remark5 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark6 { get; set; }
+    public string Remark6 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark7 { get; set; }
+    public string Remark7 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark8 { get; set; }
+    public string Remark8 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark9 { get; set; }
+    public string Remark9 { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Remark10 { get; set; }
+    public string Remark10 { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? ChangeAmount { get; set; }
@@ -99,7 +99,7 @@ public class TxPayment
     public int? DepositReceivedByUserId { get; set; }
 
     [MaxLength(50)]
-    public string DepositReceivedByUserName { get; set; }
+    public string DepositReceivedByUserName { get; set; } = null!;
 
     public DateTime? DepositReceivedDatetime { get; set; }
 
@@ -108,7 +108,7 @@ public class TxPayment
     public int? DepositWorkdayPeriodDetailId { get; set; }
 
     [MaxLength(50)]
-    public string DepositWorkdayPeriodName { get; set; }
+    public string DepositWorkdayPeriodName { get; set; } = null!;
 
     [Column(TypeName = "decimal(18, 2)")]
     public decimal? PaymentMethodSurchargeAmount { get; set; }
@@ -124,13 +124,13 @@ public class TxPayment
     public bool? IsPreprintedCouponTxPayment { get; set; }
 
     [MaxLength(1000)]
-    public string PaymentRemark { get; set; }
+    public string PaymentRemark { get; set; } = null!;
 
     [MaxLength(50)]
-    public string PaymentCurrency { get; set; }
+    public string PaymentCurrency { get; set; } = null!;
 
     [MaxLength(50)]
-    public string PaymentPathway { get; set; }
+    public string PaymentPathway { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? PaidAmountFx { get; set; }
@@ -149,10 +149,10 @@ public class TxPayment
     public decimal? TotalAmountFx { get; set; }
 
     [MaxLength(10)]
-    public string PaymentMethodCode { get; set; }
+    public string PaymentMethodCode { get; set; } = null!;
 
     [MaxLength(50)]
-    public string PaymentMethodName { get; set; }
+    public string PaymentMethodName { get; set; } = null!;
 
     [Column(TypeName = "decimal(18, 2)")]
     public decimal? TxChargesRate { get; set; }

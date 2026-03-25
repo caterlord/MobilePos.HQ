@@ -23,13 +23,13 @@ public class StockOrderDetail
     public int? RawMaterialId { get; set; }
 
     [MaxLength(50)]
-    public string RawMaterialCode { get; set; }
+    public string RawMaterialCode { get; set; } = null!;
 
     [MaxLength(200)]
-    public string RawMaterialName { get; set; }
+    public string RawMaterialName { get; set; } = null!;
 
     [MaxLength(200)]
-    public string RawMaterialNameAlt { get; set; }
+    public string RawMaterialNameAlt { get; set; } = null!;
 
     public int OrderSeq { get; set; }
 
@@ -57,13 +57,13 @@ public class StockOrderDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string BulkUnitName { get; set; }
+    public string BulkUnitName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? BulkUnitQty { get; set; }
 
     [MaxLength(50)]
-    public string OriginalUnitName { get; set; }
+    public string OriginalUnitName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? OriginalQty { get; set; }

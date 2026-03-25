@@ -16,7 +16,7 @@ public class BatchEditTaskShopDetail
     public int StatusId { get; set; }
 
     [MaxLengthUnlimited]
-    public string TaskShopDetailData { get; set; }
+    public string TaskShopDetailData { get; set; } = null!;
 
     public DateTime? ExecutionDatetime { get; set; }
 

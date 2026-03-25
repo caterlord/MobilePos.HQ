@@ -19,36 +19,36 @@ public class ThirdPartyReservation
     public int ShopId { get; set; }
 
     [MaxLength(200)]
-    public string ReservationId { get; set; }
+    public string ReservationId { get; set; } = null!;
 
     public int? TxSalesHeaderId { get; set; }
 
     [MaxLength(50)]
-    public string ReservationState { get; set; }
+    public string ReservationState { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string Note { get; set; }
+    public string Note { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string Tables { get; set; }
+    public string Tables { get; set; } = null!;
 
     [MaxLength(50)]
-    public string ReservationType { get; set; }
+    public string ReservationType { get; set; } = null!;
 
     public int? GroupSize { get; set; }
 
     [MaxLength(200)]
-    public string CustomerId { get; set; }
+    public string CustomerId { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string CustomerNote { get; set; }
+    public string CustomerNote { get; set; } = null!;
 
     public long? EstimatedReadyTime { get; set; }
 
     public long? ReservationTime { get; set; }
 
     [MaxLength(200)]
-    public string SerialNumber { get; set; }
+    public string SerialNumber { get; set; } = null!;
 
     public long? StateChangeTime { get; set; }
 
@@ -57,13 +57,13 @@ public class ThirdPartyReservation
     public int? NumberOfKidSets { get; set; }
 
     [MaxLength(50)]
-    public string ContactCustomerId { get; set; }
+    public string ContactCustomerId { get; set; } = null!;
 
     [MaxLength(50)]
-    public string CanceledBy { get; set; }
+    public string CanceledBy { get; set; } = null!;
 
     [MaxLength(50)]
-    public string CreatedFrom { get; set; }
+    public string CreatedFrom { get; set; } = null!;
 
     public long? CreatedTime { get; set; }
 

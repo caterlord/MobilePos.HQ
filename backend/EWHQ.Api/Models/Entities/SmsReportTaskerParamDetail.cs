@@ -13,7 +13,7 @@ public class SmsReportTaskerParamDetail
     public int ParamTypeId { get; set; }
 
     [MaxLength(4000)]
-    public string Value { get; set; }
+    public string Value { get; set; } = null!;
 
     public bool IsDefault { get; set; }
 

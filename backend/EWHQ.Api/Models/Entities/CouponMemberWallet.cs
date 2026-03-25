@@ -45,6 +45,6 @@ public class CouponMemberWallet
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string SocialMediaId { get; set; }
+    public string SocialMediaId { get; set; } = null!;
 
 }

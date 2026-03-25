@@ -23,7 +23,7 @@ public class RevenueCenterMaster
     public string RevenueCenterName { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string RevenueCenterNameAlt { get; set; }
+    public string RevenueCenterNameAlt { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

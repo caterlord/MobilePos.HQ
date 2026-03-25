@@ -55,6 +55,6 @@ public class CashDrawerDetail
     public decimal? CloseAmountDifferent { get; set; }
 
     [MaxLength(4000)]
-    public string RemarkData { get; set; }
+    public string RemarkData { get; set; } = null!;
 
 }

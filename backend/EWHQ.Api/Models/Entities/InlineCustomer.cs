@@ -15,19 +15,19 @@ public class InlineCustomer
     public string CustomerId { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     [MaxLength(200)]
-    public string PhoneNubmer { get; set; }
+    public string PhoneNubmer { get; set; } = null!;
 
     [MaxLength(200)]
-    public string Email { get; set; }
+    public string Email { get; set; } = null!;
 
     [MaxLength(10)]
-    public string Gender { get; set; }
+    public string Gender { get; set; } = null!;
 
     [MaxLength(10)]
-    public string Language { get; set; }
+    public string Language { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

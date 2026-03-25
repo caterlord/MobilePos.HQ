@@ -17,7 +17,7 @@ public class StockAdjustment
     public DateTime? AdjustmentDatetime { get; set; }
 
     [MaxLength(4000)]
-    public string AdjustmentRemark { get; set; }
+    public string AdjustmentRemark { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? Qty { get; set; }
@@ -29,7 +29,7 @@ public class StockAdjustment
     public decimal? AfterAdjustmentCount { get; set; }
 
     [MaxLength(100)]
-    public string RefNum { get; set; }
+    public string RefNum { get; set; } = null!;
 
     public bool IsBalanced { get; set; }
 

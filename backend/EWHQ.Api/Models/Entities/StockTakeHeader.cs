@@ -20,7 +20,7 @@ public class StockTakeHeader
     public int StockTakeHeaderId { get; set; }
 
     [MaxLength(100)]
-    public string ShopName { get; set; }
+    public string ShopName { get; set; } = null!;
 
     public bool? IsFullCount { get; set; }
 
@@ -39,7 +39,7 @@ public class StockTakeHeader
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLengthUnlimited]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     [MaxLength(1000)]
     [Required]
@@ -52,6 +52,6 @@ public class StockTakeHeader
     public DateTime? CompletedDatetime { get; set; }
 
     [MaxLength(50)]
-    public string SubmittedBy { get; set; }
+    public string SubmittedBy { get; set; } = null!;
 
 }

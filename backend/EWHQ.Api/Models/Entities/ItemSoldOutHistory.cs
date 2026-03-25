@@ -48,9 +48,9 @@ public class ItemSoldOutHistory
     public int? ReasonId { get; set; }
 
     [MaxLength(10)]
-    public string ReasonCode { get; set; }
+    public string ReasonCode { get; set; } = null!;
 
     [MaxLength(500)]
-    public string ReasonDesc { get; set; }
+    public string ReasonDesc { get; set; } = null!;
 
 }

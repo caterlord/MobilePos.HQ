@@ -25,7 +25,7 @@ public class CleanLocalSalesDataLog
     public byte Successful { get; set; }
 
     [MaxLength(150)]
-    public string Message { get; set; }
+    public string Message { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

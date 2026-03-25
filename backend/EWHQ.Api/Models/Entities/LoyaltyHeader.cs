@@ -26,7 +26,7 @@ public class LoyaltyHeader
     public int StatusId { get; set; }
 
     [MaxLengthUnlimited]
-    public string Remark { get; set; }
+    public string Remark { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

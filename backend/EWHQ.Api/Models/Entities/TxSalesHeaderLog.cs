@@ -27,10 +27,10 @@ public class TxSalesHeaderLog
     public int TxActionId { get; set; }
 
     [MaxLength(50)]
-    public string ResultSource { get; set; }
+    public string ResultSource { get; set; } = null!;
 
     [MaxLength(50)]
-    public string ResultTarget { get; set; }
+    public string ResultTarget { get; set; } = null!;
 
     public DateTime CreatedDate { get; set; }
 

@@ -19,11 +19,11 @@ public class ModifierGroupDetail
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
 }

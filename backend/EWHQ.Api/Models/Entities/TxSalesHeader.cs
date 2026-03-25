@@ -44,7 +44,7 @@ public class TxSalesHeader
     public int? PreviousTableId { get; set; }
 
     [MaxLength(10)]
-    public string PreviousTableCode { get; set; }
+    public string PreviousTableCode { get; set; } = null!;
 
     public int SectionId { get; set; }
 
@@ -59,17 +59,17 @@ public class TxSalesHeader
     public int? CheckinUserId { get; set; }
 
     [MaxLength(50)]
-    public string CheckinUserName { get; set; }
+    public string CheckinUserName { get; set; } = null!;
 
     public int? CheckoutUserId { get; set; }
 
     [MaxLength(50)]
-    public string CheckoutUserName { get; set; }
+    public string CheckoutUserName { get; set; } = null!;
 
     public int? CashierUserId { get; set; }
 
     [MaxLength(50)]
-    public string CashierUserName { get; set; }
+    public string CashierUserName { get; set; } = null!;
 
     public DateTime? CashierDatetime { get; set; }
 
@@ -117,27 +117,27 @@ public class TxSalesHeader
     public int? DisabledReasonId { get; set; }
 
     [MaxLength(500)]
-    public string DisabledReasonDesc { get; set; }
+    public string DisabledReasonDesc { get; set; } = null!;
 
     public int? DisabledByUserId { get; set; }
 
     [MaxLength(50)]
-    public string DisabledByUserName { get; set; }
+    public string DisabledByUserName { get; set; } = null!;
 
     public DateTime? DisabledDateTime { get; set; }
 
     public int? WorkdayPeriodDetailId { get; set; }
 
     [MaxLength(50)]
-    public string WorkdayPeriodName { get; set; }
+    public string WorkdayPeriodName { get; set; } = null!;
 
     public int? DiscountId { get; set; }
 
     [MaxLength(200)]
-    public string DiscountName { get; set; }
+    public string DiscountName { get; set; } = null!;
 
     [MaxLength(10)]
-    public string CashDrawerCode { get; set; }
+    public string CashDrawerCode { get; set; } = null!;
 
     public int ReceiptPrintCount { get; set; }
 
@@ -146,7 +146,7 @@ public class TxSalesHeader
     public int? ServiceChargeId { get; set; }
 
     [MaxLength(50)]
-    public string ServiceChargeName { get; set; }
+    public string ServiceChargeName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal AmountTips { get; set; }
@@ -160,7 +160,7 @@ public class TxSalesHeader
     public int? DiscountByUserId { get; set; }
 
     [MaxLength(50)]
-    public string DiscountByUserName { get; set; }
+    public string DiscountByUserName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? AmountPointTotal { get; set; }
@@ -171,7 +171,7 @@ public class TxSalesHeader
     public int? TaxationId { get; set; }
 
     [MaxLength(200)]
-    public string TaxationName { get; set; }
+    public string TaxationName { get; set; } = null!;
 
     [Column(TypeName = "decimal(10, 2)")]
     public decimal? AmountTaxation { get; set; }
@@ -205,7 +205,7 @@ public class TxSalesHeader
     public decimal? TotalDepositAmount { get; set; }
 
     [MaxLength(4000)]
-    public string DepositRemark { get; set; }
+    public string DepositRemark { get; set; } = null!;
 
     public bool? IsDepositOutstanding { get; set; }
 
@@ -222,16 +222,16 @@ public class TxSalesHeader
     public int? ApiGatewayRefId { get; set; }
 
     [MaxLength(200)]
-    public string ApiGatewayName { get; set; }
+    public string ApiGatewayName { get; set; } = null!;
 
     [MaxLengthUnlimited]
-    public string ApiGatewayRefRemark { get; set; }
+    public string ApiGatewayRefRemark { get; set; } = null!;
 
     [MaxLength(200)]
-    public string TableRemark { get; set; }
+    public string TableRemark { get; set; } = null!;
 
     [MaxLength(4000)]
-    public string TxSalesHeaderRemark { get; set; }
+    public string TxSalesHeaderRemark { get; set; } = null!;
 
     [Column(TypeName = "decimal(18, 2)")]
     public decimal? TotalPaymentMethodSurchargeAmount { get; set; }
@@ -243,7 +243,7 @@ public class TxSalesHeader
     public int? StartWorkdayPeriodDetailId { get; set; }
 
     [MaxLength(50)]
-    public string StartWorkdayPeriodName { get; set; }
+    public string StartWorkdayPeriodName { get; set; } = null!;
 
     public bool? IsTxOnHold { get; set; }
 
@@ -257,7 +257,7 @@ public class TxSalesHeader
     public int? TxStatusId { get; set; }
 
     [MaxLength(50)]
-    public string OverridedChecklistPrinterName { get; set; }
+    public string OverridedChecklistPrinterName { get; set; } = null!;
 
     public int? OrderSourceTypeId { get; set; }
 
@@ -266,16 +266,16 @@ public class TxSalesHeader
     public int? OrderChannelId { get; set; }
 
     [MaxLength(50)]
-    public string OrderChannelCode { get; set; }
+    public string OrderChannelCode { get; set; } = null!;
 
     [MaxLength(200)]
-    public string OrderChannelName { get; set; }
+    public string OrderChannelName { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string ApiGatewayRefCode { get; set; }
+    public string ApiGatewayRefCode { get; set; } = null!;
 
     [MaxLength(1000)]
-    public string ApiGatewayResponseCode { get; set; }
+    public string ApiGatewayResponseCode { get; set; } = null!;
 
     public DateTime? TableRemarkModifiedDate { get; set; }
 

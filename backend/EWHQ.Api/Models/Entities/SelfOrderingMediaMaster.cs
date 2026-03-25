@@ -19,10 +19,10 @@ public class SelfOrderingMediaMaster
     public string MediaType { get; set; } = string.Empty;
 
     [MaxLength(1000)]
-    public string MediaDesc { get; set; }
+    public string MediaDesc { get; set; } = null!;
 
     [MaxLength(200)]
-    public string MediaFileName { get; set; }
+    public string MediaFileName { get; set; } = null!;
 
     public bool IsPublished { get; set; }
 

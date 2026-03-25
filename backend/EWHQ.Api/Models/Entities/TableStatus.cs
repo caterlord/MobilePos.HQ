@@ -15,7 +15,7 @@ public class TableStatus
     public string StatusName { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string StatusNameAlt { get; set; }
+    public string StatusNameAlt { get; set; } = null!;
 
     public int? ButtonStyleId { get; set; }
 
@@ -24,12 +24,12 @@ public class TableStatus
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
     [Key]
     [Column(Order = 1)]

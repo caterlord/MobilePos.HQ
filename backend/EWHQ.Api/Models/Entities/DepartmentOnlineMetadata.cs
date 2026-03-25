@@ -11,7 +11,7 @@ public class DepartmentOnlineMetadata
     public int AccountId { get; set; }
 
     [MaxLength(200)]
-    public string ImageFileName { get; set; }
+    public string ImageFileName { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

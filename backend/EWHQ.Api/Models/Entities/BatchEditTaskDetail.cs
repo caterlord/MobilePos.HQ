@@ -18,7 +18,7 @@ public class BatchEditTaskDetail
     public int TaskDetailId { get; set; }
 
     [MaxLengthUnlimited]
-    public string TaskDetailData { get; set; }
+    public string TaskDetailData { get; set; } = null!;
 
     public DateTime? ExecutionDatetime { get; set; }
 
@@ -37,6 +37,6 @@ public class BatchEditTaskDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLengthUnlimited]
-    public string BackupTaskDetailData { get; set; }
+    public string BackupTaskDetailData { get; set; } = null!;
 
 }

@@ -13,7 +13,7 @@ public class TaiwanUniformInvoiceBody
     public int ShopId { get; set; }
 
     [MaxLength(10)]
-    public string InvoiceNumber { get; set; }
+    public string InvoiceNumber { get; set; } = null!;
 
     [MaxLength(256)]
     [Required]

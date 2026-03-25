@@ -25,6 +25,6 @@ public class UserOnlineMeta
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string Identifier { get; set; }
+    public string Identifier { get; set; } = null!;
 
 }

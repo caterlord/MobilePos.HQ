@@ -21,7 +21,7 @@ public class RawMaterialTxSalesDetail
     public string ItemName { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string ItemNameAlt2 { get; set; }
+    public string ItemNameAlt2 { get; set; } = null!;
 
     [MaxLength(20)]
     [Required]
@@ -36,7 +36,7 @@ public class RawMaterialTxSalesDetail
     public string RawMaterialName { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string RawMaterialNameAlt { get; set; }
+    public string RawMaterialNameAlt { get; set; } = null!;
 
     [MaxLength(50)]
     [Required]

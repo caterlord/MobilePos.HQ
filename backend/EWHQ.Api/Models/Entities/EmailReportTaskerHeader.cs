@@ -19,10 +19,10 @@ public class EmailReportTaskerHeader
     public int CycleTypeId { get; set; }
 
     [MaxLength(50)]
-    public string HangfireStartScheduledJobId { get; set; }
+    public string HangfireStartScheduledJobId { get; set; } = null!;
 
     [MaxLength(50)]
-    public string HangfireEndScheduledJobId { get; set; }
+    public string HangfireEndScheduledJobId { get; set; } = null!;
 
     [MaxLength(320)]
     [Required]

@@ -33,14 +33,14 @@ public class PreprintedCouponAvtivityLog
     public int? RefTxSalesHeaderId { get; set; }
 
     [MaxLength(50)]
-    public string TargetShopCode { get; set; }
+    public string TargetShopCode { get; set; } = null!;
 
     public bool IsSuccess { get; set; }
 
     public int? UserId { get; set; }
 
     [MaxLength(100)]
-    public string UserName { get; set; }
+    public string UserName { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

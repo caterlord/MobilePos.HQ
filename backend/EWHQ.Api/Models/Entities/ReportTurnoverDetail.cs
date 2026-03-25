@@ -46,6 +46,6 @@ public class ReportTurnoverDetail
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string ItemCode { get; set; }
+    public string ItemCode { get; set; } = null!;
 
 }

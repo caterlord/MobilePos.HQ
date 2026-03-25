@@ -15,37 +15,37 @@ public class TxSalesHeaderAddress
     public string PhoneNum { get; set; } = string.Empty;
 
     [MaxLength(100)]
-    public string CusName { get; set; }
+    public string CusName { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Line1 { get; set; }
+    public string Line1 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Line2 { get; set; }
+    public string Line2 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Line3 { get; set; }
+    public string Line3 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Line4 { get; set; }
+    public string Line4 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Line5 { get; set; }
+    public string Line5 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Remark1 { get; set; }
+    public string Remark1 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Remark2 { get; set; }
+    public string Remark2 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Remark3 { get; set; }
+    public string Remark3 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Remark4 { get; set; }
+    public string Remark4 { get; set; } = null!;
 
     [MaxLength(500)]
-    public string Remark5 { get; set; }
+    public string Remark5 { get; set; } = null!;
 
     public bool Enabled { get; set; }
 

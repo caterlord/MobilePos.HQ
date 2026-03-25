@@ -17,12 +17,12 @@ public class RawMaterialOnlineMetaData
     public DateTime? CreatedDate { get; set; }
 
     [MaxLength(50)]
-    public string CreatedBy { get; set; }
+    public string CreatedBy { get; set; } = null!;
 
     public DateTime? ModifiedDate { get; set; }
 
     [MaxLength(50)]
-    public string ModifiedBy { get; set; }
+    public string ModifiedBy { get; set; } = null!;
 
     public int? OrderQtyMultiplier { get; set; }
 
@@ -30,12 +30,12 @@ public class RawMaterialOnlineMetaData
     public decimal? EndingQtyMultiplier { get; set; }
 
     [MaxLength(50)]
-    public string LinkedItemCode { get; set; }
+    public string LinkedItemCode { get; set; } = null!;
 
     public int? SeqNo { get; set; }
 
     [MaxLength(200)]
-    public string CategoryName { get; set; }
+    public string CategoryName { get; set; } = null!;
 
     public int? ArrivalDay { get; set; }
 

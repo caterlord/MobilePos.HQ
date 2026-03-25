@@ -15,7 +15,8 @@ public class SmartCategory
     public int SmartCategoryId { get; set; }
 
     [MaxLength(100)]
-    public string? Name { get; set; }
+    [Required]
+    public string Name { get; set; } = string.Empty;
 
     [MaxLength(100)]
     public string? NameAlt { get; set; }

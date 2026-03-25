@@ -56,7 +56,7 @@ public class BundlePromoOverviewsController : ControllerBase
             Enabled = overview.Enabled,
             Priority = overview.Priority,
             ModifiedDate = overview.ModifiedDate,
-            ModifiedBy = overview.ModifiedBy
+            ModifiedBy = overview.ModifiedBy ?? string.Empty
         };
 
     [HttpPut("brand/{brandId:int}/batch")]

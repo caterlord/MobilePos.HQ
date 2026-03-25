@@ -14,7 +14,7 @@ public class MediaLibrary
     public string Title { get; set; } = string.Empty;
 
     [MaxLength(4000)]
-    public string Tags { get; set; }
+    public string Tags { get; set; } = null!;
 
     [MaxLength(200)]
     [Required]

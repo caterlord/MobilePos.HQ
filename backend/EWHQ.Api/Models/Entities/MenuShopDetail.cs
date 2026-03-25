@@ -13,13 +13,13 @@ public class MenuShopDetail
     public int MenuId { get; set; }
 
     [MaxLength(100)]
-    public string DaysOfWeek { get; set; }
+    public string DaysOfWeek { get; set; } = null!;
 
     [MaxLength(150)]
-    public string Dates { get; set; }
+    public string Dates { get; set; } = null!;
 
     [MaxLength(100)]
-    public string Months { get; set; }
+    public string Months { get; set; } = null!;
 
     public TimeSpan? DisplayFromTime { get; set; }
 

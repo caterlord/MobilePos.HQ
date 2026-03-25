@@ -58,7 +58,7 @@ public class PreprintedCouponSellingDiscount
     public string ModifiedBy { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string DisocuntName { get; set; }
+    public string DisocuntName { get; set; } = null!;
 
     public bool IsAccumulateDiscountAmountByQty { get; set; }
 
