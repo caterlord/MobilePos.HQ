@@ -58,9 +58,14 @@ public class TableSettingsController : ControllerBase
         return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
     }
 
+    private async Task<(EWHQDbContext context, int accountId)> GetContextAndAccountAsync(int brandId)
+    {
+        return await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+    }
+
     private async Task<(EWHQDbContext context, int accountId)> GetContextAndValidateShopAsync(int brandId, int shopId)
     {
-        var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+        var (context, accountId) = await GetContextAndAccountAsync(brandId);
 
         var shopExists = await context.Shops
             .AsNoTracking()
@@ -137,6 +142,13 @@ public class TableSettingsController : ControllerBase
                 SeatNum = table.SeatNum,
                 ShopPrinterMasterId = table.ShopPrinterMasterId,
                 ShopPrinterName = printer != null ? (printer.PrinterName ?? string.Empty) : string.Empty,
+                PositionX = table.PositionX,
+                PositionY = table.PositionY,
+                IsAppearOnFloorPlan = table.IsAppearOnFloorPlan ?? false,
+                ShapeType = table.ShapeType ?? string.Empty,
+                IconWidth = table.IconWidth,
+                IconHeight = table.IconHeight,
+                Rotation = table.Rotation,
                 Enabled = table.Enabled
             })
             .FirstOrDefaultAsync(HttpContext.RequestAborted);
@@ -215,21 +227,23 @@ public class TableSettingsController : ControllerBase
         {
             var (context, accountId) = await GetContextAndValidateShopAsync(brandId, shopId);
 
-            var sections = await (
-                from shopSection in context.TableSectionShopDetails.AsNoTracking()
-                join section in context.TableSections.AsNoTracking()
-                    on new { shopSection.AccountId, shopSection.SectionId } equals new { section.AccountId, section.SectionId }
-                where shopSection.AccountId == accountId
-                      && shopSection.ShopId == shopId
-                      && shopSection.Enabled
-                      && section.Enabled
-                orderby section.SectionName
-                select new TableSectionDto
+            var sectionIds = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.ShopId == shopId && x.Enabled)
+                .OrderBy(x => x.SectionId)
+                .Select(x => x.SectionId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var sections = await context.TableSections
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && sectionIds.Contains(x.SectionId))
+                .OrderBy(x => x.SectionName)
+                .Select(x => new TableSectionDto
                 {
-                    SectionId = section.SectionId,
-                    SectionName = section.SectionName ?? string.Empty,
-                    Description = section.Desc ?? string.Empty,
-                    Enabled = section.Enabled,
+                    SectionId = x.SectionId,
+                    SectionName = x.SectionName ?? string.Empty,
+                    Description = x.Desc ?? string.Empty,
+                    Enabled = x.Enabled,
                     TableCount = 0
                 })
                 .ToListAsync(HttpContext.RequestAborted);
@@ -261,6 +275,650 @@ public class TableSettingsController : ControllerBase
         {
             _logger.LogError(ex, "Error loading table sections for brand {BrandId}, shop {ShopId}", brandId, shopId);
             return StatusCode(500, new { message = "An error occurred while loading table sections." });
+        }
+    }
+
+    [HttpGet("brand/{brandId:int}/sections/library")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<TableSectionLibraryDto>>> GetSectionLibrary(int brandId)
+    {
+        try
+        {
+            var (context, accountId) = await GetContextAndAccountAsync(brandId);
+
+            var shopCounts = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .GroupBy(x => x.SectionId)
+                .Select(g => new { SectionId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.SectionId, x => x.Count, HttpContext.RequestAborted);
+
+            var sections = await context.TableSections
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .OrderBy(x => x.SectionName)
+                .Select(x => new TableSectionLibraryDto
+                {
+                    SectionId = x.SectionId,
+                    SectionName = x.SectionName ?? string.Empty,
+                    Description = x.Desc ?? string.Empty,
+                    Enabled = x.Enabled,
+                    ShopCount = 0
+                })
+                .ToListAsync(HttpContext.RequestAborted);
+
+            foreach (var section in sections)
+            {
+                section.ShopCount = shopCounts.TryGetValue(section.SectionId, out var count) ? count : 0;
+            }
+
+            return Ok(sections);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading section library for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while loading the table section library." });
+        }
+    }
+
+    [HttpPost("brand/{brandId:int}/sections")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<TableSectionLibraryDto>> CreateSectionLibraryEntry(int brandId, UpsertTableSectionRequestDto payload)
+    {
+        try
+        {
+            var sectionName = Clip(payload.SectionName, 50);
+            if (string.IsNullOrWhiteSpace(sectionName))
+            {
+                return BadRequest(new { message = "Section name is required." });
+            }
+
+            var description = Clip(payload.Description, 200);
+            var normalizedName = sectionName.ToUpperInvariant();
+            var (context, accountId) = await GetContextAndAccountAsync(brandId);
+
+            var duplicateExists = await context.TableSections
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.AccountId == accountId
+                         && x.Enabled
+                         && (x.SectionName ?? string.Empty).ToUpper() == normalizedName,
+                    HttpContext.RequestAborted);
+
+            if (duplicateExists)
+            {
+                return Conflict(new { message = "A section with the same name already exists." });
+            }
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+            var sectionId = await GetNextSectionIdAsync(context, accountId);
+
+            var sectionEntity = new TableSection
+            {
+                AccountId = accountId,
+                SectionId = sectionId,
+                SectionName = sectionName,
+                Desc = description,
+                SectionNameAlt = string.Empty,
+                DescAlt = string.Empty,
+                TableMapBackgroundImagePath = string.Empty,
+                Enabled = true,
+                CreatedBy = currentUser,
+                CreatedDate = now,
+                ModifiedBy = currentUser,
+                ModifiedDate = now
+            };
+
+            context.TableSections.Add(sectionEntity);
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = 0,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "CREATE_SECTION_LIBRARY",
+                    ActionRefId = sectionEntity.SectionId.ToString(),
+                    ActionRefDescription = sectionEntity.SectionName ?? string.Empty,
+                    Details = "Created section master record.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            return Ok(new TableSectionLibraryDto
+            {
+                SectionId = sectionEntity.SectionId,
+                SectionName = sectionEntity.SectionName ?? string.Empty,
+                Description = sectionEntity.Desc ?? string.Empty,
+                Enabled = sectionEntity.Enabled,
+                ShopCount = 0
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating section library entry for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while creating the table section." });
+        }
+    }
+
+    [HttpPut("brand/{brandId:int}/sections/{sectionId:int}")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<TableSectionLibraryDto>> UpdateSectionLibraryEntry(int brandId, int sectionId, UpsertTableSectionRequestDto payload)
+    {
+        try
+        {
+            var sectionName = Clip(payload.SectionName, 50);
+            if (string.IsNullOrWhiteSpace(sectionName))
+            {
+                return BadRequest(new { message = "Section name is required." });
+            }
+
+            var description = Clip(payload.Description, 200);
+            var normalizedName = sectionName.ToUpperInvariant();
+            var (context, accountId) = await GetContextAndAccountAsync(brandId);
+
+            var section = await context.TableSections
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (section == null)
+            {
+                return NotFound(new { message = "Section not found." });
+            }
+
+            var duplicateExists = await context.TableSections
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.AccountId == accountId
+                         && x.Enabled
+                         && x.SectionId != sectionId
+                         && (x.SectionName ?? string.Empty).ToUpper() == normalizedName,
+                    HttpContext.RequestAborted);
+
+            if (duplicateExists)
+            {
+                return Conflict(new { message = "A section with the same name already exists." });
+            }
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+
+            section.SectionName = sectionName;
+            section.Desc = description;
+            section.ModifiedBy = currentUser;
+            section.ModifiedDate = now;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = 0,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "UPDATE_SECTION_LIBRARY",
+                    ActionRefId = section.SectionId.ToString(),
+                    ActionRefDescription = section.SectionName ?? string.Empty,
+                    Details = "Updated section master record.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            var shopCount = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .CountAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            return Ok(new TableSectionLibraryDto
+            {
+                SectionId = section.SectionId,
+                SectionName = section.SectionName ?? string.Empty,
+                Description = section.Desc ?? string.Empty,
+                Enabled = section.Enabled,
+                ShopCount = shopCount
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating section library entry {SectionId} for brand {BrandId}", sectionId, brandId);
+            return StatusCode(500, new { message = "An error occurred while updating the table section." });
+        }
+    }
+
+    [HttpDelete("brand/{brandId:int}/sections/{sectionId:int}")]
+    [RequireBrandAdmin]
+    public async Task<IActionResult> DeleteSectionLibraryEntry(int brandId, int sectionId)
+    {
+        try
+        {
+            var (context, accountId) = await GetContextAndAccountAsync(brandId);
+
+            var section = await context.TableSections
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (section == null)
+            {
+                return NotFound(new { message = "Section not found." });
+            }
+
+            var hasEnabledMappings = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (hasEnabledMappings)
+            {
+                return Conflict(new { message = "Section cannot be removed while it is still linked to shops." });
+            }
+
+            var hasTables = await context.TableMasters
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (hasTables)
+            {
+                return Conflict(new { message = "Section cannot be removed while tables still reference it." });
+            }
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+            section.Enabled = false;
+            section.ModifiedBy = currentUser;
+            section.ModifiedDate = now;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = 0,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "DELETE_SECTION_LIBRARY",
+                    ActionRefId = section.SectionId.ToString(),
+                    ActionRefDescription = section.SectionName ?? string.Empty,
+                    Details = "Disabled section master record.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting section library entry {SectionId} for brand {BrandId}", sectionId, brandId);
+            return StatusCode(500, new { message = "An error occurred while deleting the table section." });
+        }
+    }
+
+    [HttpGet("brand/{brandId:int}/shops/{shopId:int}/section-links")]
+    [RequireBrandView]
+    public async Task<ActionResult<IReadOnlyList<TableSectionShopLinkDto>>> GetShopSectionLinks(int brandId, int shopId)
+    {
+        try
+        {
+            var (context, accountId) = await GetContextAndValidateShopAsync(brandId, shopId);
+
+            var links = await context.TableSectionShopDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.ShopId == shopId && x.Enabled)
+                .OrderBy(x => x.SectionId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var sectionIds = links.Select(x => x.SectionId).ToList();
+            var sections = await context.TableSections
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && sectionIds.Contains(x.SectionId))
+                .ToDictionaryAsync(x => x.SectionId, HttpContext.RequestAborted);
+
+            var tableCounts = await context.TableMasters
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.ShopId == shopId && x.Enabled && x.ParentTableId == null)
+                .GroupBy(x => x.SectionId)
+                .Select(g => new { SectionId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.SectionId, x => x.Count, HttpContext.RequestAborted);
+
+            var response = links
+                .Where(link => sections.ContainsKey(link.SectionId))
+                .Select(link =>
+                {
+                    var section = sections[link.SectionId];
+                    return new TableSectionShopLinkDto
+                    {
+                        SectionId = link.SectionId,
+                        ShopId = link.ShopId,
+                        SectionName = section.SectionName ?? string.Empty,
+                        Description = section.Desc ?? string.Empty,
+                        Enabled = link.Enabled,
+                        TableCount = tableCounts.TryGetValue(link.SectionId, out var count) ? count : 0,
+                        TableMapBackgroundImagePath = link.TableMapBackgroundImagePath ?? string.Empty,
+                        TableMapBackgroundImageWidth = link.TableMapBackgroundImageWidth,
+                        TableMapBackgroundImageHeight = link.TableMapBackgroundImageHeight
+                    };
+                })
+                .OrderBy(x => x.SectionName)
+                .ToList();
+
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading section links for brand {BrandId}, shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred while loading table section shop relationships." });
+        }
+    }
+
+    [HttpPost("brand/{brandId:int}/shops/{shopId:int}/section-links")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<TableSectionShopLinkDto>> CreateShopSectionLink(int brandId, int shopId, LinkTableSectionToShopRequestDto payload)
+    {
+        try
+        {
+            if (payload.SectionId <= 0)
+            {
+                return BadRequest(new { message = "A valid section is required." });
+            }
+
+            var (context, accountId) = await GetContextAndValidateShopAsync(brandId, shopId);
+
+            var section = await context.TableSections
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.SectionId == payload.SectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (section == null)
+            {
+                return NotFound(new { message = "Section not found." });
+            }
+
+            var existing = await context.TableSectionShopDetails
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId && x.SectionId == payload.SectionId,
+                    HttpContext.RequestAborted);
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+
+            if (existing == null)
+            {
+                existing = new TableSectionShopDetail
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    SectionId = payload.SectionId,
+                    TableMapBackgroundImagePath = Clip(payload.TableMapBackgroundImagePath, 200),
+                    Enabled = true,
+                    CreatedBy = currentUser,
+                    CreatedDate = now,
+                    ModifiedBy = currentUser,
+                    ModifiedDate = now,
+                    TableMapBackgroundImageWidth = payload.TableMapBackgroundImageWidth,
+                    TableMapBackgroundImageHeight = payload.TableMapBackgroundImageHeight
+                };
+
+                context.TableSectionShopDetails.Add(existing);
+            }
+            else
+            {
+                existing.Enabled = true;
+                existing.TableMapBackgroundImagePath = Clip(payload.TableMapBackgroundImagePath, 200);
+                existing.TableMapBackgroundImageWidth = payload.TableMapBackgroundImageWidth;
+                existing.TableMapBackgroundImageHeight = payload.TableMapBackgroundImageHeight;
+                existing.ModifiedBy = currentUser;
+                existing.ModifiedDate = now;
+            }
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "CREATE_SECTION_LINK",
+                    ActionRefId = payload.SectionId.ToString(),
+                    ActionRefDescription = section.SectionName ?? string.Empty,
+                    Details = "Linked table section to shop.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            return Ok(new TableSectionShopLinkDto
+            {
+                SectionId = existing.SectionId,
+                ShopId = existing.ShopId,
+                SectionName = section.SectionName ?? string.Empty,
+                Description = section.Desc ?? string.Empty,
+                Enabled = existing.Enabled,
+                TableCount = 0,
+                TableMapBackgroundImagePath = existing.TableMapBackgroundImagePath ?? string.Empty,
+                TableMapBackgroundImageWidth = existing.TableMapBackgroundImageWidth,
+                TableMapBackgroundImageHeight = existing.TableMapBackgroundImageHeight
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error linking section to shop for brand {BrandId}, shop {ShopId}", brandId, shopId);
+            return StatusCode(500, new { message = "An error occurred while linking the table section to the shop." });
+        }
+    }
+
+    [HttpPut("brand/{brandId:int}/shops/{shopId:int}/section-links/{sectionId:int}")]
+    [RequireBrandAdmin]
+    public async Task<ActionResult<TableSectionShopLinkDto>> UpdateShopSectionLink(
+        int brandId,
+        int shopId,
+        int sectionId,
+        UpdateTableSectionShopLinkRequestDto payload)
+    {
+        try
+        {
+            var (context, accountId) = await GetContextAndValidateShopAsync(brandId, shopId);
+
+            var section = await context.TableSections
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (section == null)
+            {
+                return NotFound(new { message = "Section not found." });
+            }
+
+            var link = await context.TableSectionShopDetails
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (link == null)
+            {
+                return NotFound(new { message = "Section relationship not found for this shop." });
+            }
+
+            var now = DateTime.UtcNow;
+            var currentUser = GetCurrentUserIdentifier();
+            link.TableMapBackgroundImagePath = Clip(payload.TableMapBackgroundImagePath, 200);
+            link.TableMapBackgroundImageWidth = payload.TableMapBackgroundImageWidth;
+            link.TableMapBackgroundImageHeight = payload.TableMapBackgroundImageHeight;
+            link.ModifiedBy = currentUser;
+            link.ModifiedDate = now;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "UPDATE_SECTION_LINK",
+                    ActionRefId = sectionId.ToString(),
+                    ActionRefDescription = section.SectionName ?? string.Empty,
+                    Details = "Updated table section to shop relationship.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+
+            var tableCount = await context.TableMasters
+                .AsNoTracking()
+                .CountAsync(
+                    x => x.AccountId == accountId
+                         && x.ShopId == shopId
+                         && x.SectionId == sectionId
+                         && x.Enabled
+                         && x.ParentTableId == null,
+                    HttpContext.RequestAborted);
+
+            return Ok(new TableSectionShopLinkDto
+            {
+                SectionId = link.SectionId,
+                ShopId = link.ShopId,
+                SectionName = section.SectionName ?? string.Empty,
+                Description = section.Desc ?? string.Empty,
+                Enabled = link.Enabled,
+                TableCount = tableCount,
+                TableMapBackgroundImagePath = link.TableMapBackgroundImagePath ?? string.Empty,
+                TableMapBackgroundImageWidth = link.TableMapBackgroundImageWidth,
+                TableMapBackgroundImageHeight = link.TableMapBackgroundImageHeight
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating section link for brand {BrandId}, shop {ShopId}, section {SectionId}", brandId, shopId, sectionId);
+            return StatusCode(500, new { message = "An error occurred while updating the table section shop relationship." });
+        }
+    }
+
+    [HttpDelete("brand/{brandId:int}/shops/{shopId:int}/section-links/{sectionId:int}")]
+    [RequireBrandAdmin]
+    public async Task<IActionResult> DeleteShopSectionLink(int brandId, int shopId, int sectionId)
+    {
+        try
+        {
+            var (context, accountId) = await GetContextAndValidateShopAsync(brandId, shopId);
+
+            var link = await context.TableSectionShopDetails
+                .FirstOrDefaultAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (link == null)
+            {
+                return NotFound(new { message = "Section relationship not found for this shop." });
+            }
+
+            var hasTables = await context.TableMasters
+                .AsNoTracking()
+                .AnyAsync(
+                    x => x.AccountId == accountId && x.ShopId == shopId && x.SectionId == sectionId && x.Enabled,
+                    HttpContext.RequestAborted);
+
+            if (hasTables)
+            {
+                return Conflict(new { message = "Section relationship cannot be removed while tables still use this section in the shop." });
+            }
+
+            var currentUser = GetCurrentUserIdentifier();
+            var now = DateTime.UtcNow;
+            link.Enabled = false;
+            link.ModifiedBy = currentUser;
+            link.ModifiedDate = now;
+
+            await _settingsAuditService.LogMutationAsync(
+                context,
+                new SettingsAuditMutation
+                {
+                    AccountId = accountId,
+                    ShopId = shopId,
+                    Category = "TABLE_SETTINGS",
+                    ActionType = "DELETE_SECTION_LINK",
+                    ActionRefId = sectionId.ToString(),
+                    ActionRefDescription = $"Section {sectionId}",
+                    Details = "Disabled table section to shop relationship.",
+                    Actor = currentUser
+                },
+                HttpContext.RequestAborted);
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting section link for brand {BrandId}, shop {ShopId}, section {SectionId}", brandId, shopId, sectionId);
+            return StatusCode(500, new { message = "An error occurred while deleting the table section shop relationship." });
         }
     }
 
@@ -651,6 +1309,13 @@ public class TableSettingsController : ControllerBase
                     SeatNum = table.SeatNum,
                     ShopPrinterMasterId = table.ShopPrinterMasterId,
                     ShopPrinterName = printer != null ? (printer.PrinterName ?? string.Empty) : string.Empty,
+                    PositionX = table.PositionX,
+                    PositionY = table.PositionY,
+                    IsAppearOnFloorPlan = table.IsAppearOnFloorPlan ?? false,
+                    ShapeType = table.ShapeType ?? string.Empty,
+                    IconWidth = table.IconWidth,
+                    IconHeight = table.IconHeight,
+                    Rotation = table.Rotation,
                     Enabled = table.Enabled
                 });
 
@@ -801,17 +1466,20 @@ public class TableSettingsController : ControllerBase
                 TableIconTypeId = null,
                 PositionX = null,
                 PositionY = null,
-                IsAppearOnFloorPlan = false,
+                IsAppearOnFloorPlan = payload.IsAppearOnFloorPlan,
                 AutoAssignDayCount = null,
                 ShopPrinterMasterId = payload.ShopPrinterMasterId.HasValue && payload.ShopPrinterMasterId.Value > 0
                     ? payload.ShopPrinterMasterId.Value
                     : null,
-                ShapeType = string.Empty,
-                IconWidth = null,
-                IconHeight = null,
-                Rotation = null,
+                ShapeType = Clip(payload.ShapeType, 50),
+                IconWidth = payload.IconWidth,
+                IconHeight = payload.IconHeight,
+                Rotation = payload.Rotation,
                 SeatNum = payload.SeatNum
             };
+
+            table.PositionX = payload.PositionX;
+            table.PositionY = payload.PositionY;
 
             context.TableMasters.Add(table);
 
@@ -960,6 +1628,13 @@ public class TableSettingsController : ControllerBase
             table.DisplayIndex = payload.DisplayIndex;
             table.IsTakeAway = payload.IsTakeAway;
             table.SeatNum = payload.SeatNum;
+            table.PositionX = payload.PositionX;
+            table.PositionY = payload.PositionY;
+            table.IsAppearOnFloorPlan = payload.IsAppearOnFloorPlan;
+            table.ShapeType = Clip(payload.ShapeType, 50);
+            table.IconWidth = payload.IconWidth;
+            table.IconHeight = payload.IconHeight;
+            table.Rotation = payload.Rotation;
             table.ShopPrinterMasterId = payload.ShopPrinterMasterId.HasValue && payload.ShopPrinterMasterId.Value > 0
                 ? payload.ShopPrinterMasterId.Value
                 : null;

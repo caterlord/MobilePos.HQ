@@ -8,9 +8,42 @@ export interface TableSection {
   tableCount: number;
 }
 
+export interface TableSectionLibraryItem {
+  sectionId: number;
+  sectionName: string;
+  description: string;
+  enabled: boolean;
+  shopCount: number;
+}
+
+export interface TableSectionShopLink {
+  sectionId: number;
+  shopId: number;
+  sectionName: string;
+  description: string;
+  enabled: boolean;
+  tableCount: number;
+  tableMapBackgroundImagePath: string;
+  tableMapBackgroundImageWidth: number | null;
+  tableMapBackgroundImageHeight: number | null;
+}
+
 export interface UpsertTableSectionRequest {
   sectionName: string;
   description: string;
+}
+
+export interface LinkTableSectionToShopRequest {
+  sectionId: number;
+  tableMapBackgroundImagePath: string;
+  tableMapBackgroundImageWidth: number | null;
+  tableMapBackgroundImageHeight: number | null;
+}
+
+export interface UpdateTableSectionShopLinkRequest {
+  tableMapBackgroundImagePath: string;
+  tableMapBackgroundImageWidth: number | null;
+  tableMapBackgroundImageHeight: number | null;
 }
 
 export interface TableTypeOption {
@@ -47,6 +80,13 @@ export interface TableMaster {
   seatNum: number | null;
   shopPrinterMasterId: number | null;
   shopPrinterName: string;
+  positionX: number | null;
+  positionY: number | null;
+  isAppearOnFloorPlan: boolean;
+  shapeType: string;
+  iconWidth: number | null;
+  iconHeight: number | null;
+  rotation: number | null;
   enabled: boolean;
 }
 
@@ -58,6 +98,13 @@ export interface UpsertTableMasterRequest {
   isTakeAway: boolean;
   seatNum: number | null;
   shopPrinterMasterId: number | null;
+  positionX: number | null;
+  positionY: number | null;
+  isAppearOnFloorPlan: boolean;
+  shapeType: string;
+  iconWidth: number | null;
+  iconHeight: number | null;
+  rotation: number | null;
 }
 
 const unwrap = <T>(response: { data: T }): T => response.data;
@@ -71,6 +118,51 @@ const tableSettingsService = {
     return unwrap(await api.get(`/table-settings/brand/${brandId}/shops/${shopId}/sections`));
   },
 
+  async getSectionLibrary(brandId: number): Promise<TableSectionLibraryItem[]> {
+    return unwrap(await api.get(`/table-settings/brand/${brandId}/sections/library`));
+  },
+
+  async createSectionLibrary(brandId: number, payload: UpsertTableSectionRequest): Promise<TableSectionLibraryItem> {
+    return unwrap(await api.post(`/table-settings/brand/${brandId}/sections`, payload));
+  },
+
+  async updateSectionLibrary(
+    brandId: number,
+    sectionId: number,
+    payload: UpsertTableSectionRequest,
+  ): Promise<TableSectionLibraryItem> {
+    return await api.put(`/table-settings/brand/${brandId}/sections/${sectionId}`, payload);
+  },
+
+  async deleteSectionLibrary(brandId: number, sectionId: number): Promise<void> {
+    await api.delete(`/table-settings/brand/${brandId}/sections/${sectionId}`);
+  },
+
+  async getShopSectionLinks(brandId: number, shopId: number): Promise<TableSectionShopLink[]> {
+    return unwrap(await api.get(`/table-settings/brand/${brandId}/shops/${shopId}/section-links`));
+  },
+
+  async createShopSectionLink(
+    brandId: number,
+    shopId: number,
+    payload: LinkTableSectionToShopRequest,
+  ): Promise<TableSectionShopLink> {
+    return unwrap(await api.post(`/table-settings/brand/${brandId}/shops/${shopId}/section-links`, payload));
+  },
+
+  async updateShopSectionLink(
+    brandId: number,
+    shopId: number,
+    sectionId: number,
+    payload: UpdateTableSectionShopLinkRequest,
+  ): Promise<TableSectionShopLink> {
+    return await api.put(`/table-settings/brand/${brandId}/shops/${shopId}/section-links/${sectionId}`, payload);
+  },
+
+  async deleteShopSectionLink(brandId: number, shopId: number, sectionId: number): Promise<void> {
+    await api.delete(`/table-settings/brand/${brandId}/shops/${shopId}/section-links/${sectionId}`);
+  },
+
   async createSection(brandId: number, shopId: number, payload: UpsertTableSectionRequest): Promise<TableSection> {
     return unwrap(await api.post(`/table-settings/brand/${brandId}/shops/${shopId}/sections`, payload));
   },
@@ -81,7 +173,7 @@ const tableSettingsService = {
     sectionId: number,
     payload: UpsertTableSectionRequest,
   ): Promise<TableSection> {
-    return unwrap(await api.put(`/table-settings/brand/${brandId}/shops/${shopId}/sections/${sectionId}`, payload));
+    return await api.put(`/table-settings/brand/${brandId}/shops/${shopId}/sections/${sectionId}`, payload);
   },
 
   async deleteSection(brandId: number, shopId: number, sectionId: number): Promise<void> {
@@ -103,7 +195,7 @@ const tableSettingsService = {
     tableId: number,
     payload: UpsertTableMasterRequest,
   ): Promise<TableMaster> {
-    return unwrap(await api.put(`/table-settings/brand/${brandId}/shops/${shopId}/tables/${tableId}`, payload));
+    return await api.put(`/table-settings/brand/${brandId}/shops/${shopId}/tables/${tableId}`, payload);
   },
 
   async deleteTable(brandId: number, shopId: number, tableId: number): Promise<void> {

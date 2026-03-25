@@ -84,6 +84,7 @@ export function StoreSystemParametersPage() {
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<StoreSystemParameter | null>(null);
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [deleteConfirmationCode, setDeleteConfirmationCode] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   // Import modal
@@ -325,6 +326,12 @@ export function StoreSystemParametersPage() {
     }
   };
 
+  const closeDeleteModal = () => {
+    setDeleteModalOpened(false);
+    setDeleteTarget(null);
+    setDeleteConfirmationCode('');
+  };
+
   // ── Dirty detection and reset ──
   const originalMap = useMemo(
     () => new Map(originalParameters.map((p) => [p.paramCode, p])),
@@ -496,7 +503,11 @@ export function StoreSystemParametersPage() {
                             </Tooltip>
                             <Tooltip label="Remove">
                               <ActionIcon variant="subtle" color="red" size="sm"
-                                onClick={() => { setDeleteTarget(param); setDeleteModalOpened(true); }}>
+                                onClick={() => {
+                                  setDeleteTarget(param);
+                                  setDeleteConfirmationCode('');
+                                  setDeleteModalOpened(true);
+                                }}>
                                 <IconTrash size={14} />
                               </ActionIcon>
                             </Tooltip>
@@ -654,7 +665,7 @@ export function StoreSystemParametersPage() {
       </Modal>
 
       {/* ── Delete Confirmation Modal ── */}
-      <Modal opened={deleteModalOpened} onClose={() => setDeleteModalOpened(false)} title="Remove Parameter" size="md">
+      <Modal opened={deleteModalOpened} onClose={closeDeleteModal} title="Remove Parameter" size="md">
         <Stack gap="md">
           <Alert icon={<IconAlertTriangle size={16} />} color="red" variant="light">
             <Text size="sm" fw={600}>
@@ -664,6 +675,14 @@ export function StoreSystemParametersPage() {
           <Text size="sm">
             This will disable the parameter. Incorrect removal can affect POS runtime behavior.
           </Text>
+          <TextInput
+            label="Type parameter code to confirm"
+            description={deleteTarget ? `Enter ${deleteTarget.paramCode} exactly to enable removal.` : undefined}
+            placeholder={deleteTarget?.paramCode ?? 'Parameter code'}
+            value={deleteConfirmationCode}
+            onChange={(e) => setDeleteConfirmationCode(e.currentTarget.value)}
+            autoComplete="off"
+          />
           <Alert icon={<IconDownload size={16} />} color="blue" variant="light">
             <Group justify="space-between" align="center" wrap="nowrap">
               <Text size="sm">
@@ -677,9 +696,10 @@ export function StoreSystemParametersPage() {
             </Group>
           </Alert>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteModalOpened(false)}>Cancel</Button>
+            <Button variant="default" onClick={closeDeleteModal}>Cancel</Button>
             <Button color="red" leftSection={<IconTrash size={16} />}
-              onClick={() => void deleteParameter()} loading={deleting}>
+              onClick={() => void deleteParameter()} loading={deleting}
+              disabled={!deleteTarget || deleteConfirmationCode !== deleteTarget.paramCode}>
               Remove
             </Button>
           </Group>
