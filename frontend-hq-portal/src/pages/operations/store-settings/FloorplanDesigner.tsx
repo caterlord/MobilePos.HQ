@@ -405,10 +405,15 @@ export function FloorplanDesigner({
       {/* Canvas + Right Panel */}
       <div style={{ display: 'flex', gap: 12 }}>
         {/* Canvas */}
-        <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden' }}>
-          {loading ? (
-            <Group justify="center" py="xl"><Loader size="sm" /><Text size="sm" c="dimmed">Loading...</Text></Group>
-          ) : (
+        <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          {loading && (
+            <div style={{
+              position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(255,255,255,0.7)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Group><Loader size="sm" /><Text size="sm" c="dimmed">Loading...</Text></Group>
+            </div>
+          )}
             <ScrollArea>
               <DndContext sensors={sensors} modifiers={[restrictToParentElement]} onDragEnd={handleDragEnd}>
                 <Box onClick={() => setSelectedId(null)} style={{
@@ -433,7 +438,6 @@ export function FloorplanDesigner({
                 </Box>
               </DndContext>
             </ScrollArea>
-          )}
         </Paper>
 
         {/* Right Panel with Tabs */}
