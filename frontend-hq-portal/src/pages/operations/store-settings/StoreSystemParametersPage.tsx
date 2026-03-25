@@ -538,10 +538,16 @@ export function StoreSystemParametersPage() {
             Only modify parameters under guidance from the Everyware support team.
           </Text>
           <Alert icon={<IconDownload size={16} />} color="blue" variant="light">
-            <Text size="sm">
-              <strong>Tip:</strong> Always export your current parameters to JSON before making changes.
-              This gives you a backup to restore from if anything goes wrong.
-            </Text>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Text size="sm">
+                <strong>Tip:</strong> Export your current parameters to JSON before making changes,
+                so you can restore them if anything goes wrong.
+              </Text>
+              <Button size="xs" variant="white" leftSection={<IconDownload size={14} />}
+                onClick={exportToJson} disabled={parameters.length === 0} style={{ flexShrink: 0 }}>
+                Export JSON
+              </Button>
+            </Group>
           </Alert>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setShowUnlockWarning(false)}>Cancel</Button>
@@ -659,10 +665,16 @@ export function StoreSystemParametersPage() {
             This will disable the parameter. Incorrect removal can affect POS runtime behavior.
           </Text>
           <Alert icon={<IconDownload size={16} />} color="blue" variant="light">
-            <Text size="sm">
-              <strong>Recommendation:</strong> Export your parameters to JSON before making any changes,
-              so you can restore them if needed.
-            </Text>
+            <Group justify="space-between" align="center" wrap="nowrap">
+              <Text size="sm">
+                <strong>Recommendation:</strong> Export your parameters first,
+                so you can restore them if needed.
+              </Text>
+              <Button size="xs" variant="white" leftSection={<IconDownload size={14} />}
+                onClick={exportToJson} disabled={parameters.length === 0} style={{ flexShrink: 0 }}>
+                Export JSON
+              </Button>
+            </Group>
           </Alert>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setDeleteModalOpened(false)}>Cancel</Button>
