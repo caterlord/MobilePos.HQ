@@ -341,22 +341,15 @@ export function FloorplanDesigner({
 
   // ── Add to / Remove from canvas ──
 
-  const addToCanvas = useCallback(async (table: TableMaster) => {
-    try {
-      setSaving(true);
-      await tableSettingsService.updateTable(brandId, shopId, table.tableId, buildPayload(table, {
-        positionX: GRID_SIZE * 2, positionY: GRID_SIZE * 2, isAppearOnFloorPlan: true,
-        iconWidth: table.iconWidth ?? 100, iconHeight: table.iconHeight ?? 60,
-      }));
-      applyTablesChange(tables.map((t) => t.tableId === table.tableId
-        ? { ...t, isAppearOnFloorPlan: true, positionX: GRID_SIZE * 2, positionY: GRID_SIZE * 2 } : t));
-      notifications.show({ color: 'green', message: `${table.tableCode} added to canvas` });
-    } catch (err) {
-      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed' });
-    } finally {
-      setSaving(false);
-    }
-  }, [brandId, shopId, tables, onTablesChange]);
+  const addToCanvas = useCallback((table: TableMaster) => {
+    const changes = {
+      positionX: GRID_SIZE * 2, positionY: GRID_SIZE * 2, isAppearOnFloorPlan: true,
+      iconWidth: table.iconWidth ?? 100, iconHeight: table.iconHeight ?? 60,
+      shapeType: table.shapeType || 'rectangle',
+    };
+    applyTablesChange(tables.map((t) => t.tableId === table.tableId ? { ...t, ...changes } : t));
+    trackChange(table.tableId, changes);
+  }, [tables, applyTablesChange, trackChange]);
 
   const removeFromCanvas = useCallback((tablesToRemove: TableMaster[]) => {
     const ids = new Set(tablesToRemove.map((t) => t.tableId));
@@ -559,7 +552,7 @@ export function FloorplanDesigner({
                   <Stack gap={4}>
                     {offCanvasTables.map((table) => (
                       <Paper key={table.tableId} withBorder p="xs" radius="sm" style={{ cursor: 'pointer' }}
-                        onClick={() => void addToCanvas(table)}>
+                        onClick={() => addToCanvas(table)}>
                         <Group justify="space-between" wrap="nowrap">
                           <div>
                             <Text size="xs" fw={600}>{table.tableCode}</Text>
