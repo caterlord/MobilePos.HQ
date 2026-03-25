@@ -49,7 +49,8 @@ public class OnlineOrderingController : ControllerBase
         {
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
 
-            var shopsTask = context.Shops
+            // EF Core DbContext is NOT thread-safe — all queries must be sequential
+            var shops = await context.Shops
                 .AsNoTracking()
                 .Where(x => x.AccountId == accountId && x.Enabled)
                 .OrderBy(x => x.Name)
@@ -62,7 +63,7 @@ public class OnlineOrderingController : ControllerBase
                 })
                 .ToListAsync(cancellationToken);
 
-            var channelsTask = context.OrderChannels
+            var channels = await context.OrderChannels
                 .AsNoTracking()
                 .OrderBy(x => x.OrderChannelName)
                 .Select(x => new OnlineOrderingLookupItemDto
@@ -74,7 +75,7 @@ public class OnlineOrderingController : ControllerBase
                 })
                 .ToListAsync(cancellationToken);
 
-            var smartCategoriesTask = context.SmartCategories
+            var smartCategories = await context.SmartCategories
                 .AsNoTracking()
                 .Where(x => x.AccountId == accountId && x.Enabled && (x.IsOdoDisplay ?? false))
                 .OrderBy(x => x.DisplayIndex)
@@ -87,15 +88,7 @@ public class OnlineOrderingController : ControllerBase
                 })
                 .ToListAsync(cancellationToken);
 
-            var categoryIdsTask = context.SmartCategories
-                .AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.Enabled && (x.IsOdoDisplay ?? false))
-                .Select(x => x.SmartCategoryId)
-                .ToListAsync(cancellationToken);
-
-            await Task.WhenAll(shopsTask, channelsTask, smartCategoriesTask, categoryIdsTask);
-
-            var categoryIds = categoryIdsTask.Result;
+            var categoryIds = smartCategories.Select(x => x.Id).ToList();
             var odoItemCount = categoryIds.Count == 0
                 ? 0
                 : await context.SmartCategoryItemDetails
@@ -105,12 +98,12 @@ public class OnlineOrderingController : ControllerBase
                     .Distinct()
                     .CountAsync(cancellationToken);
 
-            var modifierCountsTask = context.ModifierGroupHeaders
+            var modifierGroupCount = await context.ModifierGroupHeaders
                 .AsNoTracking()
                 .Where(x => x.AccountId == accountId && x.Enabled && !(x.IsFollowSet ?? false) && (x.IsOdoDisplay ?? false))
                 .CountAsync(cancellationToken);
 
-            var mealSetCountsTask = context.ModifierGroupHeaders
+            var mealSetCount = await context.ModifierGroupHeaders
                 .AsNoTracking()
                 .Where(x => x.AccountId == accountId && x.Enabled && (x.IsFollowSet ?? false) && (x.IsOdoDisplay ?? false))
                 .CountAsync(cancellationToken);
@@ -130,16 +123,16 @@ public class OnlineOrderingController : ControllerBase
 
             return Ok(new OnlineOrderingLookupsDto
             {
-                Shops = shopsTask.Result,
-                OrderChannels = channelsTask.Result,
-                SmartCategories = smartCategoriesTask.Result,
+                Shops = shops,
+                OrderChannels = channels,
+                SmartCategories = smartCategories,
                 Languages = languages,
                 Summary = new OnlineOrderingMenuSummaryDto
                 {
-                    OdoCategoryCount = smartCategoriesTask.Result.Count,
+                    OdoCategoryCount = smartCategories.Count,
                     OdoItemCount = odoItemCount,
-                    OdoModifierGroupCount = await modifierCountsTask,
-                    OdoMealSetCount = await mealSetCountsTask
+                    OdoModifierGroupCount = modifierGroupCount,
+                    OdoMealSetCount = mealSetCount
                 }
             });
         }
