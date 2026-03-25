@@ -31,6 +31,7 @@ import {
   IconLock,
   IconLockOpen,
   IconPlus,
+  IconTrash,
   IconUpload,
 } from '@tabler/icons-react';
 import type { StoreSystemParameter } from '../../../services/storeSettingsService';
@@ -79,6 +80,11 @@ export function StoreSystemParametersPage() {
   // Add new param modal
   const [addModalOpened, setAddModalOpened] = useState(false);
   const [newParameter, setNewParameter] = useState<NewParameterForm>(defaultNewParameter);
+
+  // Delete modal
+  const [deleteTarget, setDeleteTarget] = useState<StoreSystemParameter | null>(null);
+  const [deleteModalOpened, setDeleteModalOpened] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Import modal
   const [importModalOpened, setImportModalOpened] = useState(false);
@@ -297,6 +303,28 @@ export function StoreSystemParametersPage() {
     }
   };
 
+  // ── Delete parameter ──
+  const deleteParameter = async () => {
+    if (!brandId || !selectedShopId || !deleteTarget) return;
+    try {
+      setDeleting(true);
+      await storeSettingsService.upsertSystemParameter(brandId, selectedShopId, deleteTarget.paramCode, {
+        description: deleteTarget.description,
+        paramValue: deleteTarget.paramValue,
+        enabled: false,
+      });
+      setParameters((prev) => prev.filter((p) => p.paramCode !== deleteTarget.paramCode));
+      setOriginalParameters((prev) => prev.filter((p) => p.paramCode !== deleteTarget.paramCode));
+      setDeleteModalOpened(false);
+      setDeleteTarget(null);
+      notifications.show({ color: 'green', message: `Parameter ${deleteTarget.paramCode} removed` });
+    } catch (err) {
+      notifications.show({ color: 'red', message: err instanceof Error ? err.message : 'Failed to remove' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // ── Dirty detection and reset ──
   const originalMap = useMemo(
     () => new Map(originalParameters.map((p) => [p.paramCode, p])),
@@ -412,7 +440,7 @@ export function StoreSystemParametersPage() {
                     <Table.Th style={{ width: 250 }}>Description</Table.Th>
                     <Table.Th>Value</Table.Th>
                     <Table.Th style={{ width: 80 }}>Enabled</Table.Th>
-                    <Table.Th style={{ width: 64 }}></Table.Th>
+                    <Table.Th style={{ width: 88 }}></Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -466,6 +494,12 @@ export function StoreSystemParametersPage() {
                                 <IconArrowBackUp size={14} />
                               </ActionIcon>
                             </Tooltip>
+                            <Tooltip label="Remove">
+                              <ActionIcon variant="subtle" color="red" size="sm"
+                                onClick={() => { setDeleteTarget(param); setDeleteModalOpened(true); }}>
+                                <IconTrash size={14} />
+                              </ActionIcon>
+                            </Tooltip>
                           </Group>
                         )}
                       </Table.Td>
@@ -503,6 +537,12 @@ export function StoreSystemParametersPage() {
           <Text size="sm" fw={600} c="red">
             Only modify parameters under guidance from the Everyware support team.
           </Text>
+          <Alert icon={<IconDownload size={16} />} color="blue" variant="light">
+            <Text size="sm">
+              <strong>Tip:</strong> Always export your current parameters to JSON before making changes.
+              This gives you a backup to restore from if anything goes wrong.
+            </Text>
+          </Alert>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setShowUnlockWarning(false)}>Cancel</Button>
             <Button color="red" leftSection={<IconLockOpen size={16} />} onClick={confirmUnlock}>
@@ -603,6 +643,33 @@ export function StoreSystemParametersPage() {
                 Apply {importDiff.filter((d) => d.selected).length} changes
               </Button>
             </Group>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* ── Delete Confirmation Modal ── */}
+      <Modal opened={deleteModalOpened} onClose={() => setDeleteModalOpened(false)} title="Remove Parameter" size="md">
+        <Stack gap="md">
+          <Alert icon={<IconAlertTriangle size={16} />} color="red" variant="light">
+            <Text size="sm" fw={600}>
+              You are about to remove parameter: {deleteTarget?.paramCode}
+            </Text>
+          </Alert>
+          <Text size="sm">
+            This will disable the parameter. Incorrect removal can affect POS runtime behavior.
+          </Text>
+          <Alert icon={<IconDownload size={16} />} color="blue" variant="light">
+            <Text size="sm">
+              <strong>Recommendation:</strong> Export your parameters to JSON before making any changes,
+              so you can restore them if needed.
+            </Text>
+          </Alert>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setDeleteModalOpened(false)}>Cancel</Button>
+            <Button color="red" leftSection={<IconTrash size={16} />}
+              onClick={() => void deleteParameter()} loading={deleting}>
+              Remove
+            </Button>
           </Group>
         </Stack>
       </Modal>
