@@ -50,6 +50,51 @@ interface FlatNode extends SmartCategoryTreeNode {
 const flattenTree = (nodes: SmartCategoryTreeNode[], depth = 0): FlatNode[] =>
   nodes.flatMap((n) => [{ ...n, depth }, ...flattenTree(n.children, depth + 1)]);
 
+// ── Day of week mapping (DB stores numbers 1-7 or short names) ──
+const DAY_OPTIONS = [
+  { value: '1', label: 'Monday', short: 'Mon' },
+  { value: '2', label: 'Tuesday', short: 'Tue' },
+  { value: '3', label: 'Wednesday', short: 'Wed' },
+  { value: '4', label: 'Thursday', short: 'Thu' },
+  { value: '5', label: 'Friday', short: 'Fri' },
+  { value: '6', label: 'Saturday', short: 'Sat' },
+  { value: '7', label: 'Sunday', short: 'Sun' },
+];
+
+const DAY_SHORT_MAP: Record<string, string> = Object.fromEntries(
+  DAY_OPTIONS.flatMap((d) => [
+    [d.value, d.short],
+    [d.short, d.short],
+    [d.short.toLowerCase(), d.short],
+    [d.label, d.short],
+    [d.label.toLowerCase(), d.short],
+  ])
+);
+
+/** Parse "1,2,3" or "Mon,Tue,Wed" or "[1,2,3]" → normalized value array ["1","2","3"] */
+const parseDaysOfWeek = (raw?: string | null): string[] => {
+  if (!raw) return [];
+  const cleaned = raw.replace(/[\[\]]/g, '');
+  return cleaned.split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+    // Normalize: if it's a name like "Mon" or "Monday", map to number
+    for (const d of DAY_OPTIONS) {
+      if (s === d.value || s.toLowerCase() === d.short.toLowerCase() || s.toLowerCase() === d.label.toLowerCase()) return d.value;
+    }
+    return s;
+  });
+};
+
+/** Format day values for display: "Mon, Tue (3+)" style */
+const formatDaysShort = (raw?: string | null, maxShow = 2): string => {
+  if (!raw) return '—';
+  const vals = parseDaysOfWeek(raw);
+  if (vals.length === 0) return '—';
+  if (vals.length === 7) return 'Every day';
+  const names = vals.map((v) => DAY_SHORT_MAP[v] ?? v);
+  if (names.length <= maxShow) return names.join(', ');
+  return `${names.slice(0, maxShow).join(', ')} (+${names.length - maxShow})`;
+};
+
 // ── Category Detail Panel (inline expand) ──
 
 function CategoryDetailPanel({
@@ -285,7 +330,7 @@ function CategoryDetailPanel({
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.months || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.dates || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{formatDaysShort(shop.daysOfWeek)}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayFromDate || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayToDate || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
@@ -339,10 +384,9 @@ function CategoryDetailPanel({
                     } value={shop.dates ? shop.dates.split(',').map(d => d.trim()).filter(Boolean) : []}
                       onChange={(vals) => updateShop({ dates: vals.length > 0 ? vals.join(',') : null })}
                       clearable searchable />
-                    <MultiSelect label="Day of the Week" placeholder="All days" data={[
-                      { value: 'Mon', label: 'Monday' }, { value: 'Tue', label: 'Tuesday' }, { value: 'Wed', label: 'Wednesday' },
-                      { value: 'Thu', label: 'Thursday' }, { value: 'Fri', label: 'Friday' }, { value: 'Sat', label: 'Saturday' }, { value: 'Sun', label: 'Sunday' },
-                    ]} value={shop.daysOfWeek ? shop.daysOfWeek.split(',').map(d => d.trim()).filter(Boolean) : []}
+                    <MultiSelect label="Day of the Week" placeholder="All days"
+                      data={DAY_OPTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                      value={parseDaysOfWeek(shop.daysOfWeek)}
                       onChange={(vals) => updateShop({ daysOfWeek: vals.length > 0 ? vals.join(',') : null })}
                       clearable />
                     <Group grow>
