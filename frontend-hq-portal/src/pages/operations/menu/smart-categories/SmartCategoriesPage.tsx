@@ -25,13 +25,13 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
-  IconArrowDown,
-  IconArrowUp,
+  IconArrowsSort,
   IconChevronDown,
   IconChevronRight,
   IconEdit,
   IconPlus,
   IconRefresh,
+  IconRestore,
   IconSearch,
   IconTrash,
 } from '@tabler/icons-react';
@@ -39,6 +39,7 @@ import { useBrands } from '../../../../contexts/BrandContext';
 import itemCategoryService from '../../../../services/itemCategoryService';
 import menuItemService from '../../../../services/menuItemService';
 import smartCategoryService from '../../../../services/smartCategoryService';
+import { SmartCategoryItemsReorderModal } from './SmartCategoryItemsReorderModal';
 import type {
   SmartCategoryDetail,
   SmartCategoryTreeNode,
@@ -125,6 +126,9 @@ function CategoryDetailPanel({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [itemsDirty, setItemsDirty] = useState(false);
+
+  // Reorder modal
+  const [reorderModalOpened, setReorderModalOpened] = useState(false);
 
   // Add items modal
   type ItemRow = { itemId: number; itemCode: string; itemName: string; categoryName?: string };
@@ -275,18 +279,15 @@ function CategoryDetailPanel({
     setItemsDirty(true);
   };
 
-  const moveItem = (itemId: number, direction: 'up' | 'down') => {
+  const handleReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!detail) return;
-    const items = [...detail.items].sort((a, b) => a.displayIndex - b.displayIndex);
-    const idx = items.findIndex((i) => i.itemId === itemId);
-    if (idx < 0) return;
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= items.length) return;
-    const tempIdx = items[idx].displayIndex;
-    items[idx] = { ...items[idx], displayIndex: items[swapIdx].displayIndex };
-    items[swapIdx] = { ...items[swapIdx], displayIndex: tempIdx };
-    setDetail({ ...detail, items });
+    setDetail({ ...detail, items: orderedItems });
     setItemsDirty(true);
+    setReorderModalOpened(false);
+  };
+
+  const resetItems = () => {
+    void reload();
   };
 
   const saveItems = async () => {
@@ -348,9 +349,17 @@ function CategoryDetailPanel({
         </Tabs.List>
 
         <Tabs.Panel value="items" pt="xs">
-          <Group justify="flex-end" mb="xs">
+          <Group justify="flex-end" mb="xs" gap="xs">
+            <Button size="xs" variant="light" leftSection={<IconArrowsSort size={14} />} onClick={() => setReorderModalOpened(true)} disabled={sortedItems.length < 2}>
+              Reorder
+            </Button>
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => void openAddItemsModal()}>Add Items</Button>
-            {itemsDirty && <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>}
+            {itemsDirty && (
+              <>
+                <Button size="xs" variant="default" leftSection={<IconRestore size={14} />} onClick={resetItems}>Reset</Button>
+                <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>
+              </>
+            )}
           </Group>
           <Table verticalSpacing="xs" striped>
             <Table.Thead>
@@ -358,7 +367,7 @@ function CategoryDetailPanel({
                 <Table.Th>Code</Table.Th>
                 <Table.Th>Item Name</Table.Th>
                 <Table.Th>Order</Table.Th>
-                <Table.Th style={{ width: 100 }}>Actions</Table.Th>
+                <Table.Th style={{ width: 50 }} />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -370,16 +379,23 @@ function CategoryDetailPanel({
                   <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
                   <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
                   <Table.Td>
-                    <Group gap={4}>
-                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'up')}><IconArrowUp size={12} /></ActionIcon>
-                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'down')}><IconArrowDown size={12} /></ActionIcon>
-                      <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon>
-                    </Group>
+                    <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon>
                   </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
+
+          {/* Reorder Modal */}
+          <SmartCategoryItemsReorderModal
+            opened={reorderModalOpened}
+            onClose={() => setReorderModalOpened(false)}
+            categoryName={detail.category.name}
+            items={sortedItems}
+            loading={false}
+            saving={false}
+            onSave={handleReorderSave}
+          />
 
           {/* Add Items Modal */}
           <Modal opened={addItemsModalOpened} onClose={() => setAddItemsModalOpened(false)} title="Add Items" size="xl">
