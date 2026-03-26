@@ -262,8 +262,7 @@ function CategoryDetailPanel({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Shop</Table.Th>
-                  <Table.Th>Enabled</Table.Th>
-                  <Table.Th>Public</Table.Th>
+                  <Table.Th>Published</Table.Th>
                   <Table.Th>Days</Table.Th>
                   <Table.Th>From</Table.Th>
                   <Table.Th>To</Table.Th>
@@ -273,8 +272,7 @@ function CategoryDetailPanel({
                 {detail.shopSchedules.map((shop, i) => (
                   <Table.Tr key={shop.shopId}>
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
-                    <Table.Td><Switch size="xs" checked={shop.enabled} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
-                    <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
+                    <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
                     <Table.Td><TextInput size="xs" value={shop.daysOfWeek ?? ''} placeholder="All" onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, daysOfWeek: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 120 }} /></Table.Td>
                     <Table.Td><TextInput size="xs" type="time" value={shop.displayFromTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayFromTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
                     <Table.Td><TextInput size="xs" type="time" value={shop.displayToTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayToTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
