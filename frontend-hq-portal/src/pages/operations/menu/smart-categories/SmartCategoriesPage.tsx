@@ -8,6 +8,7 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
   NumberInput,
   Paper,
   Select,
@@ -70,6 +71,10 @@ function CategoryDetailPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
   const [searching, setSearching] = useState(false);
+
+  // Shop edit modal
+  const [shopEditModalOpened, setShopEditModalOpened] = useState(false);
+  const [editingShopIdx, setEditingShopIdx] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -262,20 +267,42 @@ function CategoryDetailPanel({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Shop</Table.Th>
+                  <Table.Th>Month</Table.Th>
+                  <Table.Th>Day</Table.Th>
+                  <Table.Th>Day of Week</Table.Th>
+                  <Table.Th>From Date</Table.Th>
+                  <Table.Th>To Date</Table.Th>
+                  <Table.Th>From Time</Table.Th>
+                  <Table.Th>To Time</Table.Th>
+                  <Table.Th>Special</Table.Th>
                   <Table.Th>Published</Table.Th>
-                  <Table.Th>Days</Table.Th>
-                  <Table.Th>From</Table.Th>
-                  <Table.Th>To</Table.Th>
+                  <Table.Th style={{ width: 60 }} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {detail.shopSchedules.map((shop, i) => (
                   <Table.Tr key={shop.shopId}>
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
-                    <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
-                    <Table.Td><TextInput size="xs" value={shop.daysOfWeek ?? ''} placeholder="All" onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, daysOfWeek: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 120 }} /></Table.Td>
-                    <Table.Td><TextInput size="xs" type="time" value={shop.displayFromTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayFromTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
-                    <Table.Td><TextInput size="xs" type="time" value={shop.displayToTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayToTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.months || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.dates || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromDate || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToDate || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
+                    <Table.Td>
+                      <Badge size="xs" color={shop.isHolidayHide ? 'orange' : 'gray'} variant="light">
+                        {shop.isHolidayHide === true ? 'Special only' : shop.isWeekdayHide || shop.isWeekendHide ? 'Custom' : 'All'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge size="xs" color={shop.isPublicDisplay ? 'green' : 'red'}>
+                        {shop.isPublicDisplay ? 'Yes' : 'No'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Button size="xs" variant="light" onClick={() => { setEditingShopIdx(i); setShopEditModalOpened(true); }}>Edit</Button>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -284,6 +311,60 @@ function CategoryDetailPanel({
           <Group mt="xs" justify="flex-end">
             <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Settings</Button>
           </Group>
+
+          {/* Shop Display Edit Modal */}
+          {editingShopIdx !== null && detail.shopSchedules[editingShopIdx] && (
+            <Modal opened={shopEditModalOpened} onClose={() => setShopEditModalOpened(false)} title={`Edit Store Display Settings — ${detail.shopSchedules[editingShopIdx].shopName}`} size="md">
+              {(() => {
+                const shop = detail.shopSchedules[editingShopIdx];
+                const updateShop = (patch: Partial<typeof shop>) => {
+                  const u = [...detail.shopSchedules];
+                  u[editingShopIdx] = { ...shop, ...patch };
+                  setDetail({ ...detail, shopSchedules: u });
+                };
+                // Derive special days mode
+                const specialMode = shop.isHolidayHide === true && !shop.isWeekdayHide && !shop.isWeekendHide
+                  ? 'exclude-special'
+                  : shop.isWeekdayHide === true && shop.isWeekendHide === true && !shop.isHolidayHide
+                    ? 'special-only'
+                    : 'all';
+                return (
+                  <Stack gap="md">
+                    <TextInput label="Month" placeholder="e.g. 1,2,12" value={shop.months ?? ''} onChange={(e) => updateShop({ months: e.currentTarget.value || null })} />
+                    <TextInput label="Day" placeholder="e.g. 1,15,28" value={shop.dates ?? ''} onChange={(e) => updateShop({ dates: e.currentTarget.value || null })} />
+                    <MultiSelect label="Day of the Week" placeholder="All days" data={[
+                      { value: 'Mon', label: 'Monday' }, { value: 'Tue', label: 'Tuesday' }, { value: 'Wed', label: 'Wednesday' },
+                      { value: 'Thu', label: 'Thursday' }, { value: 'Fri', label: 'Friday' }, { value: 'Sat', label: 'Saturday' }, { value: 'Sun', label: 'Sunday' },
+                    ]} value={shop.daysOfWeek ? shop.daysOfWeek.split(',').map(d => d.trim()).filter(Boolean) : []}
+                      onChange={(vals) => updateShop({ daysOfWeek: vals.length > 0 ? vals.join(',') : null })}
+                      clearable />
+                    <Group grow>
+                      <TextInput label="From Date" type="date" value={shop.displayFromDate ?? ''} onChange={(e) => updateShop({ displayFromDate: e.currentTarget.value || null })} />
+                      <TextInput label="To Date" type="date" value={shop.displayToDate ?? ''} onChange={(e) => updateShop({ displayToDate: e.currentTarget.value || null })} />
+                    </Group>
+                    <Group grow>
+                      <TextInput label="From Time" type="time" value={shop.displayFromTime ?? ''} onChange={(e) => updateShop({ displayFromTime: e.currentTarget.value || null })} />
+                      <TextInput label="To Time" type="time" value={shop.displayToTime ?? ''} onChange={(e) => updateShop({ displayToTime: e.currentTarget.value || null })} />
+                    </Group>
+                    <Select label="Special Days" data={[
+                      { value: 'all', label: 'Display on weekdays, weekends and special days' },
+                      { value: 'exclude-special', label: 'Display on weekdays and weekends other than special days' },
+                      { value: 'special-only', label: 'Display only on special days' },
+                    ]} value={specialMode} onChange={(v) => {
+                      if (v === 'all') updateShop({ isWeekdayHide: false, isWeekendHide: false, isHolidayHide: false });
+                      else if (v === 'exclude-special') updateShop({ isWeekdayHide: false, isWeekendHide: false, isHolidayHide: true });
+                      else if (v === 'special-only') updateShop({ isWeekdayHide: true, isWeekendHide: true, isHolidayHide: false });
+                    }} />
+                    <Switch label="Publish" checked={shop.isPublicDisplay} onChange={(e) => updateShop({ isPublicDisplay: e.currentTarget.checked, enabled: e.currentTarget.checked })} />
+                    <Group justify="flex-end">
+                      <Button variant="default" onClick={() => setShopEditModalOpened(false)}>Cancel</Button>
+                      <Button onClick={() => { setShopEditModalOpened(false); }}>OK</Button>
+                    </Group>
+                  </Stack>
+                );
+              })()}
+            </Modal>
+          )}
         </Tabs.Panel>
 
         {showChannels && (
