@@ -9,6 +9,7 @@ export interface SmartCategoryTreeNode {
   enabled: boolean;
   buttonStyleId: number;
   itemCount: number;
+  isOdoDisplay: boolean;
   children: SmartCategoryTreeNode[];
 }
 

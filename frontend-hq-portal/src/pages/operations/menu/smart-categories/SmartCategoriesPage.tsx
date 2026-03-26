@@ -54,10 +54,12 @@ const flattenTree = (nodes: SmartCategoryTreeNode[], depth = 0): FlatNode[] =>
 function CategoryDetailPanel({
   brandId,
   categoryId,
+  showChannels,
   onDataChanged,
 }: {
   brandId: number;
   categoryId: number;
+  showChannels: boolean;
   onDataChanged?: () => void;
 }) {
   const [detail, setDetail] = useState<SmartCategoryDetail | null>(null);
@@ -65,7 +67,6 @@ function CategoryDetailPanel({
   const [saving, setSaving] = useState(false);
   const [itemsDirty, setItemsDirty] = useState(false);
 
-  // Item search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
   const [searching, setSearching] = useState(false);
@@ -85,7 +86,6 @@ function CategoryDetailPanel({
 
   useEffect(() => { void reload(); }, [reload]);
 
-  // ── Item operations ──
   const handleSearchItems = async () => {
     if (!searchQuery.trim()) return;
     try {
@@ -194,10 +194,9 @@ function CategoryDetailPanel({
         <Tabs.List>
           <Tabs.Tab value="items">Sellable Items ({detail.items.length})</Tabs.Tab>
           <Tabs.Tab value="shops">Shop Display Settings ({detail.shopSchedules.length})</Tabs.Tab>
-          <Tabs.Tab value="channels">Order Channels ({detail.orderChannels.length})</Tabs.Tab>
+          {showChannels && <Tabs.Tab value="channels">Order Channels ({detail.orderChannels.length})</Tabs.Tab>}
         </Tabs.List>
 
-        {/* Items Tab */}
         <Tabs.Panel value="items" pt="xs">
           <Table verticalSpacing="xs" striped>
             <Table.Thead>
@@ -229,7 +228,6 @@ function CategoryDetailPanel({
               ))}
             </Table.Tbody>
           </Table>
-
           <Group mt="sm" gap="xs">
             <TextInput size="xs" placeholder="Search items to add..." value={searchQuery}
               onChange={(e) => setSearchQuery(e.currentTarget.value)}
@@ -256,7 +254,6 @@ function CategoryDetailPanel({
           )}
         </Tabs.Panel>
 
-        {/* Shop Display Settings Tab */}
         <Tabs.Panel value="shops" pt="xs">
           {detail.shopSchedules.length === 0 ? (
             <Text size="sm" c="dimmed" py="xs">No shop display settings.</Text>
@@ -291,35 +288,134 @@ function CategoryDetailPanel({
           </Group>
         </Tabs.Panel>
 
-        {/* Order Channels Tab */}
-        <Tabs.Panel value="channels" pt="xs">
-          {detail.orderChannels.length === 0 ? (
-            <Text size="sm" c="dimmed" py="xs">No channel mappings.</Text>
-          ) : (
-            <Table verticalSpacing="xs" striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Shop</Table.Th>
-                  <Table.Th>Channel</Table.Th>
-                  <Table.Th>Enabled</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {detail.orderChannels.map((ch, i) => (
-                  <Table.Tr key={`${ch.shopId}-${ch.orderChannelId}`}>
-                    <Table.Td><Text size="sm">{ch.shopName}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{ch.name}</Text></Table.Td>
-                    <Table.Td><Switch size="xs" checked={ch.enabled} onChange={(e) => { const u = [...detail.orderChannels]; u[i] = { ...ch, enabled: e.currentTarget.checked }; setDetail({ ...detail, orderChannels: u }); }} /></Table.Td>
+        {showChannels && (
+          <Tabs.Panel value="channels" pt="xs">
+            {detail.orderChannels.length === 0 ? (
+              <Text size="sm" c="dimmed" py="xs">No channel mappings.</Text>
+            ) : (
+              <Table verticalSpacing="xs" striped>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Shop</Table.Th>
+                    <Table.Th>Channel</Table.Th>
+                    <Table.Th>Enabled</Table.Th>
                   </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          )}
-          <Group mt="xs" justify="flex-end">
-            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Channels</Button>
-          </Group>
-        </Tabs.Panel>
+                </Table.Thead>
+                <Table.Tbody>
+                  {detail.orderChannels.map((ch, i) => (
+                    <Table.Tr key={`${ch.shopId}-${ch.orderChannelId}`}>
+                      <Table.Td><Text size="sm">{ch.shopName}</Text></Table.Td>
+                      <Table.Td><Text size="sm">{ch.name}</Text></Table.Td>
+                      <Table.Td><Switch size="xs" checked={ch.enabled} onChange={(e) => { const u = [...detail.orderChannels]; u[i] = { ...ch, enabled: e.currentTarget.checked }; setDetail({ ...detail, orderChannels: u }); }} /></Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
+            <Group mt="xs" justify="flex-end">
+              <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Channels</Button>
+            </Group>
+          </Tabs.Panel>
+        )}
       </Tabs>
+    </Paper>
+  );
+}
+
+// ── Shared Category Grid ──
+
+function CategoryGrid({
+  brandId,
+  nodes,
+  loading,
+  isOdo,
+  expandedId,
+  setExpandedId,
+  onEdit,
+  onCreate,
+  onDelete,
+  onReload,
+}: {
+  brandId: number;
+  nodes: FlatNode[];
+  loading: boolean;
+  isOdo: boolean;
+  expandedId: number | null;
+  setExpandedId: (id: number | null) => void;
+  onEdit: (node: FlatNode) => void;
+  onCreate: (parentId?: number | null) => void;
+  onDelete: (node: FlatNode) => void;
+  onReload: () => void;
+}) {
+  const emptyMsg = isOdo
+    ? 'No online smart categories. Create one or flag existing categories for ODO display.'
+    : 'No POS smart categories found.';
+
+  return (
+    <Paper withBorder>
+      <Table striped highlightOnHover>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th style={{ width: 40 }} />
+            <Table.Th>Category Name</Table.Th>
+            <Table.Th>Alt Name</Table.Th>
+            <Table.Th>Items</Table.Th>
+            <Table.Th>Ordering</Table.Th>
+            <Table.Th>Published</Table.Th>
+            <Table.Th style={{ width: 120 }}>Actions</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {nodes.length === 0 ? (
+            <Table.Tr>
+              <Table.Td colSpan={7}>
+                <Text c="dimmed" ta="center" py="md">{loading ? 'Loading...' : emptyMsg}</Text>
+              </Table.Td>
+            </Table.Tr>
+          ) : (
+            nodes.flatMap((node) => {
+              const isExpanded = expandedId === node.smartCategoryId;
+              const rows = [
+                <Table.Tr key={node.smartCategoryId} style={{ cursor: 'pointer' }}
+                  onClick={() => setExpandedId(isExpanded ? null : node.smartCategoryId)}>
+                  <Table.Td>
+                    <ActionIcon variant="subtle" size="sm">
+                      {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                    </ActionIcon>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" style={{ paddingLeft: node.depth * 20 }}>
+                      {node.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
+                      {node.name}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td><Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text></Table.Td>
+                  <Table.Td><Badge size="sm" variant="light">{node.itemCount}</Badge></Table.Td>
+                  <Table.Td><Text size="sm">{node.displayIndex}</Text></Table.Td>
+                  <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
+                  <Table.Td onClick={(e) => e.stopPropagation()}>
+                    <Group gap={4}>
+                      <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => onEdit(node)}><IconEdit size={14} /></ActionIcon>
+                      <ActionIcon size="sm" variant="subtle" onClick={() => onCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon>
+                      <ActionIcon size="sm" variant="subtle" color="red" onClick={() => onDelete(node)}><IconTrash size={14} /></ActionIcon>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>,
+              ];
+              if (isExpanded) {
+                rows.push(
+                  <Table.Tr key={`${node.smartCategoryId}-detail`} style={{ backgroundColor: '#f8f9fa' }}>
+                    <Table.Td colSpan={7} style={{ padding: '12px 16px' }}>
+                      <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} showChannels={isOdo} onDataChanged={onReload} />
+                    </Table.Td>
+                  </Table.Tr>
+                );
+              }
+              return rows;
+            })
+          )}
+        </Table.Tbody>
+      </Table>
     </Paper>
   );
 }
@@ -338,21 +434,17 @@ export function SmartCategoriesPage() {
   // Create/Edit modal
   const [modalOpened, setModalOpened] = useState(false);
   const [editTarget, setEditTarget] = useState<FlatNode | null>(null);
+  const [createForOdo, setCreateForOdo] = useState(false);
   const [form, setForm] = useState<SmartCategoryUpsertPayload>({
     name: '', nameAlt: '', parentSmartCategoryId: null, displayIndex: 0,
     enabled: true, isTerminal: true, isPublicDisplay: true, buttonStyleId: 0,
+    isOdoDisplay: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const flatNodes = useMemo(() => flattenTree(tree), [tree]);
-
-  // Parent options for the modal
-  const parentOptions = useMemo(() => [
-    { value: '', label: '(Root - no parent)' },
-    ...flatNodes
-      .filter((n) => n.smartCategoryId !== editTarget?.smartCategoryId)
-      .map((n) => ({ value: String(n.smartCategoryId), label: `${'  '.repeat(n.depth)}${n.name}` })),
-  ], [flatNodes, editTarget]);
+  const allFlat = useMemo(() => flattenTree(tree), [tree]);
+  const posNodes = useMemo(() => allFlat.filter((n) => !n.isOdoDisplay), [allFlat]);
+  const onlineNodes = useMemo(() => allFlat.filter((n) => n.isOdoDisplay), [allFlat]);
 
   const loadData = useCallback(async () => {
     if (!brandId) { setTree([]); return; }
@@ -369,22 +461,33 @@ export function SmartCategoriesPage() {
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  const openCreate = (parentId?: number | null) => {
+  // Parent options for modal
+  const parentOptions = useMemo(() => [
+    { value: '', label: '(Root - no parent)' },
+    ...allFlat
+      .filter((n) => n.smartCategoryId !== editTarget?.smartCategoryId)
+      .map((n) => ({ value: String(n.smartCategoryId), label: `${'  '.repeat(n.depth)}${n.name}` })),
+  ], [allFlat, editTarget]);
+
+  const openCreate = (isOdo: boolean, parentId?: number | null) => {
     setEditTarget(null);
+    setCreateForOdo(isOdo);
     setForm({
       name: '', nameAlt: '', parentSmartCategoryId: parentId ?? null,
-      displayIndex: flatNodes.length * 10, enabled: true, isTerminal: true,
-      isPublicDisplay: true, buttonStyleId: 0,
+      displayIndex: allFlat.length * 10, enabled: true, isTerminal: true,
+      isPublicDisplay: true, buttonStyleId: 0, isOdoDisplay: isOdo,
     });
     setModalOpened(true);
   };
 
   const openEdit = (node: FlatNode) => {
     setEditTarget(node);
+    setCreateForOdo(node.isOdoDisplay);
     setForm({
       name: node.name, nameAlt: node.nameAlt, parentSmartCategoryId: node.parentSmartCategoryId,
       displayIndex: node.displayIndex, enabled: node.enabled, isTerminal: true,
       isPublicDisplay: true, buttonStyleId: node.buttonStyleId,
+      isOdoDisplay: node.isOdoDisplay,
     });
     setModalOpened(true);
   };
@@ -430,84 +533,52 @@ export function SmartCategoriesPage() {
       <Stack gap="lg">
         <Group justify="space-between">
           <Title order={2}>Smart Categories</Title>
-          <Group>
-            <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadData()} loading={loading}>Refresh</Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={() => openCreate()} disabled={!brandId}>New Smart Category</Button>
-          </Group>
+          <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadData()} loading={loading}>Refresh</Button>
         </Group>
 
         {!brandId && <Alert icon={<IconAlertCircle size={16} />} color="yellow">Select a brand to manage smart categories.</Alert>}
         {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
 
-        <Paper withBorder>
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th style={{ width: 40 }} />
-                <Table.Th>Category Name</Table.Th>
-                <Table.Th>Alt Name</Table.Th>
-                <Table.Th>Items</Table.Th>
-                <Table.Th>Ordering</Table.Th>
-                <Table.Th>Published</Table.Th>
-                <Table.Th style={{ width: 120 }}>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {flatNodes.length === 0 ? (
-                <Table.Tr>
-                  <Table.Td colSpan={7}>
-                    <Text c="dimmed" ta="center" py="md">{loading ? 'Loading...' : 'No smart categories found.'}</Text>
-                  </Table.Td>
-                </Table.Tr>
-              ) : (
-                flatNodes.flatMap((node) => {
-                  const isExpanded = expandedId === node.smartCategoryId;
-                  const rows = [
-                    <Table.Tr key={node.smartCategoryId} style={{ cursor: 'pointer' }}
-                      onClick={() => setExpandedId(isExpanded ? null : node.smartCategoryId)}>
-                      <Table.Td>
-                        <ActionIcon variant="subtle" size="sm">
-                          {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                        </ActionIcon>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" style={{ paddingLeft: node.depth * 20 }}>
-                          {node.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
-                          {node.name}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td><Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text></Table.Td>
-                      <Table.Td><Badge size="sm" variant="light">{node.itemCount}</Badge></Table.Td>
-                      <Table.Td><Text size="sm">{node.displayIndex}</Text></Table.Td>
-                      <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
-                      <Table.Td onClick={(e) => e.stopPropagation()}>
-                        <Group gap={4}>
-                          <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => openEdit(node)}><IconEdit size={14} /></ActionIcon>
-                          <ActionIcon size="sm" variant="subtle" onClick={() => openCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon>
-                          <ActionIcon size="sm" variant="subtle" color="red" onClick={() => void handleDelete(node)}><IconTrash size={14} /></ActionIcon>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>,
-                  ];
-                  if (isExpanded && brandId) {
-                    rows.push(
-                      <Table.Tr key={`${node.smartCategoryId}-detail`} style={{ backgroundColor: '#f8f9fa' }}>
-                        <Table.Td colSpan={7} style={{ padding: '12px 16px' }}>
-                          <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} onDataChanged={() => void loadData()} />
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  }
-                  return rows;
-                })
-              )}
-            </Table.Tbody>
-          </Table>
-        </Paper>
+        {/* POS Smart Categories */}
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Title order={4}>POS Smart Categories</Title>
+            <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => openCreate(false)} disabled={!brandId}>
+              New POS Category
+            </Button>
+          </Group>
+          {brandId && (
+            <CategoryGrid
+              brandId={brandId} nodes={posNodes} loading={loading} isOdo={false}
+              expandedId={expandedId} setExpandedId={setExpandedId}
+              onEdit={openEdit} onCreate={(parentId) => openCreate(false, parentId)}
+              onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
+            />
+          )}
+        </Stack>
+
+        {/* Online Smart Categories */}
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Title order={4}>Online Smart Categories</Title>
+            <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => openCreate(true)} disabled={!brandId}>
+              New Online Category
+            </Button>
+          </Group>
+          {brandId && (
+            <CategoryGrid
+              brandId={brandId} nodes={onlineNodes} loading={loading} isOdo={true}
+              expandedId={expandedId} setExpandedId={setExpandedId}
+              onEdit={openEdit} onCreate={(parentId) => openCreate(true, parentId)}
+              onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
+            />
+          )}
+        </Stack>
       </Stack>
 
       {/* Create/Edit Modal */}
-      <Modal opened={modalOpened} onClose={() => setModalOpened(false)} title={editTarget ? 'Edit Smart Category' : 'New Smart Category'} size="md">
+      <Modal opened={modalOpened} onClose={() => setModalOpened(false)}
+        title={editTarget ? 'Edit Smart Category' : (createForOdo ? 'New Online Smart Category' : 'New POS Smart Category')} size="md">
         <Stack gap="md">
           <TextInput label="Category Name" required value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
@@ -525,6 +596,9 @@ export function SmartCategoriesPage() {
             <Switch label="Public Display" checked={form.isPublicDisplay}
               onChange={(e) => setForm({ ...form, isPublicDisplay: e.currentTarget.checked })} />
           </Group>
+          <Switch label="Online Display (ODO)" checked={form.isOdoDisplay ?? false}
+            onChange={(e) => setForm({ ...form, isOdoDisplay: e.currentTarget.checked })}
+            description="When enabled, this category appears in online ordering instead of POS" />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleSave()} loading={submitting}>{editTarget ? 'Update' : 'Create'}</Button>

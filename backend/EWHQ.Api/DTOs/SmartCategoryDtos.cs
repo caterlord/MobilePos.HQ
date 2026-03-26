@@ -13,6 +13,7 @@ public class SmartCategoryTreeNodeDto
     public bool Enabled { get; set; }
     public int ButtonStyleId { get; set; }
     public int ItemCount { get; set; }
+    public bool IsOdoDisplay { get; set; }
     public IReadOnlyList<SmartCategoryTreeNodeDto> Children { get; set; } = Array.Empty<SmartCategoryTreeNodeDto>();
 }
 

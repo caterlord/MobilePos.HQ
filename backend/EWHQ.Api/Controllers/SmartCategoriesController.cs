@@ -97,6 +97,7 @@ public class SmartCategoriesController : ControllerBase
                     Enabled = category.Enabled,
                     ButtonStyleId = category.ButtonStyleId,
                     ItemCount = itemCountLookup.TryGetValue(category.SmartCategoryId, out var count) ? count : 0,
+                    IsOdoDisplay = category.IsOdoDisplay ?? false,
                 };
 
                 var children = new List<SmartCategoryTreeNodeDto>();
