@@ -924,12 +924,8 @@ export function SmartCategoriesPage() {
             clearable searchable />
           <NumberInput label="Display Order" value={form.displayIndex}
             onChange={(v) => setForm({ ...form, displayIndex: typeof v === 'number' ? v : 0 })} />
-          <Group grow>
-            <Switch label="Enabled" checked={form.enabled}
-              onChange={(e) => setForm({ ...form, enabled: e.currentTarget.checked })} />
-            <Switch label="Public Display" checked={form.isPublicDisplay}
-              onChange={(e) => setForm({ ...form, isPublicDisplay: e.currentTarget.checked })} />
-          </Group>
+          <Switch label="Public Display" checked={form.isPublicDisplay}
+            onChange={(e) => setForm({ ...form, isPublicDisplay: e.currentTarget.checked })} />
           <Switch label="Online Display (ODO)" checked={form.isOdoDisplay ?? false}
             onChange={(e) => setForm({ ...form, isOdoDisplay: e.currentTarget.checked })}
             description="When enabled, this category appears in online ordering instead of POS" />
