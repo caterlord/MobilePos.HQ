@@ -330,8 +330,19 @@ function CategoryDetailPanel({
                     : 'all';
                 return (
                   <Stack gap="md">
-                    <TextInput label="Month" placeholder="e.g. 1,2,12" value={shop.months ?? ''} onChange={(e) => updateShop({ months: e.currentTarget.value || null })} />
-                    <TextInput label="Day" placeholder="e.g. 1,15,28" value={shop.dates ?? ''} onChange={(e) => updateShop({ dates: e.currentTarget.value || null })} />
+                    <MultiSelect label="Month" placeholder="All months" data={[
+                      { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
+                      { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
+                      { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
+                      { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
+                    ]} value={shop.months ? shop.months.split(',').map(m => m.trim()).filter(Boolean) : []}
+                      onChange={(vals) => updateShop({ months: vals.length > 0 ? vals.join(',') : null })}
+                      clearable />
+                    <MultiSelect label="Day" placeholder="All days" data={
+                      Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
+                    } value={shop.dates ? shop.dates.split(',').map(d => d.trim()).filter(Boolean) : []}
+                      onChange={(vals) => updateShop({ dates: vals.length > 0 ? vals.join(',') : null })}
+                      clearable searchable />
                     <MultiSelect label="Day of the Week" placeholder="All days" data={[
                       { value: 'Mon', label: 'Monday' }, { value: 'Tue', label: 'Tuesday' }, { value: 'Wed', label: 'Wednesday' },
                       { value: 'Thu', label: 'Thursday' }, { value: 'Fri', label: 'Friday' }, { value: 'Sat', label: 'Saturday' }, { value: 'Sun', label: 'Sunday' },
