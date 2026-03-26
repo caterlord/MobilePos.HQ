@@ -29,7 +29,6 @@ import {
   IconArrowUp,
   IconChevronDown,
   IconChevronRight,
-  IconCopy,
   IconEdit,
   IconPlus,
   IconRefresh,
@@ -130,7 +129,7 @@ function CategoryDetailPanel({
   // Add items modal
   type ItemRow = { itemId: number; itemCode: string; itemName: string; categoryName?: string };
   const [addItemsModalOpened, setAddItemsModalOpened] = useState(false);
-  const [addMode, setAddMode] = useState<'search' | 'browse' | 'copy'>('search');
+  const [addMode, setAddMode] = useState<'search' | 'browse'>('search');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<ItemRow[]>([]);
   const [searching, setSearching] = useState(false);
@@ -142,10 +141,6 @@ function CategoryDetailPanel({
   const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
   const [browseItems, setBrowseItems] = useState<ItemRow[]>([]);
   const [loadingBrowse, setLoadingBrowse] = useState(false);
-  // Copy from category
-  const [copySourceId, setCopySourceId] = useState<string | null>(null);
-  const [copySourceItems, setCopySourceItems] = useState<ItemRow[]>([]);
-  const [loadingCopy, setLoadingCopy] = useState(false);
 
   // Shop edit modal
   const [shopEditModalOpened, setShopEditModalOpened] = useState(false);
@@ -171,8 +166,6 @@ function CategoryDetailPanel({
     setSearchResults([]);
     setSelectedItemIds(new Set());
     setAddMode('search');
-    setCopySourceId(null);
-    setCopySourceItems([]);
     setBrowseCategoryId(null);
     setBrowseItems([]);
     setAddItemsModalOpened(true);
@@ -228,41 +221,20 @@ function CategoryDetailPanel({
     if (!catKey) { setBrowseItems([]); return; }
     try {
       setLoadingBrowse(true);
-      const catId = parseInt(catKey);
-      const result = await menuItemService.getMenuItems(brandId, { categoryId: catId, pageSize: 200 });
-      setBrowseItems(
-        result.items.map((i) => ({
-          itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '',
-          categoryName: categoryNameMap.get(i.categoryId),
-        }))
-      );
+      const [idStr, type] = catKey.split(':');
+      const id = parseInt(idStr);
+      if (type === 'smart') {
+        const d = await smartCategoryService.getDetail(brandId, id);
+        setBrowseItems(d.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName, categoryName: categoryNameMap.get(id) })));
+      } else {
+        const result = await menuItemService.getMenuItems(brandId, { categoryId: id, pageSize: 200 });
+        setBrowseItems(result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '', categoryName: categoryNameMap.get(i.categoryId) })));
+      }
       setSelectedItemIds(new Set());
     } catch {
       notifications.show({ color: 'red', message: 'Failed to load items' });
     } finally {
       setLoadingBrowse(false);
-    }
-  };
-
-  const handleLoadCopySource = async (sourceId: string) => {
-    setCopySourceId(sourceId);
-    if (!sourceId) { setCopySourceItems([]); return; }
-    try {
-      setLoadingCopy(true);
-      const [idStr, type] = sourceId.split(':');
-      const id = parseInt(idStr);
-      if (type === 'smart') {
-        const d = await smartCategoryService.getDetail(brandId, id);
-        setCopySourceItems(d.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName, categoryName: categoryNameMap.get(id) })));
-      } else {
-        const result = await menuItemService.getMenuItems(brandId, { categoryId: id, pageSize: 200 });
-        setCopySourceItems(result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '', categoryName: categoryNameMap.get(i.categoryId) })));
-      }
-      setSelectedItemIds(new Set());
-    } catch {
-      notifications.show({ color: 'red', message: 'Failed to load source items' });
-    } finally {
-      setLoadingCopy(false);
     }
   };
 
@@ -419,9 +391,6 @@ function CategoryDetailPanel({
                 <Button size="xs" variant={addMode === 'browse' ? 'filled' : 'light'} leftSection={<IconPlus size={14} />} onClick={() => { setAddMode('browse'); setSelectedItemIds(new Set()); }}>
                   Browse by Category
                 </Button>
-                <Button size="xs" variant={addMode === 'copy' ? 'filled' : 'light'} leftSection={<IconCopy size={14} />} onClick={() => { setAddMode('copy'); setSelectedItemIds(new Set()); }}>
-                  Copy from Category
-                </Button>
               </Group>
 
               {/* Shared item list renderer */}
@@ -469,6 +438,11 @@ function CategoryDetailPanel({
                   );
                 };
 
+                const browseCatMap = new Map(categoryList.map((c) => [
+                  `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
+                  c,
+                ]));
+
                 if (addMode === 'search') return (
                   <>
                     <Group gap="xs">
@@ -482,52 +456,30 @@ function CategoryDetailPanel({
                   </>
                 );
 
-                if (addMode === 'browse') return (
+                // browse mode
+                return (
                   <>
                     <Select label="Select a category to browse items" placeholder="Choose category (required)..."
-                      data={categoryList.filter((c) => !c.isSmartCategory).map((c) => ({
-                        value: String(c.id), label: c.name,
+                      data={categoryList.map((c) => ({
+                        value: `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
+                        label: `${c.name} [${c.isSmartCategory ? (c.isOdo ? 'Online' : 'POS Smart') : 'Category'}]`,
                       }))}
                       value={browseCategoryId}
                       onChange={(v) => void handleBrowseCategory(v ?? '')}
-                      searchable />
+                      searchable clearable
+                      renderOption={({ option }) => {
+                        const cat = browseCatMap.get(option.value);
+                        const typeLabel = cat?.isSmartCategory ? (cat.isOdo ? 'Online' : 'POS Smart') : 'Category';
+                        const color = cat?.isSmartCategory ? (cat.isOdo ? 'violet' : 'blue') : 'gray';
+                        return (
+                          <Group gap="sm">
+                            <Text size="sm">{cat?.name ?? option.label}</Text>
+                            <Badge size="xs" variant="light" color={color}>{typeLabel}</Badge>
+                          </Group>
+                        );
+                      }} />
                     {loadingBrowse && <Text size="sm" c="dimmed">Loading items...</Text>}
                     {renderItemList(browseItems)}
-                  </>
-                );
-
-                // copy mode
-                return (
-                  <>
-                    {(() => {
-                      const copyCatMap = new Map(categoryList.map((c) => [
-                        `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
-                        c,
-                      ]));
-                      return (
-                        <Select label="Select a category to copy items from" placeholder="Choose category..."
-                          data={categoryList.map((c) => ({
-                            value: `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
-                            label: `${c.name} [${c.isSmartCategory ? (c.isOdo ? 'Online' : 'POS Smart') : 'Category'}]`,
-                          }))}
-                          value={copySourceId}
-                          onChange={(v) => void handleLoadCopySource(v ?? '')}
-                          searchable clearable
-                          renderOption={({ option }) => {
-                            const cat = copyCatMap.get(option.value);
-                            const typeLabel = cat?.isSmartCategory ? (cat.isOdo ? 'Online' : 'POS Smart') : 'Category';
-                            const color = cat?.isSmartCategory ? (cat.isOdo ? 'violet' : 'blue') : 'gray';
-                            return (
-                              <Group gap="sm">
-                                <Text size="sm">{cat?.name ?? option.label}</Text>
-                                <Badge size="xs" variant="light" color={color}>{typeLabel}</Badge>
-                              </Group>
-                            );
-                          }} />
-                      );
-                    })()}
-                    {loadingCopy && <Text size="sm" c="dimmed">Loading items...</Text>}
-                    {renderItemList(copySourceItems)}
                   </>
                 );
               })()}
@@ -537,7 +489,7 @@ function CategoryDetailPanel({
                 <Button
                   disabled={selectedItemIds.size === 0}
                   onClick={() => {
-                    const source = addMode === 'search' ? searchResults : addMode === 'browse' ? browseItems : copySourceItems;
+                    const source = addMode === 'search' ? searchResults : browseItems;
                     const items = source.filter((i) => selectedItemIds.has(i.itemId));
                     addSelectedItems(items);
                   }}
