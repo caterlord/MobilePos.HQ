@@ -48,10 +48,8 @@ import { MenuCategoriesReorderModal } from './menu-categories/MenuCategoriesReor
 
 import { useBrands } from '../../../contexts/BrandContext';
 import itemCategoryService from '../../../services/itemCategoryService';
-import smartCategoryService from '../../../services/smartCategoryService';
 import buttonStyleService from '../../../services/buttonStyleService';
 import type { CategoryItem, CreateItemCategory, UpdateItemCategory } from '../../../types/itemCategory';
-import type { SmartCategoryTreeNode } from '../../../types/smartCategory';
 import type { ButtonStyle } from '../../../types/buttonStyle';
 
 interface CategoryTreeNode extends CategoryItem {
@@ -131,8 +129,6 @@ const MenuCategoriesPage: FC = () => {
     isOnlineStoreDisplay: true
   });
   
-  const [creatingSmart, setCreatingSmart] = useState(false);
-  
   const [buttonStyles, setButtonStyles] = useState<ButtonStyle[]>([]);
   const [loadingButtonStyles, setLoadingButtonStyles] = useState(false);
 
@@ -143,47 +139,13 @@ const MenuCategoriesPage: FC = () => {
     if (!selectedBrandId) return;
     setLoading(true);
     try {
-      const [itemCats, smartTree] = await Promise.all([
-        itemCategoryService.getItemCategories(selectedBrandId),
-        smartCategoryService.getTree(selectedBrandId)
-      ]);
-      
-      const realNodes: CategoryItem[] = (itemCats || []).map(c => ({
-         ...c,
-         uniqueId: `real_${c.categoryId}`,
-         isSmartCategory: false,
-         parentUniqueId: c.parentCategoryId ? `real_${c.parentCategoryId}` : null,
-      }));
-
-      const flattenSmartCategories = (nodes: SmartCategoryTreeNode[]): CategoryItem[] => {
-        let result: CategoryItem[] = [];
-        for (const node of nodes) {
-          result.push({
-            uniqueId: `smart_${node.smartCategoryId}`,
-            categoryId: node.smartCategoryId,
-            accountId: 0,
-            categoryName: node.name,
-            categoryNameAlt: node.nameAlt || undefined,
-            displayIndex: node.displayIndex,
-            parentCategoryId: node.parentSmartCategoryId || undefined,
-            parentUniqueId: node.parentSmartCategoryId ? `smart_${node.parentSmartCategoryId}` : null,
-            isTerminal: false,
-            isPublicDisplay: true,
-            buttonStyleId: node.buttonStyleId,
-            isModifier: false,
-            enabled: node.enabled,
-            isSmartCategory: true,
-            itemCount: node.itemCount
-          });
-          if (node.children && node.children.length > 0) {
-            result = result.concat(flattenSmartCategories(node.children));
-          }
-        }
-        return result;
-      };
-      
-      const smartNodes = flattenSmartCategories(smartTree || []);
-      setCategories([...realNodes, ...smartNodes]);
+      const itemCats = await itemCategoryService.getItemCategories(selectedBrandId);
+      setCategories((itemCats || []).map(c => ({
+        ...c,
+        uniqueId: `real_${c.categoryId}`,
+        isSmartCategory: false,
+        parentUniqueId: c.parentCategoryId ? `real_${c.parentCategoryId}` : null,
+      })));
     } catch (error) {
       console.error('Failed to fetch categories:', error);
       notifications.show({ title: 'Error', message: 'Failed to load categories', color: 'red' });
@@ -226,9 +188,8 @@ const MenuCategoriesPage: FC = () => {
     }
   }, [columnMenuOpened]);
 
-  const openCreateCategoryModal = useCallback((overrides: Partial<CreateItemCategory> = {}, isSmart: boolean = false) => {
+  const openCreateCategoryModal = useCallback((overrides: Partial<CreateItemCategory> = {}) => {
     setSelectedCategory(null);
-    setCreatingSmart(isSmart);
     setFormData({
       categoryName: '',
       categoryNameAlt: '',
@@ -243,15 +204,14 @@ const MenuCategoriesPage: FC = () => {
     setDialogOpen(true);
   }, [categories.length]);
 
-  const handleAddReal = () => openCreateCategoryModal({}, false);
-  const handleAddSmart = () => openCreateCategoryModal({}, true);
+  const handleAddReal = () => openCreateCategoryModal();
 
   const handleAddChild = useCallback((parentCategory: CategoryItem) => {
     const siblingCount = categories.filter(cat => cat.parentUniqueId === parentCategory.uniqueId).length;
     openCreateCategoryModal({
       parentCategoryId: parentCategory.categoryId,
       displayIndex: siblingCount
-    }, parentCategory.isSmartCategory);
+    });
   }, [categories, openCreateCategoryModal]);
 
   const handleEdit = useCallback((category: CategoryItem) => {
@@ -286,65 +246,17 @@ const MenuCategoriesPage: FC = () => {
     setSaving(true);
     try {
       if (selectedCategory) {
-        if (selectedCategory.isSmartCategory) {
-          await smartCategoryService.update(selectedBrandId, selectedCategory.categoryId, {
-             name: formData.categoryName,
-             nameAlt: formData.categoryNameAlt,
-             parentSmartCategoryId: formData.parentCategoryId,
-             displayIndex: formData.displayIndex || 0,
-             enabled: formData.enabled !== false,
-             isTerminal: formData.isTerminal || false,
-             isPublicDisplay: formData.isPublicDisplay || false,
-             buttonStyleId: formData.buttonStyleId || 0,
-             isSelfOrderingDisplay: formData.isSelfOrderingDisplay,
-             isOnlineStoreDisplay: formData.isOnlineStoreDisplay
-          });
-        } else {
-          await itemCategoryService.updateItemCategory(selectedBrandId, selectedCategory.categoryId, formData as UpdateItemCategory);
-        }
+        await itemCategoryService.updateItemCategory(selectedBrandId, selectedCategory.categoryId, formData as UpdateItemCategory);
         setCategories(prev => prev.map(cat => cat.uniqueId === selectedCategory.uniqueId ? { ...cat, ...formData } : cat));
         notifications.show({ title: 'Success', message: 'Category updated successfully', color: 'green' });
       } else {
-        if (creatingSmart) {
-          const createdSmartObj = await smartCategoryService.create(selectedBrandId, {
-             name: formData.categoryName,
-             nameAlt: formData.categoryNameAlt,
-             parentSmartCategoryId: formData.parentCategoryId,
-             displayIndex: formData.displayIndex || 0,
-             enabled: formData.enabled !== false,
-             isTerminal: formData.isTerminal || false,
-             isPublicDisplay: formData.isPublicDisplay || false,
-             buttonStyleId: formData.buttonStyleId || 0,
-             isSelfOrderingDisplay: formData.isSelfOrderingDisplay,
-             isOnlineStoreDisplay: formData.isOnlineStoreDisplay
-          });
-          const newCat = createdSmartObj.category;
-          setCategories(prev => [...prev, {
-              uniqueId: `smart_${newCat.smartCategoryId}`,
-              categoryId: newCat.smartCategoryId,
-              accountId: newCat.accountId,
-              categoryName: newCat.name,
-              categoryNameAlt: newCat.nameAlt || undefined,
-              displayIndex: newCat.displayIndex || 0,
-              parentCategoryId: newCat.parentSmartCategoryId || undefined,
-              parentUniqueId: newCat.parentSmartCategoryId ? `smart_${newCat.parentSmartCategoryId}` : null,
-              isTerminal: newCat.isTerminal || false,
-              isPublicDisplay: newCat.isPublicDisplay,
-              buttonStyleId: newCat.buttonStyleId,
-              isModifier: false,
-              enabled: newCat.enabled || false,
-              isSmartCategory: true,
-              itemCount: 0
-          }]);
-        } else {
-          const createdCategory = await itemCategoryService.createItemCategory(selectedBrandId, { ...formData, enabled: true });
-          setCategories(prev => [...prev, {
-              ...createdCategory,
-              uniqueId: `real_${createdCategory.categoryId}`,
-              isSmartCategory: false,
-              parentUniqueId: createdCategory.parentCategoryId ? `real_${createdCategory.parentCategoryId}` : null,
-          }]);
-        }
+        const createdCategory = await itemCategoryService.createItemCategory(selectedBrandId, { ...formData, enabled: true });
+        setCategories(prev => [...prev, {
+            ...createdCategory,
+            uniqueId: `real_${createdCategory.categoryId}`,
+            isSmartCategory: false,
+            parentUniqueId: createdCategory.parentCategoryId ? `real_${createdCategory.parentCategoryId}` : null,
+        }]);
         notifications.show({ title: 'Success', message: 'Category created successfully', color: 'green' });
       }
       setDialogOpen(false);
@@ -360,11 +272,7 @@ const MenuCategoriesPage: FC = () => {
     if (!selectedBrandId || !selectedCategory) return;
     setDeleting(true);
     try {
-      if (selectedCategory.isSmartCategory) {
-        await smartCategoryService.remove(selectedBrandId, selectedCategory.categoryId);
-      } else {
-        await itemCategoryService.deleteItemCategory(selectedBrandId, selectedCategory.categoryId);
-      }
+      await itemCategoryService.deleteItemCategory(selectedBrandId, selectedCategory.categoryId);
       setCategories(prev => prev.filter(cat => cat.uniqueId !== selectedCategory.uniqueId));
       notifications.show({ title: 'Success', message: 'Category deleted successfully', color: 'green' });
       setDeleteDialogOpen(false);
@@ -519,24 +427,9 @@ const MenuCategoriesPage: FC = () => {
       }));
       
       await Promise.all(
-        payload.map(category => {
-          if (category.isSmartCategory) {
-            return smartCategoryService.update(selectedBrandId, category.categoryId, {
-              ...category,
-              name: category.categoryName,
-              nameAlt: category.categoryNameAlt,
-              parentSmartCategoryId: category.parentCategoryId,
-              displayIndex: category.displayIndex || 0,
-              enabled: category.enabled !== false,
-              isTerminal: category.isTerminal || false,
-              isPublicDisplay: category.isPublicDisplay || false,
-              buttonStyleId: category.buttonStyleId || 0,
-              isSelfOrderingDisplay: category.isSelfOrderingDisplay,
-              isOnlineStoreDisplay: category.isOnlineStoreDisplay
-            });
-          }
-          return itemCategoryService.updateItemCategory(selectedBrandId, category.categoryId, category)
-        })
+        payload.map(category =>
+          itemCategoryService.updateItemCategory(selectedBrandId, category.categoryId, category)
+        )
       );
 
       // We should fully fetch to refresh tree cleanly given complex state
@@ -838,8 +731,8 @@ const MenuCategoriesPage: FC = () => {
                     </Menu.Target>
                     <Menu.Dropdown>
                       <Menu.Label>Smart Grouping</Menu.Label>
-                      <Menu.Item leftSection={<IconPlus size={14} />} onClick={handleAddSmart}>
-                        New Smart Category
+                      <Menu.Item leftSection={<IconPlus size={14} />} onClick={handleAddReal} style={{ display: 'none' }}>
+                        Removed
                       </Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
@@ -882,7 +775,7 @@ const MenuCategoriesPage: FC = () => {
       </Box>
 
       {/* Add/Edit Modal */}
-      <Modal opened={dialogOpen} onClose={() => setDialogOpen(false)} title={selectedCategory ? 'Edit Category' : (creatingSmart ? 'Create New Smart Category' : 'Create New Category')} size="lg">
+      <Modal opened={dialogOpen} onClose={() => setDialogOpen(false)} title={selectedCategory ? 'Edit Category' : 'Create New Category'} size="lg">
         <Stack gap="md">
           <TextInput label="Category Name" placeholder="e.g., Appetizers" value={formData.categoryName} onChange={(e) => setFormData({ ...formData, categoryName: e.currentTarget.value })} required />
           <TextInput label="Alternative Name (Optional)" placeholder="e.g., 前菜" value={formData.categoryNameAlt || ''} onChange={(e) => setFormData({ ...formData, categoryNameAlt: e.currentTarget.value })} />
