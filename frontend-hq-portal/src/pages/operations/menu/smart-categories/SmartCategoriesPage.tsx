@@ -128,16 +128,23 @@ function CategoryDetailPanel({
   const [itemsDirty, setItemsDirty] = useState(false);
 
   // Add items modal
+  type ItemRow = { itemId: number; itemCode: string; itemName: string; categoryName?: string };
   const [addItemsModalOpened, setAddItemsModalOpened] = useState(false);
+  const [addMode, setAddMode] = useState<'search' | 'browse' | 'copy'>('search');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<ItemRow[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  // Category list (shared by browse + copy)
+  const [categoryList, setCategoryList] = useState<{ id: number; name: string; isSmartCategory: boolean; isOdo: boolean }[]>([]);
+  const [categoryNameMap, setCategoryNameMap] = useState<Map<number, string>>(new Map());
+  // Browse by category
+  const [browseCategoryId, setBrowseCategoryId] = useState<string | null>(null);
+  const [browseItems, setBrowseItems] = useState<ItemRow[]>([]);
+  const [loadingBrowse, setLoadingBrowse] = useState(false);
   // Copy from category
-  const [copyMode, setCopyMode] = useState(false);
-  const [categoryList, setCategoryList] = useState<{ id: number; name: string; isSmartCategory: boolean }[]>([]);
   const [copySourceId, setCopySourceId] = useState<string | null>(null);
-  const [copySourceItems, setCopySourceItems] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
+  const [copySourceItems, setCopySourceItems] = useState<ItemRow[]>([]);
   const [loadingCopy, setLoadingCopy] = useState(false);
 
   // Shop edit modal
@@ -163,30 +170,37 @@ function CategoryDetailPanel({
     setSearchQuery('');
     setSearchResults([]);
     setSelectedItemIds(new Set());
-    setCopyMode(false);
+    setAddMode('search');
     setCopySourceId(null);
     setCopySourceItems([]);
+    setBrowseCategoryId(null);
+    setBrowseItems([]);
     setAddItemsModalOpened(true);
-    // Load categories for copy mode
+    // Load categories for browse/copy
     try {
       const [cats, smartTree] = await Promise.allSettled([
         itemCategoryService.getItemCategories(brandId),
         smartCategoryService.getTree(brandId),
       ]);
-      const list: { id: number; name: string; isSmartCategory: boolean }[] = [];
+      const list: { id: number; name: string; isSmartCategory: boolean; isOdo: boolean }[] = [];
+      const nameMap = new Map<number, string>();
       if (cats.status === 'fulfilled') {
-        for (const c of cats.value) list.push({ id: c.categoryId, name: c.categoryName, isSmartCategory: false });
+        for (const c of cats.value) {
+          list.push({ id: c.categoryId, name: c.categoryName, isSmartCategory: false, isOdo: false });
+          nameMap.set(c.categoryId, c.categoryName);
+        }
       }
       if (smartTree.status === 'fulfilled') {
         const flatten = (nodes: SmartCategoryTreeNode[]): void => {
           for (const n of nodes) {
-            if (n.smartCategoryId !== categoryId) list.push({ id: n.smartCategoryId, name: n.name, isSmartCategory: true });
+            if (n.smartCategoryId !== categoryId) list.push({ id: n.smartCategoryId, name: n.name, isSmartCategory: true, isOdo: n.isOdoDisplay });
             flatten(n.children);
           }
         };
         flatten(smartTree.value);
       }
       setCategoryList(list);
+      setCategoryNameMap(nameMap);
     } catch { /* non-blocking */ }
   };
 
@@ -196,13 +210,37 @@ function CategoryDetailPanel({
       setSearching(true);
       const result = await menuItemService.getMenuItems(brandId, { search: searchQuery.trim(), pageSize: 50 });
       setSearchResults(
-        result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' }))
+        result.items.map((i) => ({
+          itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '',
+          categoryName: categoryNameMap.get(i.categoryId) ?? `Category #${i.categoryId}`,
+        }))
       );
       setSelectedItemIds(new Set());
     } catch {
       notifications.show({ color: 'red', message: 'Search failed' });
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleBrowseCategory = async (catKey: string) => {
+    setBrowseCategoryId(catKey);
+    if (!catKey) { setBrowseItems([]); return; }
+    try {
+      setLoadingBrowse(true);
+      const catId = parseInt(catKey);
+      const result = await menuItemService.getMenuItems(brandId, { categoryId: catId, pageSize: 200 });
+      setBrowseItems(
+        result.items.map((i) => ({
+          itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '',
+          categoryName: categoryNameMap.get(i.categoryId),
+        }))
+      );
+      setSelectedItemIds(new Set());
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to load items' });
+    } finally {
+      setLoadingBrowse(false);
     }
   };
 
@@ -215,10 +253,10 @@ function CategoryDetailPanel({
       const id = parseInt(idStr);
       if (type === 'smart') {
         const d = await smartCategoryService.getDetail(brandId, id);
-        setCopySourceItems(d.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName })));
+        setCopySourceItems(d.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName, categoryName: categoryNameMap.get(id) })));
       } else {
         const result = await menuItemService.getMenuItems(brandId, { categoryId: id, pageSize: 200 });
-        setCopySourceItems(result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' })));
+        setCopySourceItems(result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '', categoryName: categoryNameMap.get(i.categoryId) })));
       }
       setSelectedItemIds(new Set());
     } catch {
@@ -372,91 +410,128 @@ function CategoryDetailPanel({
           </Table>
 
           {/* Add Items Modal */}
-          <Modal opened={addItemsModalOpened} onClose={() => setAddItemsModalOpened(false)} title="Add Items" size="lg">
+          <Modal opened={addItemsModalOpened} onClose={() => setAddItemsModalOpened(false)} title="Add Items" size="xl">
             <Stack gap="md">
               <Group gap="xs">
-                <Button size="xs" variant={!copyMode ? 'filled' : 'light'} leftSection={<IconSearch size={14} />} onClick={() => setCopyMode(false)}>
+                <Button size="xs" variant={addMode === 'search' ? 'filled' : 'light'} leftSection={<IconSearch size={14} />} onClick={() => { setAddMode('search'); setSelectedItemIds(new Set()); }}>
                   Search Items
                 </Button>
-                <Button size="xs" variant={copyMode ? 'filled' : 'light'} leftSection={<IconCopy size={14} />} onClick={() => setCopyMode(true)}>
+                <Button size="xs" variant={addMode === 'browse' ? 'filled' : 'light'} leftSection={<IconPlus size={14} />} onClick={() => { setAddMode('browse'); setSelectedItemIds(new Set()); }}>
+                  Browse by Category
+                </Button>
+                <Button size="xs" variant={addMode === 'copy' ? 'filled' : 'light'} leftSection={<IconCopy size={14} />} onClick={() => { setAddMode('copy'); setSelectedItemIds(new Set()); }}>
                   Copy from Category
                 </Button>
               </Group>
 
-              {!copyMode ? (
-                <>
-                  <Group gap="xs">
-                    <TextInput size="sm" placeholder="Search by item code, name, or alt name..." value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.currentTarget.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
-                      style={{ flex: 1 }} />
-                    <Button size="sm" onClick={() => void handleSearchItems()} loading={searching}>Search</Button>
-                  </Group>
-                  {searchResults.length > 0 && (
-                    <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto' }}>
-                      {searchResults.map((item) => {
-                        const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
-                        return (
-                          <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #eee', opacity: alreadyExists ? 0.5 : 1 }}>
-                            <Checkbox
-                              checked={selectedItemIds.has(item.itemId)}
-                              onChange={() => toggleItemSelection(item.itemId)}
-                              disabled={alreadyExists}
-                            />
-                            <Text size="xs" c="dimmed" style={{ width: 60 }}>{item.itemCode}</Text>
-                            <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
-                            {alreadyExists && <Badge size="xs" variant="light">Already added</Badge>}
-                          </Group>
-                        );
-                      })}
-                    </Stack>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Select label="Select a category to copy items from" placeholder="Choose category..."
-                    data={categoryList.map((c) => ({
-                      value: `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
-                      label: `${c.name}${c.isSmartCategory ? ' (Smart)' : ''}`,
-                    }))}
-                    value={copySourceId}
-                    onChange={(v) => void handleLoadCopySource(v ?? '')}
-                    searchable clearable />
-                  {loadingCopy && <Text size="sm" c="dimmed">Loading items...</Text>}
-                  {copySourceItems.length > 0 && (
-                    <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto' }}>
-                      {copySourceItems.map((item) => {
-                        const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
-                        return (
-                          <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #eee', opacity: alreadyExists ? 0.5 : 1 }}>
-                            <Checkbox
-                              checked={selectedItemIds.has(item.itemId)}
-                              onChange={() => toggleItemSelection(item.itemId)}
-                              disabled={alreadyExists}
-                            />
-                            <Text size="xs" c="dimmed" style={{ width: 60 }}>{item.itemCode}</Text>
-                            <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
-                            {alreadyExists && <Badge size="xs" variant="light">Already added</Badge>}
-                          </Group>
-                        );
-                      })}
-                    </Stack>
-                  )}
-                  {copySourceItems.length > 0 && (
-                    <Button size="xs" variant="light" onClick={() => {
-                      const all = new Set(copySourceItems.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).map((i) => i.itemId));
-                      setSelectedItemIds(all);
-                    }}>Select All New</Button>
-                  )}
-                </>
-              )}
+              {/* Shared item list renderer */}
+              {(() => {
+                const renderItemList = (items: ItemRow[], showSelectAll = false) => (
+                  <>
+                    {items.length > 0 && (
+                      <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto', border: '1px solid #eee', borderRadius: 4 }}>
+                        <Group gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #ddd', backgroundColor: '#f8f9fa' }}>
+                          <div style={{ width: 28 }} />
+                          <Text size="xs" fw={600} style={{ width: 70 }}>Code</Text>
+                          <Text size="xs" fw={600} style={{ flex: 1 }}>Item Name</Text>
+                          <Text size="xs" fw={600} style={{ width: 120 }}>Category</Text>
+                          <div style={{ width: 80 }} />
+                        </Group>
+                        {items.map((item) => {
+                          const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
+                          return (
+                            <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #f0f0f0', opacity: alreadyExists ? 0.4 : 1 }}>
+                              <Checkbox size="xs"
+                                checked={selectedItemIds.has(item.itemId)}
+                                onChange={() => toggleItemSelection(item.itemId)}
+                                disabled={alreadyExists} />
+                              <Text size="xs" c="dimmed" style={{ width: 70 }}>{item.itemCode}</Text>
+                              <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
+                              <Text size="xs" c="dimmed" style={{ width: 120 }} lineClamp={1}>{item.categoryName || '—'}</Text>
+                              {alreadyExists ? <Badge size="xs" variant="light" style={{ width: 80 }}>Added</Badge> : <div style={{ width: 80 }} />}
+                            </Group>
+                          );
+                        })}
+                      </Stack>
+                    )}
+                    {showSelectAll && items.length > 0 && (
+                      <Button size="xs" variant="light" onClick={() => {
+                        const all = new Set(items.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).map((i) => i.itemId));
+                        setSelectedItemIds(all);
+                      }}>Select All New ({items.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).length})</Button>
+                    )}
+                  </>
+                );
+
+                if (addMode === 'search') return (
+                  <>
+                    <Group gap="xs">
+                      <TextInput size="sm" placeholder="Search by item code, name, or alt name..." value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
+                        style={{ flex: 1 }} />
+                      <Button size="sm" onClick={() => void handleSearchItems()} loading={searching}>Search</Button>
+                    </Group>
+                    {renderItemList(searchResults)}
+                  </>
+                );
+
+                if (addMode === 'browse') return (
+                  <>
+                    <Select label="Select a category to browse items" placeholder="Choose category (required)..."
+                      data={categoryList.filter((c) => !c.isSmartCategory).map((c) => ({
+                        value: String(c.id), label: c.name,
+                      }))}
+                      value={browseCategoryId}
+                      onChange={(v) => void handleBrowseCategory(v ?? '')}
+                      searchable />
+                    {loadingBrowse && <Text size="sm" c="dimmed">Loading items...</Text>}
+                    {renderItemList(browseItems, true)}
+                  </>
+                );
+
+                // copy mode
+                return (
+                  <>
+                    {(() => {
+                      const copyCatMap = new Map(categoryList.map((c) => [
+                        `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
+                        c,
+                      ]));
+                      return (
+                        <Select label="Select a category to copy items from" placeholder="Choose category..."
+                          data={categoryList.map((c) => ({
+                            value: `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
+                            label: `${c.name} [${c.isSmartCategory ? (c.isOdo ? 'Online' : 'POS Smart') : 'Category'}]`,
+                          }))}
+                          value={copySourceId}
+                          onChange={(v) => void handleLoadCopySource(v ?? '')}
+                          searchable clearable
+                          renderOption={({ option }) => {
+                            const cat = copyCatMap.get(option.value);
+                            const typeLabel = cat?.isSmartCategory ? (cat.isOdo ? 'Online' : 'POS Smart') : 'Category';
+                            const color = cat?.isSmartCategory ? (cat.isOdo ? 'violet' : 'blue') : 'gray';
+                            return (
+                              <Group gap="sm">
+                                <Text size="sm">{cat?.name ?? option.label}</Text>
+                                <Badge size="xs" variant="light" color={color}>{typeLabel}</Badge>
+                              </Group>
+                            );
+                          }} />
+                      );
+                    })()}
+                    {loadingCopy && <Text size="sm" c="dimmed">Loading items...</Text>}
+                    {renderItemList(copySourceItems, true)}
+                  </>
+                );
+              })()}
 
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setAddItemsModalOpened(false)}>Cancel</Button>
                 <Button
                   disabled={selectedItemIds.size === 0}
                   onClick={() => {
-                    const source = copyMode ? copySourceItems : searchResults;
+                    const source = addMode === 'search' ? searchResults : addMode === 'browse' ? browseItems : copySourceItems;
                     const items = source.filter((i) => selectedItemIds.has(i.itemId));
                     addSelectedItems(items);
                   }}
