@@ -308,10 +308,6 @@ function CategoryDetailPanel({
               </Table.Tbody>
             </Table>
           )}
-          <Group mt="xs" justify="flex-end">
-            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Settings</Button>
-          </Group>
-
           {/* Shop Display Edit Modal */}
           {editingShopIdx !== null && detail.shopSchedules[editingShopIdx] && (
             <Modal opened={shopEditModalOpened} onClose={() => setShopEditModalOpened(false)} title={`Edit Store Display Settings — ${detail.shopSchedules[editingShopIdx].shopName}`} size="md">
@@ -369,7 +365,7 @@ function CategoryDetailPanel({
                     <Switch label="Publish" checked={shop.isPublicDisplay} onChange={(e) => updateShop({ isPublicDisplay: e.currentTarget.checked, enabled: e.currentTarget.checked })} />
                     <Group justify="flex-end">
                       <Button variant="default" onClick={() => setShopEditModalOpened(false)}>Cancel</Button>
-                      <Button onClick={() => { setShopEditModalOpened(false); }}>OK</Button>
+                      <Button onClick={() => { void saveDisplaySettings(); setShopEditModalOpened(false); }} loading={saving}>Update</Button>
                     </Group>
                   </Stack>
                 );
