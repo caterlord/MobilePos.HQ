@@ -338,13 +338,13 @@ function CategoryDetailPanel({
                 {detail.shopSchedules.map((shop, i) => (
                   <Table.Tr key={shop.shopId}>
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.months || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.dates || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{formatDaysDisplay(shop.daysOfWeek)}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromDate || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToDate || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.months ? undefined : 'dimmed'}>{shop.months || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.dates ? undefined : 'dimmed'}>{shop.dates || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.daysOfWeek ? undefined : 'dimmed'}>{formatDaysDisplay(shop.daysOfWeek)}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.displayFromDate ? undefined : 'dimmed'}>{shop.displayFromDate || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.displayToDate ? undefined : 'dimmed'}>{shop.displayToDate || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.displayFromTime ? undefined : 'dimmed'}>{shop.displayFromTime || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c={shop.displayToTime ? undefined : 'dimmed'}>{shop.displayToTime || '—'}</Text></Table.Td>
                     <Table.Td>
                       <Badge size="xs" color={shop.isHolidayHide ? 'orange' : 'gray'} variant="light">
                         {shop.isHolidayHide === true ? 'Special only' : shop.isWeekdayHide || shop.isWeekendHide ? 'Custom' : 'All'}
