@@ -44,6 +44,10 @@ export const ROUTE_CONFIG: RouteItem[] = [
         label: 'Menu Items',
       },
       {
+        path: '/menus/pos-menus',
+        label: 'POS Menus',
+      },
+      {
         path: '/menus/modifiers',
         label: 'Modifiers',
       },

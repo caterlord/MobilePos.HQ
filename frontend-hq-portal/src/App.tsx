@@ -31,6 +31,7 @@ const MealSetPage = lazy(() => import('./pages/operations/menu/MealSetPage').the
 const PromotionsPage = lazy(() => import('./pages/operations/menu/PromotionsPage').then(m => ({ default: m.PromotionsPage })))
 const DiscountsPage = lazy(() => import('./pages/operations/menu/DiscountsPage').then(m => ({ default: m.DiscountsPage })))
 const SmartCategoriesPage = lazy(() => import('./pages/operations/menu/smart-categories').then(m => ({ default: m.SmartCategoriesPage })))
+const PosMenusPage = lazy(() => import('./pages/operations/menu/PosMenusPage').then(m => ({ default: m.PosMenusPage })))
 const StoreSettingsOverviewPage = lazy(() => import('./pages/operations/store-settings/StoreSettingsOverviewPage').then(m => ({ default: m.StoreSettingsOverviewPage })))
 const StoreInfoSettingsPage = lazy(() => import('./pages/operations/store-settings/StoreInfoSettingsPage').then(m => ({ default: m.StoreInfoSettingsPage })))
 const WorkdaySchedulePage = lazy(() => import('./pages/operations/store-settings/WorkdaySchedulePage').then(m => ({ default: m.WorkdaySchedulePage })))
@@ -188,6 +189,7 @@ function AppContent() {
         <Route path="menus/categories" element={<MenuCategoriesPage />} />
         <Route path="menus/smart-categories" element={<SmartCategoriesPage />} />
         <Route path="menus/items" element={<MenuItemsPage />} />
+        <Route path="menus/pos-menus" element={<PosMenusPage />} />
         <Route path="menus/modifiers" element={<ModifierGroupsPage />} />
         <Route path="menus/meal-set" element={<MealSetPage />} />
         <Route path="menus/promotions" element={<PromotionsPage />} />
