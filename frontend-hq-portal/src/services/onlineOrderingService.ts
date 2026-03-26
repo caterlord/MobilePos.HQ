@@ -154,6 +154,11 @@ class OnlineOrderingService {
     await api.put(`/online-ordering/brand/${brandId}/shop-settings/${shopId}`, settings);
   }
 
+  async copyCategoriesToOdo(brandId: number, sourceCategoryIds: number[]): Promise<{ newCategoryIds: number[]; count: number }> {
+    const response = await api.post(`/online-ordering/brand/${brandId}/copy-categories`, { sourceCategoryIds });
+    return response.data;
+  }
+
   private normalizeMenuCombinationPayload(
     payload: UpsertOnlineOrderingMenuCombinationRequest | UpsertOnlineOrderingMenuCombinationPayload,
   ): UpsertOnlineOrderingMenuCombinationPayload {

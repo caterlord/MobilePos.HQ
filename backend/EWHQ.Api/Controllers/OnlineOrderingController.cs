@@ -325,6 +325,133 @@ public class OnlineOrderingController : ControllerBase
         }
     }
 
+    [HttpPost("brand/{brandId:int}/copy-categories")]
+    [RequireBrandModify]
+    public async Task<IActionResult> CopyCategoriesToOdo(
+        int brandId,
+        [FromBody] CopyCategoriesRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request.SourceCategoryIds == null || request.SourceCategoryIds.Count == 0)
+                return BadRequest(new { message = "No source categories provided." });
+
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+
+            var sourceCategories = await context.SmartCategories
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && request.SourceCategoryIds.Contains(x.SmartCategoryId))
+                .ToListAsync(cancellationToken);
+
+            var newIds = new List<int>();
+            var maxId = await context.SmartCategories
+                .Where(x => x.AccountId == accountId)
+                .Select(x => (int?)x.SmartCategoryId)
+                .MaxAsync(cancellationToken) ?? 0;
+
+            foreach (var source in sourceCategories)
+            {
+                maxId++;
+                var newCat = new SmartCategory
+                {
+                    SmartCategoryId = maxId,
+                    AccountId = accountId,
+                    Name = source.Name,
+                    NameAlt = source.NameAlt,
+                    ParentSmartCategoryId = null,
+                    DisplayIndex = source.DisplayIndex,
+                    Enabled = true,
+                    IsTerminal = true,
+                    IsPublicDisplay = true,
+                    ButtonStyleId = source.ButtonStyleId,
+                    Description = source.Description,
+                    DescriptionAlt = source.DescriptionAlt,
+                    ImageFileName = source.ImageFileName,
+                    ImageFileName2 = source.ImageFileName2,
+                    ImageFileName3 = source.ImageFileName3,
+                    IsSelfOrderingDisplay = false,
+                    IsOnlineStoreDisplay = false,
+                    IsOdoDisplay = true,
+                    IsKioskDisplay = false,
+                    IsTableOrderingDisplay = false,
+                    Remark = source.Remark,
+                    CreatedDate = now,
+                    CreatedBy = actor,
+                    ModifiedDate = now,
+                    ModifiedBy = actor,
+                };
+                context.SmartCategories.Add(newCat);
+
+                // Copy items from source
+                var sourceItems = await context.SmartCategoryItemDetails
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.SmartCategoryId == source.SmartCategoryId && x.Enabled)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var item in sourceItems)
+                {
+                    context.SmartCategoryItemDetails.Add(new SmartCategoryItemDetail
+                    {
+                        SmartCategoryId = maxId,
+                        AccountId = accountId,
+                        ItemId = item.ItemId,
+                        DisplayIndex = item.DisplayIndex,
+                        Enabled = true,
+                        CreatedDate = now,
+                        CreatedBy = actor,
+                        ModifiedDate = now,
+                        ModifiedBy = actor,
+                    });
+                }
+
+                // Copy shop details
+                var sourceShopDetails = await context.SmartCategoryShopDetails
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.SmartCategoryId == source.SmartCategoryId && x.Enabled)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var shopDetail in sourceShopDetails)
+                {
+                    context.SmartCategoryShopDetails.Add(new SmartCategoryShopDetail
+                    {
+                        SmartCategoryId = maxId,
+                        AccountId = accountId,
+                        ShopId = shopDetail.ShopId,
+                        DisplayIndex = shopDetail.DisplayIndex,
+                        Enabled = true,
+                        DisplayFromDate = shopDetail.DisplayFromDate,
+                        DisplayToDate = shopDetail.DisplayToDate,
+                        DisplayFromTime = shopDetail.DisplayFromTime,
+                        DisplayToTime = shopDetail.DisplayToTime,
+                        DaysOfWeek = shopDetail.DaysOfWeek,
+                        CreatedDate = now,
+                        CreatedBy = actor,
+                        ModifiedDate = now,
+                        ModifiedBy = actor,
+                    });
+                }
+
+                newIds.Add(maxId);
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            return Ok(new { newCategoryIds = newIds, count = newIds.Count });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error copying categories to ODO for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred while copying categories." });
+        }
+    }
+
     [HttpGet("brand/{brandId:int}/display-order")]
     [RequireBrandView]
     public async Task<ActionResult<IReadOnlyList<OnlineOrderingDisplayOrderNodeDto>>> GetDisplayOrder(

@@ -197,3 +197,8 @@ public class UpsertOnlineOrderingMenuCombinationRequest
     public IReadOnlyList<UpsertOnlineOrderingMenuCombinationCategoryDto> Categories { get; set; } = Array.Empty<UpsertOnlineOrderingMenuCombinationCategoryDto>();
     public IReadOnlyList<UpsertOnlineOrderingMenuCombinationShopDto> Shops { get; set; } = Array.Empty<UpsertOnlineOrderingMenuCombinationShopDto>();
 }
+
+public class CopyCategoriesRequest
+{
+    public List<int> SourceCategoryIds { get; set; } = new();
+}
