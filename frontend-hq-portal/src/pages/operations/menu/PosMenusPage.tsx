@@ -111,15 +111,17 @@ function MenuDetailPanel({
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [dirty, setDirty] = useState(false);
 
+  const loadAvailable = useCallback(async () => {
+    try {
+      setAvailable(await posMenuService.getAvailable(brandId));
+    } catch { /* loaded on demand */ }
+  }, [brandId]);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [cats, avail] = await Promise.all([
-        posMenuService.getCategories(brandId, menuId),
-        posMenuService.getAvailable(brandId),
-      ]);
+      const cats = await posMenuService.getCategories(brandId, menuId);
       setCategories(cats);
-      setAvailable(avail);
       setDirty(false);
     } catch {
       notifications.show({ color: 'red', message: 'Failed to load menu categories' });
@@ -217,7 +219,7 @@ function MenuDetailPanel({
       <Group justify="space-between" mb="xs">
         <Text size="sm" fw={600}>{sorted.length} categories assigned</Text>
         <Group gap="xs">
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => { setSelectedToAdd(new Set()); setAddModalOpened(true); }}>
+          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => { setSelectedToAdd(new Set()); void loadAvailable(); setAddModalOpened(true); }}>
             Add Categories
           </Button>
           {dirty && (
