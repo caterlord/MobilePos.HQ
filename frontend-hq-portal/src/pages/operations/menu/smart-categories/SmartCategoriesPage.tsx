@@ -275,9 +275,9 @@ function CategoryDetailPanel({
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
                     <Table.Td><Switch size="xs" checked={shop.enabled} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
                     <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || 'All'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
+                    <Table.Td><TextInput size="xs" value={shop.daysOfWeek ?? ''} placeholder="All" onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, daysOfWeek: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 120 }} /></Table.Td>
+                    <Table.Td><TextInput size="xs" type="time" value={shop.displayFromTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayFromTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
+                    <Table.Td><TextInput size="xs" type="time" value={shop.displayToTime ?? ''} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, displayToTime: e.currentTarget.value || null }; setDetail({ ...detail, shopSchedules: u }); }} style={{ width: 100 }} /></Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
