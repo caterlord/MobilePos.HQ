@@ -381,24 +381,31 @@ function CategoryDetailPanel({
                     : 'all';
                 return (
                   <Stack gap="md">
-                    <MultiSelect label="Month" placeholder="All months" data={[
-                      { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
-                      { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
-                      { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
-                      { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
-                    ]} value={shop.months ? shop.months.split(',').map(m => m.trim()).filter(Boolean) : []}
-                      onChange={(vals) => updateShop({ months: vals.length > 0 ? vals.join(',') : null })}
-                      clearable />
-                    <MultiSelect label="Day" placeholder="All days" data={
-                      Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
-                    } value={shop.dates ? shop.dates.split(',').map(d => d.trim()).filter(Boolean) : []}
-                      onChange={(vals) => updateShop({ dates: vals.length > 0 ? vals.join(',') : null })}
-                      clearable searchable />
-                    <MultiSelect label="Day of the Week" placeholder="All days"
-                      data={DAY_OPTIONS.map((d) => ({ value: d.value, label: d.label }))}
-                      value={parseDaysOfWeek(shop.daysOfWeek)}
-                      onChange={(vals) => updateShop({ daysOfWeek: vals.length > 0 ? vals.join(',') : null })}
-                      clearable />
+                    {(() => {
+                      const monthVals = shop.months ? shop.months.split(',').map(m => m.trim()).filter(Boolean) : [];
+                      const dayVals = shop.dates ? shop.dates.split(',').map(d => d.trim()).filter(Boolean) : [];
+                      const dowVals = parseDaysOfWeek(shop.daysOfWeek);
+                      return (<>
+                        <MultiSelect label="Month" placeholder={monthVals.length === 0 ? 'All months' : undefined} data={[
+                          { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
+                          { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
+                          { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
+                          { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
+                        ]} value={monthVals}
+                          onChange={(vals) => updateShop({ months: vals.length > 0 ? vals.join(',') : null })}
+                          clearable />
+                        <MultiSelect label="Day" placeholder={dayVals.length === 0 ? 'All days' : undefined} data={
+                          Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
+                        } value={dayVals}
+                          onChange={(vals) => updateShop({ dates: vals.length > 0 ? vals.join(',') : null })}
+                          clearable searchable />
+                        <MultiSelect label="Day of the Week" placeholder={dowVals.length === 0 ? 'All days' : undefined}
+                          data={DAY_OPTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                          value={dowVals}
+                          onChange={(vals) => updateShop({ daysOfWeek: vals.length > 0 ? vals.join(',') : null })}
+                          clearable />
+                      </>);
+                    })()}
                     <Group grow>
                       <TextInput label="From Date" type="date" value={shop.displayFromDate ?? ''} onChange={(e) => updateShop({ displayFromDate: e.currentTarget.value || null })} />
                       <TextInput label="To Date" type="date" value={shop.displayToDate ?? ''} onChange={(e) => updateShop({ displayToDate: e.currentTarget.value || null })} />
