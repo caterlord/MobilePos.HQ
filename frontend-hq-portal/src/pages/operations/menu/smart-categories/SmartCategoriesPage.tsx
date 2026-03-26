@@ -426,42 +426,48 @@ function CategoryDetailPanel({
 
               {/* Shared item list renderer */}
               {(() => {
-                const renderItemList = (items: ItemRow[], showSelectAll = false) => (
-                  <>
-                    {items.length > 0 && (
-                      <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto', border: '1px solid #eee', borderRadius: 4 }}>
-                        <Group gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #ddd', backgroundColor: '#f8f9fa' }}>
-                          <div style={{ width: 28 }} />
-                          <Text size="xs" fw={600} style={{ width: 70 }}>Code</Text>
-                          <Text size="xs" fw={600} style={{ flex: 1 }}>Item Name</Text>
-                          <Text size="xs" fw={600} style={{ width: 120 }}>Category</Text>
-                          <div style={{ width: 80 }} />
-                        </Group>
-                        {items.map((item) => {
-                          const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
-                          return (
-                            <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #f0f0f0', opacity: alreadyExists ? 0.4 : 1 }}>
-                              <Checkbox size="xs"
-                                checked={selectedItemIds.has(item.itemId)}
-                                onChange={() => toggleItemSelection(item.itemId)}
-                                disabled={alreadyExists} />
-                              <Text size="xs" c="dimmed" style={{ width: 70 }}>{item.itemCode}</Text>
-                              <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
-                              <Text size="xs" c="dimmed" style={{ width: 120 }} lineClamp={1}>{item.categoryName || '—'}</Text>
-                              {alreadyExists ? <Badge size="xs" variant="light" style={{ width: 80 }}>Added</Badge> : <div style={{ width: 80 }} />}
-                            </Group>
-                          );
-                        })}
-                      </Stack>
-                    )}
-                    {showSelectAll && items.length > 0 && (
-                      <Button size="xs" variant="light" onClick={() => {
-                        const all = new Set(items.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).map((i) => i.itemId));
-                        setSelectedItemIds(all);
-                      }}>Select All New ({items.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).length})</Button>
-                    )}
-                  </>
-                );
+                const renderItemList = (items: ItemRow[]) => {
+                  if (items.length === 0) return null;
+                  const selectableItems = items.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId));
+                  const selectedCount = selectableItems.filter((i) => selectedItemIds.has(i.itemId)).length;
+                  const allSelected = selectableItems.length > 0 && selectedCount === selectableItems.length;
+                  const someSelected = selectedCount > 0 && !allSelected;
+
+                  const toggleAll = () => {
+                    if (allSelected) {
+                      setSelectedItemIds(new Set());
+                    } else {
+                      setSelectedItemIds(new Set(selectableItems.map((i) => i.itemId)));
+                    }
+                  };
+
+                  return (
+                    <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto', border: '1px solid #eee', borderRadius: 4 }}>
+                      <Group gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #ddd', backgroundColor: '#f8f9fa', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <Checkbox size="xs" checked={allSelected} indeterminate={someSelected} onChange={toggleAll} />
+                        <Text size="xs" fw={600} style={{ width: 70 }}>Code</Text>
+                        <Text size="xs" fw={600} style={{ flex: 1 }}>Item Name</Text>
+                        <Text size="xs" fw={600} style={{ width: 120 }}>Category</Text>
+                        <div style={{ width: 80 }} />
+                      </Group>
+                      {items.map((item) => {
+                        const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
+                        return (
+                          <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #f0f0f0', opacity: alreadyExists ? 0.4 : 1 }}>
+                            <Checkbox size="xs"
+                              checked={selectedItemIds.has(item.itemId)}
+                              onChange={() => toggleItemSelection(item.itemId)}
+                              disabled={alreadyExists} />
+                            <Text size="xs" c="dimmed" style={{ width: 70 }}>{item.itemCode}</Text>
+                            <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
+                            <Text size="xs" c="dimmed" style={{ width: 120 }} lineClamp={1}>{item.categoryName || '—'}</Text>
+                            {alreadyExists ? <Badge size="xs" variant="light" style={{ width: 80 }}>Added</Badge> : <div style={{ width: 80 }} />}
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  );
+                };
 
                 if (addMode === 'search') return (
                   <>
@@ -486,7 +492,7 @@ function CategoryDetailPanel({
                       onChange={(v) => void handleBrowseCategory(v ?? '')}
                       searchable />
                     {loadingBrowse && <Text size="sm" c="dimmed">Loading items...</Text>}
-                    {renderItemList(browseItems, true)}
+                    {renderItemList(browseItems)}
                   </>
                 );
 
@@ -521,7 +527,7 @@ function CategoryDetailPanel({
                       );
                     })()}
                     {loadingCopy && <Text size="sm" c="dimmed">Loading items...</Text>}
-                    {renderItemList(copySourceItems, true)}
+                    {renderItemList(copySourceItems)}
                   </>
                 );
               })()}
