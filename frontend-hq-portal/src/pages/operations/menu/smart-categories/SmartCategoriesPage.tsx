@@ -1,1507 +1,536 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { FC } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
+  Alert,
   Badge,
-  Box,
   Button,
-  Center,
-  Divider,
-  Flex,
+  Container,
   Group,
   Loader,
   Modal,
   NumberInput,
   Paper,
-  ScrollArea,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
+  Table,
   Tabs,
   Text,
   TextInput,
-  Textarea,
-  Tooltip,
+  Title,
 } from '@mantine/core';
-import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
+  IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
   IconChevronDown,
   IconChevronRight,
-  IconDeviceFloppy,
-  IconPencil,
+  IconEdit,
   IconPlus,
   IconRefresh,
-  IconSearch,
   IconTrash,
 } from '@tabler/icons-react';
 import { useBrands } from '../../../../contexts/BrandContext';
+import menuItemService from '../../../../services/menuItemService';
 import smartCategoryService from '../../../../services/smartCategoryService';
-import { SmartCategoryItemsTab } from './SmartCategoryItemsTab';
 import type {
   SmartCategoryDetail,
-  LookupOptions,
   SmartCategoryTreeNode,
   SmartCategoryUpsertPayload,
-  SmartCategoryShopSchedule,
-  SmartCategoryOrderChannel,
 } from '../../../../types/smartCategory';
-import type { ButtonStyle } from '../../../../types/buttonStyle';
 
-const FALLBACK_CATEGORY_NAME = 'Untitled smart category';
-const FALLBACK_ITEM_MODIFIER = 'Unknown';
+// ── Flatten tree ──
 
-const formatCategoryName = (name?: string | null, id?: number) => {
-  const trimmed = name?.trim();
-  if (trimmed && trimmed.length > 0) {
-    return trimmed;
-  }
-  return id ? `${FALLBACK_CATEGORY_NAME} (#${id})` : FALLBACK_CATEGORY_NAME;
-};
-
-const formatShopName = (name?: string | null, id?: number) => {
-  const trimmed = name?.trim();
-  if (trimmed && trimmed.length > 0) {
-    return trimmed;
-  }
-  return id ? `Shop #${id}` : 'Unknown shop';
-};
-
-const formatOrderChannelName = (name?: string | null, id?: number) => {
-  const trimmed = name?.trim();
-  if (trimmed && trimmed.length > 0) {
-    return trimmed;
-  }
-  return id ? `Order channel #${id}` : 'Order channel';
-};
-
-interface SmartCategoryFormState extends Omit<SmartCategoryUpsertPayload, 'displayIndex'> {
-  displayIndex: number | '';
+interface FlatNode extends SmartCategoryTreeNode {
+  depth: number;
 }
 
-const buildInitialFormState = (
-  lookups: LookupOptions | null,
-  parentId?: number | null,
-  displayIndexHint: number | '' = '',
-): SmartCategoryFormState => ({
-  name: '',
-  nameAlt: '',
-  parentSmartCategoryId: parentId ?? null,
-  displayIndex: displayIndexHint,
-  enabled: true,
-  isTerminal: false,
-  isPublicDisplay: true,
-  buttonStyleId: lookups?.buttonStyles[0]?.buttonStyleId ?? 0,
-  description: '',
-  descriptionAlt: '',
-  imageFileName: '',
-  imageFileName2: '',
-  imageFileName3: '',
-  isSelfOrderingDisplay: null,
-  isOnlineStoreDisplay: null,
-  isOdoDisplay: null,
-  isKioskDisplay: null,
-  isTableOrderingDisplay: null,
-  onlineStoreRefCategoryId: null,
-  remark: '',
-  remarkAlt: '',
-});
+const flattenTree = (nodes: SmartCategoryTreeNode[], depth = 0): FlatNode[] =>
+  nodes.flatMap((n) => [{ ...n, depth }, ...flattenTree(n.children, depth + 1)]);
 
-const filterTree = (nodes: SmartCategoryTreeNode[], searchTerm: string): SmartCategoryTreeNode[] => {
-  if (!searchTerm) {
-    return nodes;
-  }
+// ── Category Detail Panel (inline expand) ──
 
-  const lowerSearch = searchTerm.toLowerCase();
-
-  const filterRecursive = (items: SmartCategoryTreeNode[]): SmartCategoryTreeNode[] => {
-    return items
-      .map((item) => {
-        const matches = item.name.toLowerCase().includes(lowerSearch) || item.nameAlt?.toLowerCase().includes(lowerSearch);
-        const filteredChildren = filterRecursive(item.children);
-        if (matches || filteredChildren.length > 0) {
-          return {
-            ...item,
-            children: filteredChildren,
-          };
-        }
-        return null;
-      })
-      .filter((item): item is SmartCategoryTreeNode => item !== null);
-  };
-
-  return filterRecursive(nodes);
-};
-
-const flattenTree = (nodes: SmartCategoryTreeNode[]): Record<number, SmartCategoryTreeNode> => {
-  const map: Record<number, SmartCategoryTreeNode> = {};
-  const walk = (items: SmartCategoryTreeNode[]) => {
-    items.forEach((item) => {
-      map[item.smartCategoryId] = item;
-      if (item.children.length > 0) {
-        walk(item.children);
-      }
-    });
-  };
-
-  walk(nodes);
-  return map;
-};
-
-const SmartCategoriesPage: FC = () => {
-  const { selectedBrand } = useBrands();
-  const brandId = selectedBrand ? parseInt(selectedBrand, 10) : null;
-  const isDesktopLayout = useMediaQuery('(min-width: 62em)');
-
-  const [lookups, setLookups] = useState<LookupOptions | null>(null);
-  const [lookupsLoading, setLookupsLoading] = useState(false);
-
-  const [tree, setTree] = useState<SmartCategoryTreeNode[]>([]);
-  const [treeLoading, setTreeLoading] = useState(false);
-  const [treeError, setTreeError] = useState<string | null>(null);
-
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-  const selectedCategoryIdRef = useRef<number | null>(null);
+function CategoryDetailPanel({
+  brandId,
+  categoryId,
+  onDataChanged,
+}: {
+  brandId: number;
+  categoryId: number;
+  onDataChanged?: () => void;
+}) {
   const [detail, setDetail] = useState<SmartCategoryDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [itemsDirty, setItemsDirty] = useState(false);
 
-  const [search, setSearch] = useState('');
-  const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  // Item search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
+  const [searching, setSearching] = useState(false);
 
-  const [formState, setFormState] = useState<SmartCategoryFormState>(() => buildInitialFormState(null));
-  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [formSubmitting, setFormSubmitting] = useState(false);
-
-  const [deleteConfirmOpened, { open: openDeleteConfirm, close: closeDeleteConfirm }] = useDisclosure(false);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-
-  const lookupsRequestRef = useRef<{ brandId: number | null; status: 'idle' | 'pending' | 'done' }>({
-    brandId: null,
-    status: 'idle',
-  });
-  const lookupsPromiseRef = useRef<Promise<LookupOptions> | null>(null);
-
-  const treeLookup = useMemo(() => flattenTree(tree), [tree]);
-  const filteredTree = useMemo(() => filterTree(tree, search), [tree, search]);
-
-  const buttonStyleOptions: ButtonStyle[] = useMemo(() => {
-    if (!lookups) return [];
-    return lookups.buttonStyles;
-  }, [lookups]);
-
-  const getNextDisplayIndex = useCallback(
-    (parentId?: number | null) => {
-      if (typeof parentId === 'number' && treeLookup[parentId]) {
-        return (treeLookup[parentId].children.length ?? 0) + 1;
-      }
-
-      return tree.length + 1;
-    },
-    [tree, treeLookup],
-  );
-
-  const ensureLookups = useCallback(async (): Promise<LookupOptions | null> => {
-    if (!brandId) {
-      return null;
-    }
-
-    const { brandId: currentBrand, status: currentStatus } = lookupsRequestRef.current;
-
-    if (lookups && currentBrand === brandId && currentStatus === 'done') {
-      return lookups;
-    }
-
-    if (lookupsPromiseRef.current) {
-      try {
-        return await lookupsPromiseRef.current;
-      } catch {
-        return null;
-      }
-    }
-
-    lookupsRequestRef.current = {
-      brandId,
-      status: 'pending',
-    };
-
-    const promise = smartCategoryService.getLookups(brandId);
-    lookupsPromiseRef.current = promise;
-    setLookupsLoading(true);
-
+  const reload = useCallback(async () => {
     try {
-      const result = await promise;
-      setLookups(result);
-      setFormState((prev) => ({
-        ...prev,
-        buttonStyleId: result.buttonStyles[0]?.buttonStyleId ?? prev.buttonStyleId,
-      }));
-      lookupsRequestRef.current = {
-        brandId,
-        status: 'done',
-      };
-      return result;
-    } catch (error) {
-      console.error(error);
-      notifications.show({
-        color: 'red',
-        title: 'Failed to load lookups',
-        message: 'Please try again.',
-      });
-      lookupsRequestRef.current = {
-        brandId,
-        status: 'idle',
-      };
-      return null;
+      setLoading(true);
+      const data = await smartCategoryService.getDetail(brandId, categoryId);
+      setDetail(data);
+      setItemsDirty(false);
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to load category detail' });
     } finally {
-      lookupsPromiseRef.current = null;
-      setLookupsLoading(false);
+      setLoading(false);
     }
-  }, [brandId, lookups]);
+  }, [brandId, categoryId]);
 
-  const fetchDetail = useCallback(
-    async (categoryId: number) => {
-      if (!brandId) return;
-      setDetailLoading(true);
-      try {
-        const data = await smartCategoryService.getDetail(brandId, categoryId);
-        setDetail(data);
-      } catch (error) {
-        console.error(error);
-        notifications.show({
-          color: 'red',
-          title: 'Failed to load smart category',
-          message: 'Please try again.',
-        });
-      } finally {
-        setDetailLoading(false);
-      }
-    },
-    [brandId],
-  );
+  useEffect(() => { void reload(); }, [reload]);
 
-  const fetchTree = useCallback(async () => {
-    if (!brandId) return;
-    setTreeLoading(true);
-    setTreeError(null);
+  // ── Item operations ──
+  const handleSearchItems = async () => {
+    if (!searchQuery.trim()) return;
     try {
-      const data = await smartCategoryService.getTree(brandId);
-      const activeCategoryId = selectedCategoryIdRef.current;
-
-      if (activeCategoryId) {
-        const nodeLookup = flattenTree(data);
-        if (!nodeLookup[activeCategoryId]) {
-          selectedCategoryIdRef.current = null;
-          setSelectedCategoryId(null);
-          setDetail(null);
-        }
-      }
-
-      setTree(data);
-
-      if (!selectedCategoryIdRef.current && data.length > 0) {
-        const firstCategoryId = data[0].smartCategoryId;
-        selectedCategoryIdRef.current = firstCategoryId;
-        setSelectedCategoryId(firstCategoryId);
-        fetchDetail(firstCategoryId);
-      }
-    } catch (error) {
-      console.error(error);
-      setTreeError('Unable to load smart categories.');
+      setSearching(true);
+      const result = await menuItemService.getMenuItems(brandId, { search: searchQuery.trim(), pageSize: 20 });
+      const existingIds = new Set(detail?.items.map((i) => i.itemId) ?? []);
+      setSearchResults(
+        result.items
+          .filter((i) => !existingIds.has(i.itemId))
+          .map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' }))
+      );
+    } catch {
+      notifications.show({ color: 'red', message: 'Search failed' });
     } finally {
-      setTreeLoading(false);
+      setSearching(false);
     }
-  }, [brandId, fetchDetail]);
+  };
 
-  useEffect(() => {
-    selectedCategoryIdRef.current = null;
-    setSelectedCategoryId(null);
-    setDetail(null);
-
-    if (!brandId) {
-      setTree([]);
-      setLookups(null);
-      lookupsRequestRef.current = { brandId: null, status: 'idle' };
-      lookupsPromiseRef.current = null;
-      return;
-    }
-
-    if (lookupsRequestRef.current.brandId !== brandId) {
-      lookupsRequestRef.current = { brandId, status: 'idle' };
-      lookupsPromiseRef.current = null;
-      setLookups(null);
-    }
-
-    fetchTree();
-  }, [brandId, fetchTree]);
-
-  const handleSelectCategory = useCallback(
-    (categoryId: number) => {
-      selectedCategoryIdRef.current = categoryId;
-      setSelectedCategoryId(categoryId);
-      fetchDetail(categoryId);
-    },
-    [fetchDetail],
-  );
-
-  const handleRefresh = useCallback(() => {
-    fetchTree();
-    if (selectedCategoryId) {
-      fetchDetail(selectedCategoryId);
-    }
-  }, [fetchTree, fetchDetail, selectedCategoryId]);
-
-  const handleDetailRefresh = useCallback(() => {
-    if (selectedCategoryId) {
-      fetchDetail(selectedCategoryId);
-    }
-  }, [fetchDetail, selectedCategoryId]);
-
-  const toggleNode = useCallback((categoryId: number) => {
-    setExpandedNodes((prev) => {
-      const next = new Set(prev);
-      if (next.has(categoryId)) {
-        next.delete(categoryId);
-      } else {
-        next.add(categoryId);
-      }
-      return next;
-    });
-  }, []);
-
-  const openCreateModal = useCallback(
-    async (parentId?: number | null) => {
-      const loadedLookups = await ensureLookups();
-      if (!loadedLookups) {
-        return;
-      }
-
-      const displayIndexHint = getNextDisplayIndex(parentId);
-
-      setFormMode('create');
-      setFormState(buildInitialFormState(loadedLookups, parentId, displayIndexHint));
-      openForm();
-    },
-    [ensureLookups, openForm, getNextDisplayIndex],
-  );
-
-  const openEditModal = useCallback(async () => {
+  const addItem = (item: { itemId: number; itemCode: string; itemName: string }) => {
     if (!detail) return;
-    const loadedLookups = await ensureLookups();
-    if (!loadedLookups) {
-      return;
-    }
-    const { category } = detail;
-    setFormMode('edit');
-    setFormState({
-      name: category.name ?? '',
-      nameAlt: category.nameAlt ?? '',
-      parentSmartCategoryId: category.parentSmartCategoryId,
-      displayIndex: category.displayIndex,
-      enabled: category.enabled,
-      isTerminal: category.isTerminal,
-      isPublicDisplay: category.isPublicDisplay,
-      buttonStyleId: category.buttonStyleId,
-      description: category.description ?? '',
-      descriptionAlt: category.descriptionAlt ?? '',
-      imageFileName: category.imageFileName ?? '',
-      imageFileName2: category.imageFileName2 ?? '',
-      imageFileName3: category.imageFileName3 ?? '',
-      isSelfOrderingDisplay: category.isSelfOrderingDisplay ?? null,
-      isOnlineStoreDisplay: category.isOnlineStoreDisplay ?? null,
-      isOdoDisplay: category.isOdoDisplay ?? null,
-      isKioskDisplay: category.isKioskDisplay ?? null,
-      isTableOrderingDisplay: category.isTableOrderingDisplay ?? null,
-      onlineStoreRefCategoryId: category.onlineStoreRefCategoryId ?? null,
-      remark: category.remark ?? '',
-      remarkAlt: category.remarkAlt ?? '',
+    const maxIdx = detail.items.reduce((max, i) => Math.max(max, i.displayIndex), 0);
+    setDetail({
+      ...detail,
+      items: [...detail.items, {
+        itemId: item.itemId, itemCode: item.itemCode, itemName: item.itemName,
+        itemNameAlt: null, displayIndex: maxIdx + 1, enabled: true,
+        modifiedDate: new Date().toISOString(), modifiedBy: '',
+      }],
     });
-    openForm();
-  }, [detail, ensureLookups, openForm]);
+    setSearchResults((prev) => prev.filter((r) => r.itemId !== item.itemId));
+    setItemsDirty(true);
+  };
 
-  const handleFormSubmit = useCallback(async () => {
-    if (!brandId) return;
+  const removeItem = (itemId: number) => {
+    if (!detail) return;
+    setDetail({ ...detail, items: detail.items.filter((i) => i.itemId !== itemId) });
+    setItemsDirty(true);
+  };
 
-    if (!formState.name.trim()) {
-      notifications.show({
-        color: 'red',
-        title: 'Name is required',
-        message: 'Please enter a name for the smart category.',
-      });
-      return;
-    }
+  const moveItem = (itemId: number, direction: 'up' | 'down') => {
+    if (!detail) return;
+    const items = [...detail.items].sort((a, b) => a.displayIndex - b.displayIndex);
+    const idx = items.findIndex((i) => i.itemId === itemId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+    const tempIdx = items[idx].displayIndex;
+    items[idx] = { ...items[idx], displayIndex: items[swapIdx].displayIndex };
+    items[swapIdx] = { ...items[swapIdx], displayIndex: tempIdx };
+    setDetail({ ...detail, items });
+    setItemsDirty(true);
+  };
 
-    if (!formState.buttonStyleId) {
-      notifications.show({
-        color: 'red',
-        title: 'Button style required',
-        message: 'Please select a button style.',
-      });
-      return;
-    }
-
-    setFormSubmitting(true);
-
-    const payload: SmartCategoryUpsertPayload = {
-      ...formState,
-      displayIndex: typeof formState.displayIndex === 'number' ? formState.displayIndex : 0,
-    };
-
+  const saveItems = async () => {
+    if (!detail) return;
     try {
-      if (formMode === 'create') {
-        const response = await smartCategoryService.create(brandId, payload);
-        const createdName = formatCategoryName(response.category.name, response.category.smartCategoryId);
-        notifications.show({
-          color: 'green',
-          title: 'Smart category created',
-          message: `${createdName} was created successfully.`,
-        });
-        closeForm();
-        fetchTree();
-        selectedCategoryIdRef.current = response.category.smartCategoryId;
-        setSelectedCategoryId(response.category.smartCategoryId);
-        setDetail(response);
-      } else if (selectedCategoryId) {
-        await smartCategoryService.update(brandId, selectedCategoryId, payload);
-        const updatedName = formatCategoryName(formState.name, selectedCategoryId);
-        notifications.show({
-          color: 'green',
-          title: 'Smart category updated',
-          message: `${updatedName} was updated successfully.`,
-        });
-        closeForm();
-        fetchTree();
-        fetchDetail(selectedCategoryId);
-      }
-    } catch (error) {
-      console.error(error);
-      notifications.show({
-        color: 'red',
-        title: 'Save failed',
-        message: 'Unable to save smart category. Please try again.',
+      setSaving(true);
+      await smartCategoryService.upsertItems(brandId, categoryId, {
+        items: detail.items.map((i) => ({ itemId: i.itemId, displayIndex: i.displayIndex, enabled: i.enabled })),
       });
+      notifications.show({ color: 'green', message: 'Items saved' });
+      setItemsDirty(false);
+      onDataChanged?.();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save items' });
     } finally {
-      setFormSubmitting(false);
+      setSaving(false);
     }
-  }, [
-    brandId,
-    formState,
-    formMode,
-    selectedCategoryId,
-    fetchTree,
-    fetchDetail,
-    closeForm,
-  ]);
+  };
 
-  const handleDelete = useCallback(async () => {
-    if (!brandId || !selectedCategoryId || !detail) return;
-    setDeleteSubmitting(true);
+  const saveDisplaySettings = async () => {
+    if (!detail) return;
     try {
-      await smartCategoryService.remove(brandId, selectedCategoryId);
-      const deletedName = formatCategoryName(detail.category.name, detail.category.smartCategoryId);
-      notifications.show({
-        color: 'green',
-        title: 'Smart category deleted',
-        message: `${deletedName} was deleted.`,
+      setSaving(true);
+      await smartCategoryService.updateDisplaySettings(brandId, categoryId, {
+        shopSchedules: detail.shopSchedules.map((s) => ({
+          shopId: s.shopId, displayIndex: s.displayIndex,
+          displayFromDate: s.displayFromDate, displayToDate: s.displayToDate,
+          displayFromTime: s.displayFromTime, displayToTime: s.displayToTime,
+          displayFromDateTime: s.displayFromDateTime, displayToDateTime: s.displayToDateTime,
+          isPublicDisplay: s.isPublicDisplay, enabled: s.enabled,
+          dayOfWeek: s.dayOfWeek, isWeekdayHide: s.isWeekdayHide,
+          isWeekendHide: s.isWeekendHide, isHolidayHide: s.isHolidayHide,
+          daysOfWeek: s.daysOfWeek, months: s.months, dates: s.dates,
+        })),
+        orderChannels: detail.orderChannels.map((c) => ({
+          shopId: c.shopId, orderChannelId: c.orderChannelId, enabled: c.enabled,
+        })),
       });
-      closeDeleteConfirm();
-      selectedCategoryIdRef.current = null;
-      setSelectedCategoryId(null);
-      setDetail(null);
-      fetchTree();
-    } catch (error) {
-      console.error(error);
-      notifications.show({
-        color: 'red',
-        title: 'Delete failed',
-        message: 'Unable to delete smart category. Ensure it has no children or items assigned.',
-      });
+      notifications.show({ color: 'green', message: 'Settings saved' });
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save' });
     } finally {
-      setDeleteSubmitting(false);
+      setSaving(false);
     }
-  }, [brandId, selectedCategoryId, detail, closeDeleteConfirm, fetchTree]);
+  };
 
-  const renderTree = useCallback(
-    (nodes: SmartCategoryTreeNode[], depth = 0): React.ReactNode[] => {
-      return nodes.flatMap((node) => {
-        const hasChildren = node.children.length > 0;
-        const isExpanded = expandedNodes.has(node.smartCategoryId) || !!search;
-        const isSelected = node.smartCategoryId === selectedCategoryId;
+  if (loading) return <Group justify="center" py="sm"><Loader size="xs" /><Text size="sm" c="dimmed">Loading...</Text></Group>;
+  if (!detail) return null;
 
-        const row = (
-          <Box key={`${node.smartCategoryId}-node`} pl={depth * 16}>
-            <UnstyledTreeRow
-              node={node}
-              hasChildren={hasChildren}
-              isExpanded={isExpanded}
-              isSelected={isSelected}
-              onToggle={() => toggleNode(node.smartCategoryId)}
-              onSelect={() => handleSelectCategory(node.smartCategoryId)}
-            />
-          </Box>
-        );
-
-        if (hasChildren && isExpanded) {
-          return [row, ...renderTree(node.children, depth + 1)];
-        }
-
-        return [row];
-      });
-    },
-    [expandedNodes, handleSelectCategory, selectedCategoryId, toggleNode, search],
-  );
+  const sortedItems = [...detail.items].sort((a, b) => a.displayIndex - b.displayIndex);
 
   return (
-    <Box
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden',
-      }}
-    >
-      <Box
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-      >
-        <Flex
-          gap={isDesktopLayout ? 0 : 'var(--mantine-spacing-md)'}
-          direction={isDesktopLayout ? 'row' : 'column'}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflow: 'hidden',
-            paddingInline: isDesktopLayout ? 0 : 'var(--mantine-spacing-md)',
-            paddingBlock: isDesktopLayout ? 0 : 'var(--mantine-spacing-md)',
-          }}
-        >
-          {!isSidebarCollapsed && (
-            <Box
-              style={{
-                width: isDesktopLayout ? 320 : '100%',
-                flexShrink: isDesktopLayout ? 0 : undefined,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              <Paper
-                shadow="none"
-                radius={0}
-                p="md"
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minHeight: 0,
-                  borderRight: isDesktopLayout ? '1px solid var(--mantine-color-gray-3)' : 'none',
-                  borderBottom: isDesktopLayout ? 'none' : '1px solid var(--mantine-color-gray-3)',
-                  backgroundColor: 'white',
-                }}
-              >
-                <PaperSidebar
-                  lookupsLoading={lookupsLoading}
-                  treeLoading={treeLoading}
-                  treeError={treeError}
-                  search={search}
-                  onSearchChange={setSearch}
-                  onRefresh={handleRefresh}
-                  onCreate={openCreateModal}
-                  childrenContent={
-                    treeLoading ? (
-                      <Center py="xl">
-                        <Loader />
-                      </Center>
-                    ) : filteredTree.length > 0 ? (
-                      <Stack gap={4}>{renderTree(filteredTree)}</Stack>
-                    ) : (
-                      <Stack gap="xs" py="xl" align="center">
-                        <Text size="sm" c="dimmed">
-                          No smart categories match your search.
-                        </Text>
-                        <Button variant="light" size="xs" onClick={() => setSearch('')}>
-                          Clear search
-                        </Button>
-                      </Stack>
-                    )
-                  }
-                />
-              </Paper>
-            </Box>
-          )}
+    <Paper p="sm" bg="gray.0" radius="sm">
+      <Tabs defaultValue="items">
+        <Tabs.List>
+          <Tabs.Tab value="items">Sellable Items ({detail.items.length})</Tabs.Tab>
+          <Tabs.Tab value="shops">Shop Display Settings ({detail.shopSchedules.length})</Tabs.Tab>
+          <Tabs.Tab value="channels">Order Channels ({detail.orderChannels.length})</Tabs.Tab>
+        </Tabs.List>
 
-            <Box
-              style={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-              }}
-            >
-              <Stack
-                gap={0}
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <Paper
-                  shadow="none"
-                  radius={0}
-                  p="md"
-                  style={{
-                    flexShrink: 0,
-                    borderBottom: '1px solid var(--mantine-color-gray-3)',
-                    backgroundColor: 'white',
-                  }}
-                >
-                  <SmartCategoryDetailHeader
-                    detail={detail}
-                    detailLoading={detailLoading}
-                    onCreateChild={() => openCreateModal(selectedCategoryId)}
-                    onEdit={openEditModal}
-                    onDelete={openDeleteConfirm}
-                  />
-                </Paper>
-                <Box
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Paper
-                    shadow="none"
-                    radius={0}
-                    pt="md"
-                    px={0}
-                    pb={0}
-                    style={{
-                      flex: 1,
-                      minHeight: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      backgroundColor: 'white',
-                    }}
-                  >
-                    <SmartCategoryDetailContent
-                      detail={detail}
-                      detailLoading={detailLoading}
-                      buttonStyles={buttonStyleOptions}
-                      onReload={handleDetailRefresh}
-                      isSidebarCollapsed={isSidebarCollapsed}
-                      onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
-                    />
-                  </Paper>
-                </Box>
+        {/* Items Tab */}
+        <Tabs.Panel value="items" pt="xs">
+          <Table verticalSpacing="xs" striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Code</Table.Th>
+                <Table.Th>Item Name</Table.Th>
+                <Table.Th>Order</Table.Th>
+                <Table.Th>Enabled</Table.Th>
+                <Table.Th style={{ width: 100 }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedItems.length === 0 ? (
+                <Table.Tr><Table.Td colSpan={5}><Text size="sm" c="dimmed">No items. Search below to add.</Text></Table.Td></Table.Tr>
+              ) : sortedItems.map((item) => (
+                <Table.Tr key={item.itemId}>
+                  <Table.Td><Text size="xs" c="dimmed">{item.itemCode}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
+                  <Table.Td><Badge size="sm" color={item.enabled ? 'green' : 'gray'}>{item.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
+                  <Table.Td>
+                    <Group gap={4}>
+                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'up')}><IconArrowUp size={12} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'down')}><IconArrowDown size={12} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+
+          <Group mt="sm" gap="xs">
+            <TextInput size="xs" placeholder="Search items to add..." value={searchQuery}
+              onChange={(e) => setSearchQuery(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
+              style={{ flex: 1 }} />
+            <Button size="xs" variant="light" onClick={() => void handleSearchItems()} loading={searching}>Search</Button>
+          </Group>
+          {searchResults.length > 0 && (
+            <Paper withBorder p="xs" mt="xs">
+              <Stack gap={4}>
+                {searchResults.map((item) => (
+                  <Group key={item.itemId} justify="space-between">
+                    <Text size="xs">{item.itemCode} — {item.itemName}</Text>
+                    <Button size="xs" variant="subtle" onClick={() => addItem(item)} leftSection={<IconPlus size={12} />}>Add</Button>
+                  </Group>
+                ))}
               </Stack>
-            </Box>
-        </Flex>
-      </Box>
+            </Paper>
+          )}
+          {itemsDirty && (
+            <Group mt="xs" justify="flex-end">
+              <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>
+            </Group>
+          )}
+        </Tabs.Panel>
 
-      <SmartCategoryFormModal
-        opened={formOpened}
-        mode={formMode}
-        formState={formState}
-        onClose={closeForm}
-        onChange={setFormState}
-        onSubmit={handleFormSubmit}
-        submitting={formSubmitting}
-        buttonStyles={buttonStyleOptions}
-        treeLookup={treeLookup}
-        currentCategoryId={formMode === 'edit' ? selectedCategoryId : null}
-      />
+        {/* Shop Display Settings Tab */}
+        <Tabs.Panel value="shops" pt="xs">
+          {detail.shopSchedules.length === 0 ? (
+            <Text size="sm" c="dimmed" py="xs">No shop display settings.</Text>
+          ) : (
+            <Table verticalSpacing="xs" striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Shop</Table.Th>
+                  <Table.Th>Enabled</Table.Th>
+                  <Table.Th>Public</Table.Th>
+                  <Table.Th>Days</Table.Th>
+                  <Table.Th>From</Table.Th>
+                  <Table.Th>To</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {detail.shopSchedules.map((shop, i) => (
+                  <Table.Tr key={shop.shopId}>
+                    <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
+                    <Table.Td><Switch size="xs" checked={shop.enabled} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
+                    <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || 'All'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+          <Group mt="xs" justify="flex-end">
+            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Settings</Button>
+          </Group>
+        </Tabs.Panel>
 
-      <Modal
-        opened={deleteConfirmOpened}
-        onClose={closeDeleteConfirm}
-        title="Delete smart category"
-        centered
-      >
+        {/* Order Channels Tab */}
+        <Tabs.Panel value="channels" pt="xs">
+          {detail.orderChannels.length === 0 ? (
+            <Text size="sm" c="dimmed" py="xs">No channel mappings.</Text>
+          ) : (
+            <Table verticalSpacing="xs" striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Shop</Table.Th>
+                  <Table.Th>Channel</Table.Th>
+                  <Table.Th>Enabled</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {detail.orderChannels.map((ch, i) => (
+                  <Table.Tr key={`${ch.shopId}-${ch.orderChannelId}`}>
+                    <Table.Td><Text size="sm">{ch.shopName}</Text></Table.Td>
+                    <Table.Td><Text size="sm">{ch.name}</Text></Table.Td>
+                    <Table.Td><Switch size="xs" checked={ch.enabled} onChange={(e) => { const u = [...detail.orderChannels]; u[i] = { ...ch, enabled: e.currentTarget.checked }; setDetail({ ...detail, orderChannels: u }); }} /></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+          <Group mt="xs" justify="flex-end">
+            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Channels</Button>
+          </Group>
+        </Tabs.Panel>
+      </Tabs>
+    </Paper>
+  );
+}
+
+// ── Main Page ──
+
+export function SmartCategoriesPage() {
+  const { selectedBrand } = useBrands();
+  const brandId = useMemo(() => (selectedBrand ? parseInt(selectedBrand, 10) : null), [selectedBrand]);
+
+  const [tree, setTree] = useState<SmartCategoryTreeNode[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // Create/Edit modal
+  const [modalOpened, setModalOpened] = useState(false);
+  const [editTarget, setEditTarget] = useState<FlatNode | null>(null);
+  const [form, setForm] = useState<SmartCategoryUpsertPayload>({
+    name: '', nameAlt: '', parentSmartCategoryId: null, displayIndex: 0,
+    enabled: true, isTerminal: true, isPublicDisplay: true, buttonStyleId: 0,
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const flatNodes = useMemo(() => flattenTree(tree), [tree]);
+
+  // Parent options for the modal
+  const parentOptions = useMemo(() => [
+    { value: '', label: '(Root - no parent)' },
+    ...flatNodes
+      .filter((n) => n.smartCategoryId !== editTarget?.smartCategoryId)
+      .map((n) => ({ value: String(n.smartCategoryId), label: `${'  '.repeat(n.depth)}${n.name}` })),
+  ], [flatNodes, editTarget]);
+
+  const loadData = useCallback(async () => {
+    if (!brandId) { setTree([]); return; }
+    try {
+      setLoading(true);
+      setError(null);
+      setTree(await smartCategoryService.getTree(brandId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [brandId]);
+
+  useEffect(() => { void loadData(); }, [loadData]);
+
+  const openCreate = (parentId?: number | null) => {
+    setEditTarget(null);
+    setForm({
+      name: '', nameAlt: '', parentSmartCategoryId: parentId ?? null,
+      displayIndex: flatNodes.length * 10, enabled: true, isTerminal: true,
+      isPublicDisplay: true, buttonStyleId: 0,
+    });
+    setModalOpened(true);
+  };
+
+  const openEdit = (node: FlatNode) => {
+    setEditTarget(node);
+    setForm({
+      name: node.name, nameAlt: node.nameAlt, parentSmartCategoryId: node.parentSmartCategoryId,
+      displayIndex: node.displayIndex, enabled: node.enabled, isTerminal: true,
+      isPublicDisplay: true, buttonStyleId: node.buttonStyleId,
+    });
+    setModalOpened(true);
+  };
+
+  const handleSave = async () => {
+    if (!brandId || !form.name.trim()) {
+      notifications.show({ color: 'red', message: 'Category name is required' });
+      return;
+    }
+    try {
+      setSubmitting(true);
+      if (editTarget) {
+        await smartCategoryService.update(brandId, editTarget.smartCategoryId, form);
+        notifications.show({ color: 'green', message: 'Category updated' });
+      } else {
+        await smartCategoryService.create(brandId, form);
+        notifications.show({ color: 'green', message: 'Category created' });
+      }
+      setModalOpened(false);
+      await loadData();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (node: FlatNode) => {
+    if (!brandId) return;
+    if (!window.confirm(`Delete smart category "${node.name}"?`)) return;
+    try {
+      await smartCategoryService.remove(brandId, node.smartCategoryId);
+      notifications.show({ color: 'green', message: 'Category deleted' });
+      if (expandedId === node.smartCategoryId) setExpandedId(null);
+      await loadData();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to delete' });
+    }
+  };
+
+  return (
+    <Container size="xl" py="xl">
+      <Stack gap="lg">
+        <Group justify="space-between">
+          <Title order={2}>Smart Categories</Title>
+          <Group>
+            <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadData()} loading={loading}>Refresh</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => openCreate()} disabled={!brandId}>New Smart Category</Button>
+          </Group>
+        </Group>
+
+        {!brandId && <Alert icon={<IconAlertCircle size={16} />} color="yellow">Select a brand to manage smart categories.</Alert>}
+        {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
+
+        <Paper withBorder>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th style={{ width: 40 }} />
+                <Table.Th>Category Name</Table.Th>
+                <Table.Th>Alt Name</Table.Th>
+                <Table.Th>Items</Table.Th>
+                <Table.Th>Ordering</Table.Th>
+                <Table.Th>Published</Table.Th>
+                <Table.Th style={{ width: 120 }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {flatNodes.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text c="dimmed" ta="center" py="md">{loading ? 'Loading...' : 'No smart categories found.'}</Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : (
+                flatNodes.flatMap((node) => {
+                  const isExpanded = expandedId === node.smartCategoryId;
+                  const rows = [
+                    <Table.Tr key={node.smartCategoryId} style={{ cursor: 'pointer' }}
+                      onClick={() => setExpandedId(isExpanded ? null : node.smartCategoryId)}>
+                      <Table.Td>
+                        <ActionIcon variant="subtle" size="sm">
+                          {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                        </ActionIcon>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" style={{ paddingLeft: node.depth * 20 }}>
+                          {node.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
+                          {node.name}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td><Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text></Table.Td>
+                      <Table.Td><Badge size="sm" variant="light">{node.itemCount}</Badge></Table.Td>
+                      <Table.Td><Text size="sm">{node.displayIndex}</Text></Table.Td>
+                      <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
+                      <Table.Td onClick={(e) => e.stopPropagation()}>
+                        <Group gap={4}>
+                          <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => openEdit(node)}><IconEdit size={14} /></ActionIcon>
+                          <ActionIcon size="sm" variant="subtle" onClick={() => openCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon>
+                          <ActionIcon size="sm" variant="subtle" color="red" onClick={() => void handleDelete(node)}><IconTrash size={14} /></ActionIcon>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>,
+                  ];
+                  if (isExpanded && brandId) {
+                    rows.push(
+                      <Table.Tr key={`${node.smartCategoryId}-detail`} style={{ backgroundColor: '#f8f9fa' }}>
+                        <Table.Td colSpan={7} style={{ padding: '12px 16px' }}>
+                          <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} onDataChanged={() => void loadData()} />
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  }
+                  return rows;
+                })
+              )}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+      </Stack>
+
+      {/* Create/Edit Modal */}
+      <Modal opened={modalOpened} onClose={() => setModalOpened(false)} title={editTarget ? 'Edit Smart Category' : 'New Smart Category'} size="md">
         <Stack gap="md">
-          <Text>
-            Are you sure you want to delete{' '}
-            <Text span fw={600}>
-              {detail ? formatCategoryName(detail.category.name, detail.category.smartCategoryId) : 'this smart category'}
-            </Text>
-            ? This action cannot be undone.
-          </Text>
+          <TextInput label="Category Name" required value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
+          <TextInput label="Category Name (Alt)" value={form.nameAlt ?? ''}
+            onChange={(e) => setForm({ ...form, nameAlt: e.currentTarget.value })} />
+          <Select label="Parent Category" data={parentOptions}
+            value={form.parentSmartCategoryId ? String(form.parentSmartCategoryId) : ''}
+            onChange={(v) => setForm({ ...form, parentSmartCategoryId: v ? parseInt(v, 10) : null })}
+            clearable searchable />
+          <NumberInput label="Display Order" value={form.displayIndex}
+            onChange={(v) => setForm({ ...form, displayIndex: typeof v === 'number' ? v : 0 })} />
+          <Group grow>
+            <Switch label="Enabled" checked={form.enabled}
+              onChange={(e) => setForm({ ...form, enabled: e.currentTarget.checked })} />
+            <Switch label="Public Display" checked={form.isPublicDisplay}
+              onChange={(e) => setForm({ ...form, isPublicDisplay: e.currentTarget.checked })} />
+          </Group>
           <Group justify="flex-end">
-            <Button variant="outline" onClick={closeDeleteConfirm}>
-              Cancel
-            </Button>
-            <Button color="red" loading={deleteSubmitting} onClick={handleDelete}>
-              Delete
-            </Button>
+            <Button variant="default" onClick={() => setModalOpened(false)}>Cancel</Button>
+            <Button onClick={() => void handleSave()} loading={submitting}>{editTarget ? 'Update' : 'Create'}</Button>
           </Group>
         </Stack>
       </Modal>
-    </Box>
+    </Container>
   );
-};
-
-interface SidebarProps {
-  lookupsLoading: boolean;
-  treeLoading: boolean;
-  treeError: string | null;
-  search: string;
-  onSearchChange: (value: string) => void;
-  onRefresh: () => void;
-  onCreate: () => void;
-  childrenContent: React.ReactNode;
 }
-
-const PaperSidebar: FC<SidebarProps> = ({
-  lookupsLoading,
-  treeLoading,
-  treeError,
-  search,
-  onSearchChange,
-  onRefresh,
-  onCreate,
-  childrenContent,
-}) => (
-  <Stack gap="md" style={{ flex: 1, minHeight: 0 }}>
-    <Group justify="space-between" align="center">
-      <Text fw={700} size="lg">
-        Smart Categories
-      </Text>
-      <Group gap="xs">
-        <Tooltip label="Refresh">
-          <ActionIcon variant="subtle" onClick={onRefresh} disabled={treeLoading}>
-            <IconRefresh size={18} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Create smart category">
-          <ActionIcon variant="filled" color="indigo" onClick={onCreate} disabled={lookupsLoading}>
-            <IconPlus size={18} />
-          </ActionIcon>
-        </Tooltip>
-      </Group>
-    </Group>
-    <TextInput
-      placeholder="Search smart categories"
-      value={search}
-      onChange={(event) => onSearchChange(event.currentTarget.value)}
-      leftSection={<IconSearch size={16} />}
-    />
-    <Divider />
-    {treeError ? (
-      <Stack align="center" gap="xs">
-        <Text size="sm" c="red">
-          {treeError}
-        </Text>
-        <Button variant="light" size="xs" onClick={onRefresh}>
-          Retry
-        </Button>
-      </Stack>
-    ) : (
-      <ScrollArea style={{ flex: 1, minHeight: 0 }}>{childrenContent}</ScrollArea>
-    )}
-  </Stack>
-);
-
-interface TreeRowProps {
-  node: SmartCategoryTreeNode;
-  hasChildren: boolean;
-  isExpanded: boolean;
-  isSelected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
-}
-
-const UnstyledTreeRow: FC<TreeRowProps> = ({ node, hasChildren, isExpanded, isSelected, onToggle, onSelect }) => {
-  const displayName = formatCategoryName(node.name, node.smartCategoryId);
-
-  return (
-    <Group
-      justify="space-between"
-      align="center"
-      px="xs"
-      py={6}
-      style={{
-        borderRadius: 8,
-        cursor: 'pointer',
-        backgroundColor: isSelected ? 'var(--mantine-color-indigo-0)' : undefined,
-        border: isSelected ? '1px solid var(--mantine-color-indigo-4)' : '1px solid transparent',
-      }}
-      onClick={onSelect}
-    >
-      <Group gap={6} align="center">
-        {hasChildren ? (
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggle();
-            }}
-          >
-            {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
-          </ActionIcon>
-        ) : (
-          <Box w={26} />
-        )}
-        <Stack gap={2}>
-          <Group gap={6} align="center">
-            <Text fw={600} size="sm">
-              {displayName}
-            </Text>
-            {!node.enabled && (
-              <Badge color="gray" size="xs" variant="light">
-                Disabled
-              </Badge>
-            )}
-          </Group>
-          <Text size="xs" c="dimmed">
-            {node.itemCount} items
-          </Text>
-        </Stack>
-      </Group>
-      <Badge size="sm" variant="light" color="indigo">
-        #{node.displayIndex}
-      </Badge>
-    </Group>
-  );
-};
-
-interface DetailHeaderProps {
-  detail: SmartCategoryDetail | null;
-  detailLoading: boolean;
-  onCreateChild: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-const SmartCategoryDetailHeader: FC<DetailHeaderProps> = ({
-  detail,
-  detailLoading,
-  onCreateChild,
-  onEdit,
-  onDelete,
-}) => {
-  const actionsDisabled = detailLoading || !detail;
-
-  return (
-    <Group justify="flex-end" align="center" gap="xs">
-      <Button
-        variant="light"
-        onClick={onCreateChild}
-        leftSection={<IconPlus size={16} />}
-        disabled={actionsDisabled}
-      >
-        Add child
-      </Button>
-      <Button variant="light" onClick={onEdit} leftSection={<IconPencil size={16} />} disabled={actionsDisabled}>
-        Edit
-      </Button>
-      <Button
-        color="red"
-        variant="light"
-        onClick={onDelete}
-        leftSection={<IconTrash size={16} />}
-        disabled={actionsDisabled}
-      >
-        Delete
-      </Button>
-    </Group>
-  );
-};
-
-interface DetailContentProps {
-  detail: SmartCategoryDetail | null;
-  detailLoading: boolean;
-  buttonStyles: ButtonStyle[];
-  onReload: () => void;
-  isSidebarCollapsed: boolean;
-  onToggleSidebar: () => void;
-}
-
-const SmartCategoryDetailContent: FC<DetailContentProps> = ({
-  detail,
-  detailLoading,
-  buttonStyles,
-  onReload,
-  isSidebarCollapsed,
-  onToggleSidebar,
-}) => {
-  if (detailLoading) {
-    return (
-      <Center style={{ flex: 1 }}>
-        <Loader />
-      </Center>
-    );
-  }
-
-  if (!detail) {
-    return (
-      <Center style={{ flex: 1 }}>
-        <Stack gap="xs" align="center">
-          <Text fw={600}>Select a smart category to view details</Text>
-          <Text size="sm" c="dimmed">
-            Choose a category from the left panel to manage its items, details, and display options.
-          </Text>
-        </Stack>
-      </Center>
-    );
-  }
-
-  return (
-    <Tabs defaultValue="items" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <Tabs.List>
-        <Tabs.Tab value="items">Items</Tabs.Tab>
-        <Tabs.Tab value="details">Details</Tabs.Tab>
-        <Tabs.Tab value="shop-schedules">Shop schedules</Tabs.Tab>
-        <Tabs.Tab value="order-channels">Order channel visibility</Tabs.Tab>
-      </Tabs.List>
-
-      <Tabs.Panel value="items" pt="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <SmartCategoryItemsTab
-          smartCategoryId={detail.category.smartCategoryId}
-          categoryName={detail.category.name}
-          initialItems={detail.items}
-          onReload={onReload}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={onToggleSidebar}
-        />
-      </Tabs.Panel>
-      <Tabs.Panel value="details" pt="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <DetailsTab detail={detail} buttonStyles={buttonStyles} />
-      </Tabs.Panel>
-      <Tabs.Panel value="shop-schedules" pt="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <ShopSchedulesTab schedules={detail.shopSchedules} />
-      </Tabs.Panel>
-      <Tabs.Panel value="order-channels" pt="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <OrderChannelsTab channels={detail.orderChannels} />
-      </Tabs.Panel>
-    </Tabs>
-  );
-};
-
-
-
-interface DetailsTabProps {
-  detail: SmartCategoryDetail;
-  buttonStyles: ButtonStyle[];
-}
-
-const DetailsTab: FC<DetailsTabProps> = ({ detail, buttonStyles }) => {
-  const { category } = detail;
-
-  const nameDisplay = formatCategoryName(category.name, category.smartCategoryId);
-  const buttonStyleName = buttonStyles
-    .find((style) => style.buttonStyleId === category.buttonStyleId)
-    ?.styleName?.trim();
-  const modifiedByDisplay = category.modifiedBy ? category.modifiedBy.trim() : '';
-  const createdByDisplay = category.createdBy ? category.createdBy.trim() : '';
-  const modifiedByText = modifiedByDisplay || FALLBACK_ITEM_MODIFIER;
-  const createdByText = createdByDisplay || FALLBACK_ITEM_MODIFIER;
-  const modifiedAtText = category.modifiedDate ? new Date(category.modifiedDate).toLocaleString() : '—';
-  const createdAtText = category.createdDate ? new Date(category.createdDate).toLocaleString() : '—';
-
-  return (
-    <ScrollArea style={{ flex: 1, minHeight: 0 }}>
-    <Stack gap="sm">
-      <Group align="flex-start" gap="xl">
-        <Stack gap={6} flex={1}>
-          <Text fw={600}>General</Text>
-          <Text size="sm">
-            <Text span fw={600}>
-              Name:
-            </Text>{' '}
-            {nameDisplay}
-          </Text>
-          {category.nameAlt && (
-            <Text size="sm">
-              <Text span fw={600}>
-                Name (alt):
-              </Text>{' '}
-              {category.nameAlt}
-            </Text>
-          )}
-          <Text size="sm">
-            <Text span fw={600}>
-              Parent:
-            </Text>{' '}
-            {category.parentSmartCategoryId ?? 'Root'}
-          </Text>
-          <Text size="sm">
-            <Text span fw={600}>
-              Display index:
-            </Text>{' '}
-            {category.displayIndex}
-          </Text>
-          <Text size="sm">
-            <Text span fw={600}>
-              Button style:
-            </Text>{' '}
-            {buttonStyleName ?? `#${category.buttonStyleId}`}
-          </Text>
-        </Stack>
-        <Stack gap={6} flex={1}>
-          <Text fw={600}>Status</Text>
-          <Group gap="xs">
-            <Badge color={category.enabled ? 'teal' : 'gray'} variant="light">
-              {category.enabled ? 'Enabled' : 'Disabled'}
-            </Badge>
-            {category.isTerminal && (
-              <Badge color="orange" variant="light">
-                Terminal
-              </Badge>
-            )}
-            {category.isPublicDisplay && (
-              <Badge color="blue" variant="light">
-                Public
-              </Badge>
-            )}
-          </Group>
-          <Text size="sm">
-            <Text span fw={600}>
-              Modified:
-            </Text>{' '}
-            {modifiedAtText} by {modifiedByText}
-          </Text>
-          <Text size="sm">
-            <Text span fw={600}>
-              Created:
-            </Text>{' '}
-            {createdAtText} by {createdByText}
-          </Text>
-        </Stack>
-      </Group>
-
-      <Divider />
-
-      <Stack gap={4}>
-        <Text fw={600}>Description</Text>
-        {category.description ? (
-          <Textarea value={category.description} readOnly autosize minRows={2} />
-        ) : (
-          <Text size="sm" c="dimmed">
-            No description provided.
-          </Text>
-        )}
-      </Stack>
-      {category.remark && (
-        <Stack gap={4}>
-          <Text fw={600}>Remark</Text>
-          <Textarea value={category.remark} readOnly autosize minRows={2} />
-        </Stack>
-      )}
-    </Stack>
-    </ScrollArea>
-  );
-};
-
-interface ShopSchedulesTabProps {
-  schedules: SmartCategoryShopSchedule[];
-}
-
-const ShopSchedulesTab: FC<ShopSchedulesTabProps> = ({ schedules }) => {
-  const hasSchedules = schedules.length > 0;
-
-  return (
-    <ScrollArea style={{ flex: 1, minHeight: 0 }}>
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Text fw={600}>Shop schedules</Text>
-          <Button variant="light" leftSection={<IconPencil size={16} />}>
-            Manage schedules
-          </Button>
-        </Group>
-        {hasSchedules ? (
-          <Stack gap="xs">
-            {schedules
-              .slice()
-              .sort((a, b) => a.displayIndex - b.displayIndex)
-              .map((schedule) => {
-                const shopName = formatShopName(schedule.shopName, schedule.shopId);
-                return (
-                  <Box
-                    key={`${schedule.shopId}-${schedule.displayIndex}`}
-                    px="md"
-                    py="sm"
-                    style={{
-                      borderRadius: 10,
-                      border: '1px solid var(--mantine-color-gray-3)',
-                      backgroundColor: 'var(--mantine-color-gray-0)',
-                    }}
-                  >
-                    <Group justify="space-between" align="center">
-                      <Stack gap={4}>
-                        <Text fw={600}>{shopName}</Text>
-                        <Text size="xs" c="dimmed">
-                          Display index {schedule.displayIndex}
-                        </Text>
-                      </Stack>
-                      <Badge color={schedule.enabled ? 'teal' : 'gray'} variant="light">
-                        {schedule.enabled ? 'Enabled' : 'Disabled'}
-                      </Badge>
-                    </Group>
-                  </Box>
-                );
-              })}
-          </Stack>
-        ) : (
-          <Text size="sm" c="dimmed">
-            No shop display schedules configured yet.
-          </Text>
-        )}
-      </Stack>
-    </ScrollArea>
-  );
-};
-
-interface OrderChannelsTabProps {
-  channels: SmartCategoryOrderChannel[];
-}
-
-const OrderChannelsTab: FC<OrderChannelsTabProps> = ({ channels }) => {
-  const hasChannels = channels.length > 0;
-
-  return (
-    <ScrollArea style={{ flex: 1, minHeight: 0 }}>
-      <Stack gap="md">
-        <Group justify="space-between">
-          <Text fw={600}>Order channel visibility</Text>
-          <Button variant="light" leftSection={<IconPencil size={16} />}>
-            Manage order channels
-          </Button>
-        </Group>
-        {hasChannels ? (
-          <Stack gap="xs">
-            {channels.map((channel) => {
-              const channelName = formatOrderChannelName(channel.name, channel.orderChannelId);
-              const shopName = formatShopName(channel.shopName, channel.shopId);
-              return (
-                <Box
-                  key={`${channel.shopId}-${channel.orderChannelId}`}
-                  px="md"
-                  py="sm"
-                  style={{
-                    borderRadius: 10,
-                    border: '1px solid var(--mantine-color-gray-3)',
-                    backgroundColor: 'var(--mantine-color-gray-0)',
-                  }}
-                >
-                  <Group justify="space-between">
-                    <Stack gap={4}>
-                      <Text fw={600}>
-                        {channelName}{' '}
-                        <Text span size="xs" c="dimmed">
-                          (Shop {shopName})
-                        </Text>
-                      </Text>
-                    </Stack>
-                    <Badge color={channel.enabled ? 'teal' : 'gray'} variant="light">
-                      {channel.enabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </Group>
-                </Box>
-              );
-            })}
-          </Stack>
-        ) : (
-          <Text size="sm" c="dimmed">
-            No order channels configured.
-          </Text>
-        )}
-      </Stack>
-    </ScrollArea>
-  );
-};
-
-interface SmartCategoryFormModalProps {
-  opened: boolean;
-  mode: 'create' | 'edit';
-  formState: SmartCategoryFormState;
-  onClose: () => void;
-  onChange: (next: SmartCategoryFormState) => void;
-  onSubmit: () => void;
-  submitting: boolean;
-  buttonStyles: ButtonStyle[];
-  treeLookup: Record<number, SmartCategoryTreeNode>;
-  currentCategoryId?: number | null;
-}
-
-const displayPreferenceOptions = [
-  { value: 'inherit', label: 'Inherit default' },
-  { value: 'true', label: 'Show' },
-  { value: 'false', label: 'Hide' },
-];
-
-const toTriStateValue = (value?: boolean | null): string => {
-  if (value === null || value === undefined) {
-    return 'inherit';
-  }
-  return value ? 'true' : 'false';
-};
-
-const fromTriStateValue = (value: string | null): boolean | null => {
-  if (!value || value === 'inherit') {
-    return null;
-  }
-  return value === 'true';
-};
-
-const SmartCategoryFormModal: FC<SmartCategoryFormModalProps> = ({
-  opened,
-  mode,
-  formState,
-  onClose,
-  onChange,
-  onSubmit,
-  submitting,
-  buttonStyles,
-  treeLookup,
-  currentCategoryId,
-}) => {
-  const handleFieldChange = <K extends keyof SmartCategoryFormState>(key: K, value: SmartCategoryFormState[K]) => {
-    onChange({ ...formState, [key]: value });
-  };
-
-  const parentOptions = useMemo(() => {
-    const entries = Object.values(treeLookup)
-      .filter((node) => (currentCategoryId ? node.smartCategoryId !== currentCategoryId : true))
-      .map((node) => ({
-        value: String(node.smartCategoryId),
-        label: formatCategoryName(node.name, node.smartCategoryId),
-      }));
-
-    return [{ value: 'null', label: 'Root (no parent)' }, ...entries];
-  }, [treeLookup, currentCategoryId]);
-
-  const buttonStyleSelectData = useMemo(
-    () =>
-      buttonStyles.map((style) => ({
-        value: String(style.buttonStyleId),
-        label: style.styleName ? `${style.styleName} (#${style.buttonStyleId})` : `Style #${style.buttonStyleId}`,
-      })),
-    [buttonStyles],
-  );
-
-  const buttonStyleValue =
-    formState.buttonStyleId && formState.buttonStyleId > 0 ? String(formState.buttonStyleId) : null;
-
-  const handleTriStateChange =
-    (field: keyof Pick<
-      SmartCategoryFormState,
-      | 'isSelfOrderingDisplay'
-      | 'isOnlineStoreDisplay'
-      | 'isOdoDisplay'
-      | 'isKioskDisplay'
-      | 'isTableOrderingDisplay'
-    >) =>
-    (value: string | null) => {
-      handleFieldChange(field, fromTriStateValue(value));
-    };
-
-  return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={mode === 'create' ? 'Create smart category' : 'Edit smart category'}
-      size="lg"
-    >
-      <Stack gap="lg">
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput
-            label="Name"
-            required
-            value={formState.name}
-            onChange={(event) => handleFieldChange('name', event.currentTarget.value)}
-          />
-          <TextInput
-            label="Alternative name"
-            value={formState.nameAlt ?? ''}
-            onChange={(event) => handleFieldChange('nameAlt', event.currentTarget.value)}
-          />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <NumberInput
-            label="Display index"
-            min={0}
-            value={formState.displayIndex === '' ? undefined : formState.displayIndex}
-            onChange={(value) => handleFieldChange('displayIndex', typeof value === 'number' ? value : '')}
-          />
-          <Select
-            label="Parent smart category"
-            data={parentOptions}
-            searchable
-            clearable
-            comboboxProps={{ withinPortal: true }}
-            nothingFoundMessage="No categories"
-            value={
-              formState.parentSmartCategoryId === null || formState.parentSmartCategoryId === undefined
-                ? 'null'
-                : String(formState.parentSmartCategoryId)
-            }
-            onChange={(value) => {
-              if (!value || value === 'null') {
-                handleFieldChange('parentSmartCategoryId', null);
-              } else {
-                handleFieldChange('parentSmartCategoryId', Number(value));
-              }
-            }}
-          />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Select
-            label="Button style"
-            placeholder={buttonStyleSelectData.length ? 'Select button style' : 'No button styles available'}
-            data={buttonStyleSelectData}
-            searchable
-            comboboxProps={{ withinPortal: true }}
-            value={buttonStyleValue}
-            onChange={(value) => {
-              if (value) {
-                handleFieldChange('buttonStyleId', Number(value));
-              }
-            }}
-            disabled={buttonStyleSelectData.length === 0}
-            required
-          />
-          <TextInput
-            label="Online store reference category ID"
-            type="number"
-            value={
-              formState.onlineStoreRefCategoryId === null || formState.onlineStoreRefCategoryId === undefined
-                ? ''
-                : String(formState.onlineStoreRefCategoryId)
-            }
-            onChange={(event) =>
-              handleFieldChange(
-                'onlineStoreRefCategoryId',
-                event.currentTarget.value ? Number(event.currentTarget.value) : null,
-              )
-            }
-          />
-        </SimpleGrid>
-
-        <Group grow align="flex-start">
-          <Switch
-            label="Enabled"
-            checked={formState.enabled}
-            onChange={(event) => handleFieldChange('enabled', event.currentTarget.checked)}
-          />
-          <Switch
-            label="Terminal node"
-            checked={formState.isTerminal}
-            onChange={(event) => handleFieldChange('isTerminal', event.currentTarget.checked)}
-          />
-          <Switch
-            label="Public display"
-            checked={formState.isPublicDisplay}
-            onChange={(event) => handleFieldChange('isPublicDisplay', event.currentTarget.checked)}
-          />
-        </Group>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Select
-            label="Self-ordering display"
-            data={displayPreferenceOptions}
-            value={toTriStateValue(formState.isSelfOrderingDisplay)}
-            onChange={handleTriStateChange('isSelfOrderingDisplay')}
-          />
-          <Select
-            label="Online store display"
-            data={displayPreferenceOptions}
-            value={toTriStateValue(formState.isOnlineStoreDisplay)}
-            onChange={handleTriStateChange('isOnlineStoreDisplay')}
-          />
-          <Select
-            label="ODO display"
-            data={displayPreferenceOptions}
-            value={toTriStateValue(formState.isOdoDisplay)}
-            onChange={handleTriStateChange('isOdoDisplay')}
-          />
-          <Select
-            label="Kiosk display"
-            data={displayPreferenceOptions}
-            value={toTriStateValue(formState.isKioskDisplay)}
-            onChange={handleTriStateChange('isKioskDisplay')}
-          />
-          <Select
-            label="Table ordering display"
-            data={displayPreferenceOptions}
-            value={toTriStateValue(formState.isTableOrderingDisplay)}
-            onChange={handleTriStateChange('isTableOrderingDisplay')}
-          />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          <TextInput
-            label="Image filename"
-            value={formState.imageFileName ?? ''}
-            onChange={(event) => handleFieldChange('imageFileName', event.currentTarget.value)}
-          />
-          <TextInput
-            label="Image filename 2"
-            value={formState.imageFileName2 ?? ''}
-            onChange={(event) => handleFieldChange('imageFileName2', event.currentTarget.value)}
-          />
-          <TextInput
-            label="Image filename 3"
-            value={formState.imageFileName3 ?? ''}
-            onChange={(event) => handleFieldChange('imageFileName3', event.currentTarget.value)}
-          />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Textarea
-            label="Description"
-            minRows={2}
-            value={formState.description ?? ''}
-            onChange={(event) => handleFieldChange('description', event.currentTarget.value)}
-          />
-          <Textarea
-            label="Description (alt)"
-            minRows={2}
-            value={formState.descriptionAlt ?? ''}
-            onChange={(event) => handleFieldChange('descriptionAlt', event.currentTarget.value)}
-          />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <Textarea
-            label="Remark"
-            minRows={2}
-            value={formState.remark ?? ''}
-            onChange={(event) => handleFieldChange('remark', event.currentTarget.value)}
-          />
-          <Textarea
-            label="Remark (alt)"
-            minRows={2}
-            value={formState.remarkAlt ?? ''}
-            onChange={(event) => handleFieldChange('remarkAlt', event.currentTarget.value)}
-          />
-        </SimpleGrid>
-
-        <Group justify="flex-end" mt="sm">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button leftSection={<IconDeviceFloppy size={16} />} onClick={onSubmit} loading={submitting}>
-            {mode === 'create' ? 'Create' : 'Save changes'}
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-};
-
-export { SmartCategoriesPage };
