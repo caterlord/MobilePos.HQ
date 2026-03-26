@@ -19,7 +19,7 @@ public class MenuHeader
     public string MenuName { get; set; } = string.Empty;
 
     [MaxLength(200)]
-    public string MenuNameAlt { get; set; } = null!;
+    public string? MenuNameAlt { get; set; }
 
     public int DisplayOrder { get; set; }
 
@@ -42,7 +42,7 @@ public class MenuHeader
     public bool IsPublished { get; set; }
 
     [MaxLength(50)]
-    public string MenuCode { get; set; } = null!;
+    public string? MenuCode { get; set; }
 
     public bool? IsOdoDisplay { get; set; }
 
