@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -19,6 +19,7 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -84,15 +85,24 @@ const parseDaysOfWeek = (raw?: string | null): string[] => {
   });
 };
 
-/** Format day values for display: "Mon, Tue (3+)" style */
-const formatDaysShort = (raw?: string | null, maxShow = 2): string => {
+/** Format day values for display as React node with tooltip badge for overflow */
+const formatDaysDisplay = (raw?: string | null, maxShow = 2): React.ReactNode => {
   if (!raw) return '—';
   const vals = parseDaysOfWeek(raw);
   if (vals.length === 0) return '—';
   if (vals.length === 7) return 'Every day';
   const names = vals.map((v) => DAY_SHORT_MAP[v] ?? v);
   if (names.length <= maxShow) return names.join(', ');
-  return `${names.slice(0, maxShow).join(', ')} (+${names.length - maxShow})`;
+  const visible = names.slice(0, maxShow).join(', ');
+  const hidden = names.slice(maxShow);
+  return (
+    <Group gap={4} wrap="nowrap">
+      <span>{visible}</span>
+      <Tooltip label={hidden.join(', ')} withArrow>
+        <Badge size="xs" variant="light" style={{ cursor: 'pointer' }}>+{hidden.length}</Badge>
+      </Tooltip>
+    </Group>
+  );
 };
 
 // ── Category Detail Panel (inline expand) ──
@@ -330,7 +340,7 @@ function CategoryDetailPanel({
                     <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.months || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.dates || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{formatDaysShort(shop.daysOfWeek)}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{formatDaysDisplay(shop.daysOfWeek)}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayFromDate || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayToDate || '—'}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
