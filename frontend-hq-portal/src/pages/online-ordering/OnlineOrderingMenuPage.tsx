@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Checkbox,
-  Collapse,
   Group,
   Loader,
   Modal,
@@ -452,33 +451,20 @@ export function OnlineOrderingMenuPage() {
                 </Table.Td>
               </Table.Tr>
             ) : (
-              flatNodes.map((node) => {
+              flatNodes.flatMap((node) => {
                 const isExpanded = expandedId === node.smartCategoryId;
-                return (
-                  <Table.Tr key={node.smartCategoryId} style={{ verticalAlign: 'top' }}>
+                const rows = [
+                  <Table.Tr key={node.smartCategoryId} style={{ cursor: 'pointer' }} onClick={() => setExpandedId(isExpanded ? null : node.smartCategoryId)}>
                     <Table.Td>
-                      <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        onClick={() => setExpandedId(isExpanded ? null : node.smartCategoryId)}
-                      >
+                      <ActionIcon variant="subtle" size="sm">
                         {isExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                       </ActionIcon>
                     </Table.Td>
                     <Table.Td>
-                      <Stack gap={0}>
-                        <Text size="sm" style={{ paddingLeft: node.depth * 20 }}>
-                          {node.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
-                          {node.name}
-                        </Text>
-                        {isExpanded && brandId && (
-                          <Collapse in={isExpanded}>
-                            <div style={{ paddingTop: 8, paddingLeft: node.depth * 20 }}>
-                              <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} />
-                            </div>
-                          </Collapse>
-                        )}
-                      </Stack>
+                      <Text size="sm" style={{ paddingLeft: node.depth * 20 }}>
+                        {node.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
+                        {node.name}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text>
@@ -489,7 +475,7 @@ export function OnlineOrderingMenuPage() {
                     <Table.Td>
                       <Badge size="sm" color="green" variant="filled">Yes</Badge>
                     </Table.Td>
-                    <Table.Td>
+                    <Table.Td onClick={(e) => e.stopPropagation()}>
                       <Group gap="xs">
                         <ActionIcon variant="subtle" color="blue" component={Link} to={`/menus/smart-categories?id=${node.smartCategoryId}`}>
                           <IconEdit size={16} />
@@ -499,8 +485,18 @@ export function OnlineOrderingMenuPage() {
                         </ActionIcon>
                       </Group>
                     </Table.Td>
-                  </Table.Tr>
-                );
+                  </Table.Tr>,
+                ];
+                if (isExpanded && brandId) {
+                  rows.push(
+                    <Table.Tr key={`${node.smartCategoryId}-detail`} style={{ backgroundColor: '#f8f9fa' }}>
+                      <Table.Td colSpan={6} style={{ padding: '12px 16px' }}>
+                        <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} />
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                }
+                return rows;
               })
             )}
           </Table.Tbody>
