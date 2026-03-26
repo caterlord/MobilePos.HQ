@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Container,
   Group,
   Loader,
@@ -28,12 +29,15 @@ import {
   IconArrowUp,
   IconChevronDown,
   IconChevronRight,
+  IconCopy,
   IconEdit,
   IconPlus,
   IconRefresh,
+  IconSearch,
   IconTrash,
 } from '@tabler/icons-react';
 import { useBrands } from '../../../../contexts/BrandContext';
+import itemCategoryService from '../../../../services/itemCategoryService';
 import menuItemService from '../../../../services/menuItemService';
 import smartCategoryService from '../../../../services/smartCategoryService';
 import type {
@@ -123,9 +127,18 @@ function CategoryDetailPanel({
   const [saving, setSaving] = useState(false);
   const [itemsDirty, setItemsDirty] = useState(false);
 
+  // Add items modal
+  const [addItemsModalOpened, setAddItemsModalOpened] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
   const [searching, setSearching] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  // Copy from category
+  const [copyMode, setCopyMode] = useState(false);
+  const [categoryList, setCategoryList] = useState<{ id: number; name: string; isSmartCategory: boolean }[]>([]);
+  const [copySourceId, setCopySourceId] = useState<string | null>(null);
+  const [copySourceItems, setCopySourceItems] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
+  const [loadingCopy, setLoadingCopy] = useState(false);
 
   // Shop edit modal
   const [shopEditModalOpened, setShopEditModalOpened] = useState(false);
@@ -146,17 +159,46 @@ function CategoryDetailPanel({
 
   useEffect(() => { void reload(); }, [reload]);
 
+  const openAddItemsModal = async () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedItemIds(new Set());
+    setCopyMode(false);
+    setCopySourceId(null);
+    setCopySourceItems([]);
+    setAddItemsModalOpened(true);
+    // Load categories for copy mode
+    try {
+      const [cats, smartTree] = await Promise.allSettled([
+        itemCategoryService.getItemCategories(brandId),
+        smartCategoryService.getTree(brandId),
+      ]);
+      const list: { id: number; name: string; isSmartCategory: boolean }[] = [];
+      if (cats.status === 'fulfilled') {
+        for (const c of cats.value) list.push({ id: c.categoryId, name: c.categoryName, isSmartCategory: false });
+      }
+      if (smartTree.status === 'fulfilled') {
+        const flatten = (nodes: SmartCategoryTreeNode[]): void => {
+          for (const n of nodes) {
+            if (n.smartCategoryId !== categoryId) list.push({ id: n.smartCategoryId, name: n.name, isSmartCategory: true });
+            flatten(n.children);
+          }
+        };
+        flatten(smartTree.value);
+      }
+      setCategoryList(list);
+    } catch { /* non-blocking */ }
+  };
+
   const handleSearchItems = async () => {
     if (!searchQuery.trim()) return;
     try {
       setSearching(true);
-      const result = await menuItemService.getMenuItems(brandId, { search: searchQuery.trim(), pageSize: 20 });
-      const existingIds = new Set(detail?.items.map((i) => i.itemId) ?? []);
+      const result = await menuItemService.getMenuItems(brandId, { search: searchQuery.trim(), pageSize: 50 });
       setSearchResults(
-        result.items
-          .filter((i) => !existingIds.has(i.itemId))
-          .map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' }))
+        result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' }))
       );
+      setSelectedItemIds(new Set());
     } catch {
       notifications.show({ color: 'red', message: 'Search failed' });
     } finally {
@@ -164,19 +206,57 @@ function CategoryDetailPanel({
     }
   };
 
-  const addItem = (item: { itemId: number; itemCode: string; itemName: string }) => {
+  const handleLoadCopySource = async (sourceId: string) => {
+    setCopySourceId(sourceId);
+    if (!sourceId) { setCopySourceItems([]); return; }
+    try {
+      setLoadingCopy(true);
+      const [idStr, type] = sourceId.split(':');
+      const id = parseInt(idStr);
+      if (type === 'smart') {
+        const d = await smartCategoryService.getDetail(brandId, id);
+        setCopySourceItems(d.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName })));
+      } else {
+        const result = await menuItemService.getMenuItems(brandId, { categoryId: id, pageSize: 200 });
+        setCopySourceItems(result.items.map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' })));
+      }
+      setSelectedItemIds(new Set());
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to load source items' });
+    } finally {
+      setLoadingCopy(false);
+    }
+  };
+
+  const addSelectedItems = (items: { itemId: number; itemCode: string; itemName: string }[]) => {
     if (!detail) return;
+    const existingIds = new Set(detail.items.map((i) => i.itemId));
     const maxIdx = detail.items.reduce((max, i) => Math.max(max, i.displayIndex), 0);
+    let nextIdx = maxIdx + 1;
+    const newItems = items.filter((i) => !existingIds.has(i.itemId));
+    if (newItems.length === 0) {
+      notifications.show({ color: 'yellow', message: 'All selected items already exist in this category' });
+      return;
+    }
     setDetail({
       ...detail,
-      items: [...detail.items, {
+      items: [...detail.items, ...newItems.map((item) => ({
         itemId: item.itemId, itemCode: item.itemCode, itemName: item.itemName,
-        itemNameAlt: null, displayIndex: maxIdx + 1, enabled: true,
+        itemNameAlt: null, displayIndex: nextIdx++, enabled: true,
         modifiedDate: new Date().toISOString(), modifiedBy: '',
-      }],
+      }))],
     });
-    setSearchResults((prev) => prev.filter((r) => r.itemId !== item.itemId));
     setItemsDirty(true);
+    notifications.show({ color: 'green', message: `${newItems.length} item(s) added` });
+    setAddItemsModalOpened(false);
+  };
+
+  const toggleItemSelection = (itemId: number) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      return next;
+    });
   };
 
   const removeItem = (itemId: number) => {
@@ -258,25 +338,27 @@ function CategoryDetailPanel({
         </Tabs.List>
 
         <Tabs.Panel value="items" pt="xs">
+          <Group justify="flex-end" mb="xs">
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => void openAddItemsModal()}>Add Items</Button>
+            {itemsDirty && <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>}
+          </Group>
           <Table verticalSpacing="xs" striped>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Code</Table.Th>
                 <Table.Th>Item Name</Table.Th>
                 <Table.Th>Order</Table.Th>
-                <Table.Th>Enabled</Table.Th>
                 <Table.Th style={{ width: 100 }}>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {sortedItems.length === 0 ? (
-                <Table.Tr><Table.Td colSpan={5}><Text size="sm" c="dimmed">No items. Search below to add.</Text></Table.Td></Table.Tr>
+                <Table.Tr><Table.Td colSpan={4}><Text size="sm" c="dimmed">No items assigned. Click "Add Items" to get started.</Text></Table.Td></Table.Tr>
               ) : sortedItems.map((item) => (
                 <Table.Tr key={item.itemId}>
                   <Table.Td><Text size="xs" c="dimmed">{item.itemCode}</Text></Table.Td>
                   <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
                   <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
-                  <Table.Td><Badge size="sm" color={item.enabled ? 'green' : 'gray'}>{item.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
                   <Table.Td>
                     <Group gap={4}>
                       <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'up')}><IconArrowUp size={12} /></ActionIcon>
@@ -288,30 +370,102 @@ function CategoryDetailPanel({
               ))}
             </Table.Tbody>
           </Table>
-          <Group mt="sm" gap="xs">
-            <TextInput size="xs" placeholder="Search items to add..." value={searchQuery}
-              onChange={(e) => setSearchQuery(e.currentTarget.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
-              style={{ flex: 1 }} />
-            <Button size="xs" variant="light" onClick={() => void handleSearchItems()} loading={searching}>Search</Button>
-          </Group>
-          {searchResults.length > 0 && (
-            <Paper withBorder p="xs" mt="xs">
-              <Stack gap={4}>
-                {searchResults.map((item) => (
-                  <Group key={item.itemId} justify="space-between">
-                    <Text size="xs">{item.itemCode} — {item.itemName}</Text>
-                    <Button size="xs" variant="subtle" onClick={() => addItem(item)} leftSection={<IconPlus size={12} />}>Add</Button>
+
+          {/* Add Items Modal */}
+          <Modal opened={addItemsModalOpened} onClose={() => setAddItemsModalOpened(false)} title="Add Items" size="lg">
+            <Stack gap="md">
+              <Group gap="xs">
+                <Button size="xs" variant={!copyMode ? 'filled' : 'light'} leftSection={<IconSearch size={14} />} onClick={() => setCopyMode(false)}>
+                  Search Items
+                </Button>
+                <Button size="xs" variant={copyMode ? 'filled' : 'light'} leftSection={<IconCopy size={14} />} onClick={() => setCopyMode(true)}>
+                  Copy from Category
+                </Button>
+              </Group>
+
+              {!copyMode ? (
+                <>
+                  <Group gap="xs">
+                    <TextInput size="sm" placeholder="Search by item code, name, or alt name..." value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
+                      style={{ flex: 1 }} />
+                    <Button size="sm" onClick={() => void handleSearchItems()} loading={searching}>Search</Button>
                   </Group>
-                ))}
-              </Stack>
-            </Paper>
-          )}
-          {itemsDirty && (
-            <Group mt="xs" justify="flex-end">
-              <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>
-            </Group>
-          )}
+                  {searchResults.length > 0 && (
+                    <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto' }}>
+                      {searchResults.map((item) => {
+                        const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
+                        return (
+                          <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #eee', opacity: alreadyExists ? 0.5 : 1 }}>
+                            <Checkbox
+                              checked={selectedItemIds.has(item.itemId)}
+                              onChange={() => toggleItemSelection(item.itemId)}
+                              disabled={alreadyExists}
+                            />
+                            <Text size="xs" c="dimmed" style={{ width: 60 }}>{item.itemCode}</Text>
+                            <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
+                            {alreadyExists && <Badge size="xs" variant="light">Already added</Badge>}
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Select label="Select a category to copy items from" placeholder="Choose category..."
+                    data={categoryList.map((c) => ({
+                      value: `${c.id}:${c.isSmartCategory ? 'smart' : 'regular'}`,
+                      label: `${c.name}${c.isSmartCategory ? ' (Smart)' : ''}`,
+                    }))}
+                    value={copySourceId}
+                    onChange={(v) => void handleLoadCopySource(v ?? '')}
+                    searchable clearable />
+                  {loadingCopy && <Text size="sm" c="dimmed">Loading items...</Text>}
+                  {copySourceItems.length > 0 && (
+                    <Stack gap={0} style={{ maxHeight: 350, overflow: 'auto' }}>
+                      {copySourceItems.map((item) => {
+                        const alreadyExists = detail?.items.some((i) => i.itemId === item.itemId);
+                        return (
+                          <Group key={item.itemId} gap="sm" py={4} px="xs" style={{ borderBottom: '1px solid #eee', opacity: alreadyExists ? 0.5 : 1 }}>
+                            <Checkbox
+                              checked={selectedItemIds.has(item.itemId)}
+                              onChange={() => toggleItemSelection(item.itemId)}
+                              disabled={alreadyExists}
+                            />
+                            <Text size="xs" c="dimmed" style={{ width: 60 }}>{item.itemCode}</Text>
+                            <Text size="sm" style={{ flex: 1 }}>{item.itemName}</Text>
+                            {alreadyExists && <Badge size="xs" variant="light">Already added</Badge>}
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                  {copySourceItems.length > 0 && (
+                    <Button size="xs" variant="light" onClick={() => {
+                      const all = new Set(copySourceItems.filter((i) => !detail?.items.some((e) => e.itemId === i.itemId)).map((i) => i.itemId));
+                      setSelectedItemIds(all);
+                    }}>Select All New</Button>
+                  )}
+                </>
+              )}
+
+              <Group justify="flex-end">
+                <Button variant="default" onClick={() => setAddItemsModalOpened(false)}>Cancel</Button>
+                <Button
+                  disabled={selectedItemIds.size === 0}
+                  onClick={() => {
+                    const source = copyMode ? copySourceItems : searchResults;
+                    const items = source.filter((i) => selectedItemIds.has(i.itemId));
+                    addSelectedItems(items);
+                  }}
+                >
+                  Add Selected ({selectedItemIds.size})
+                </Button>
+              </Group>
+            </Stack>
+          </Modal>
         </Tabs.Panel>
 
         <Tabs.Panel value="shops" pt="xs">
