@@ -14,11 +14,14 @@ import {
   Table,
   Tabs,
   Text,
+  TextInput,
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
   IconChevronDown,
   IconChevronRight,
   IconCopy,
@@ -29,13 +32,12 @@ import {
 } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { useBrands } from '../../contexts/BrandContext';
+import menuItemService from '../../services/menuItemService';
 import onlineOrderingService from '../../services/onlineOrderingService';
 import smartCategoryService from '../../services/smartCategoryService';
 import type { OnlineOrderingDisplayOrderNode } from '../../types/onlineOrdering';
 import type {
   SmartCategoryDetail,
-  SmartCategoryOrderChannel,
-  SmartCategoryShopSchedule,
   SmartCategoryTreeNode,
 } from '../../types/smartCategory';
 
@@ -53,60 +55,134 @@ const flattenNodes = (nodes: OnlineOrderingDisplayOrderNode[], depth = 0): FlatN
 function CategoryDetailPanel({
   brandId,
   categoryId,
+  onDataChanged,
 }: {
   brandId: number;
   categoryId: number;
+  onDataChanged?: () => void;
 }) {
   const [detail, setDetail] = useState<SmartCategoryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [itemsDirty, setItemsDirty] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await smartCategoryService.getDetail(brandId, categoryId);
-        if (!cancelled) setDetail(data);
-      } catch {
-        if (!cancelled) notifications.show({ color: 'red', message: 'Failed to load category detail' });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+  // Item search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ itemId: number; itemCode: string; itemName: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await smartCategoryService.getDetail(brandId, categoryId);
+      setDetail(data);
+      setItemsDirty(false);
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to load category detail' });
+    } finally {
+      setLoading(false);
+    }
   }, [brandId, categoryId]);
 
-  const saveShopVisibility = async (schedules: SmartCategoryShopSchedule[], channels: SmartCategoryOrderChannel[]) => {
+  useEffect(() => { void reload(); }, [reload]);
+
+  // ── Item operations ──
+  const handleSearchItems = async () => {
+    if (!searchQuery.trim()) return;
+    try {
+      setSearching(true);
+      const result = await menuItemService.getMenuItems(brandId, { search: searchQuery.trim(), pageSize: 20 });
+      const existingIds = new Set(detail?.items.map((i) => i.itemId) ?? []);
+      setSearchResults(
+        result.items
+          .filter((i) => !existingIds.has(i.itemId))
+          .map((i) => ({ itemId: i.itemId, itemCode: i.itemCode, itemName: i.itemName ?? '' }))
+      );
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to search items' });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const addItem = (item: { itemId: number; itemCode: string; itemName: string }) => {
+    if (!detail) return;
+    const maxIdx = detail.items.reduce((max, i) => Math.max(max, i.displayIndex), 0);
+    setDetail({
+      ...detail,
+      items: [...detail.items, {
+        itemId: item.itemId,
+        itemCode: item.itemCode,
+        itemName: item.itemName,
+        itemNameAlt: null,
+        displayIndex: maxIdx + 1,
+        enabled: true,
+        modifiedDate: new Date().toISOString(),
+        modifiedBy: '',
+      }],
+    });
+    setSearchResults((prev) => prev.filter((r) => r.itemId !== item.itemId));
+    setItemsDirty(true);
+  };
+
+  const removeItem = (itemId: number) => {
+    if (!detail) return;
+    setDetail({ ...detail, items: detail.items.filter((i) => i.itemId !== itemId) });
+    setItemsDirty(true);
+  };
+
+  const moveItem = (itemId: number, direction: 'up' | 'down') => {
+    if (!detail) return;
+    const items = [...detail.items].sort((a, b) => a.displayIndex - b.displayIndex);
+    const idx = items.findIndex((i) => i.itemId === itemId);
+    if (idx < 0) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+    const tempIdx = items[idx].displayIndex;
+    items[idx] = { ...items[idx], displayIndex: items[swapIdx].displayIndex };
+    items[swapIdx] = { ...items[swapIdx], displayIndex: tempIdx };
+    setDetail({ ...detail, items });
+    setItemsDirty(true);
+  };
+
+  const saveItems = async () => {
+    if (!detail) return;
+    try {
+      setSaving(true);
+      await smartCategoryService.upsertItems(brandId, categoryId, {
+        items: detail.items.map((i) => ({ itemId: i.itemId, displayIndex: i.displayIndex, enabled: i.enabled })),
+      });
+      notifications.show({ color: 'green', message: 'Items saved' });
+      setItemsDirty(false);
+      onDataChanged?.();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save items' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Shop/Channel save ──
+  const saveDisplaySettings = async () => {
+    if (!detail) return;
     try {
       setSaving(true);
       await smartCategoryService.updateDisplaySettings(brandId, categoryId, {
-        shopSchedules: schedules.map((s) => ({
-          shopId: s.shopId,
-          displayIndex: s.displayIndex,
-          displayFromDate: s.displayFromDate,
-          displayToDate: s.displayToDate,
-          displayFromTime: s.displayFromTime,
-          displayToTime: s.displayToTime,
-          displayFromDateTime: s.displayFromDateTime,
-          displayToDateTime: s.displayToDateTime,
-          isPublicDisplay: s.isPublicDisplay,
-          enabled: s.enabled,
-          dayOfWeek: s.dayOfWeek,
-          isWeekdayHide: s.isWeekdayHide,
-          isWeekendHide: s.isWeekendHide,
-          isHolidayHide: s.isHolidayHide,
-          daysOfWeek: s.daysOfWeek,
-          months: s.months,
-          dates: s.dates,
+        shopSchedules: detail.shopSchedules.map((s) => ({
+          shopId: s.shopId, displayIndex: s.displayIndex,
+          displayFromDate: s.displayFromDate, displayToDate: s.displayToDate,
+          displayFromTime: s.displayFromTime, displayToTime: s.displayToTime,
+          displayFromDateTime: s.displayFromDateTime, displayToDateTime: s.displayToDateTime,
+          isPublicDisplay: s.isPublicDisplay, enabled: s.enabled,
+          dayOfWeek: s.dayOfWeek, isWeekdayHide: s.isWeekdayHide,
+          isWeekendHide: s.isWeekendHide, isHolidayHide: s.isHolidayHide,
+          daysOfWeek: s.daysOfWeek, months: s.months, dates: s.dates,
         })),
-        orderChannels: channels.map((c) => ({
-          shopId: c.shopId,
-          orderChannelId: c.orderChannelId,
-          enabled: c.enabled,
+        orderChannels: detail.orderChannels.map((c) => ({
+          shopId: c.shopId, orderChannelId: c.orderChannelId, enabled: c.enabled,
         })),
       });
-      notifications.show({ color: 'green', message: 'Visibility settings saved' });
+      notifications.show({ color: 'green', message: 'Settings saved' });
     } catch {
       notifications.show({ color: 'red', message: 'Failed to save' });
     } finally {
@@ -115,15 +191,11 @@ function CategoryDetailPanel({
   };
 
   if (loading) {
-    return (
-      <Group justify="center" py="sm">
-        <Loader size="xs" />
-        <Text size="sm" c="dimmed">Loading detail...</Text>
-      </Group>
-    );
+    return <Group justify="center" py="sm"><Loader size="xs" /><Text size="sm" c="dimmed">Loading...</Text></Group>;
   }
-
   if (!detail) return null;
+
+  const sortedItems = [...detail.items].sort((a, b) => a.displayIndex - b.displayIndex);
 
   return (
     <Paper p="sm" bg="gray.0" radius="sm">
@@ -134,124 +206,133 @@ function CategoryDetailPanel({
           <Tabs.Tab value="channels">Channels ({detail.orderChannels.length})</Tabs.Tab>
         </Tabs.List>
 
+        {/* ── Items Tab ── */}
         <Tabs.Panel value="items" pt="xs">
-          {detail.items.length === 0 ? (
-            <Text size="sm" c="dimmed" py="xs">No items in this category.</Text>
+          <Table verticalSpacing="xs" striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Item Name</Table.Th>
+                <Table.Th>Item Code</Table.Th>
+                <Table.Th>Order</Table.Th>
+                <Table.Th style={{ width: 120 }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {sortedItems.length === 0 ? (
+                <Table.Tr><Table.Td colSpan={4}><Text size="sm" c="dimmed">No items. Use the search below to add.</Text></Table.Td></Table.Tr>
+              ) : sortedItems.map((item) => (
+                <Table.Tr key={item.itemId}>
+                  <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
+                  <Table.Td><Text size="xs" c="dimmed">{item.itemCode}</Text></Table.Td>
+                  <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
+                  <Table.Td>
+                    <Group gap={4}>
+                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'up')}><IconArrowUp size={12} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" onClick={() => moveItem(item.itemId, 'down')}><IconArrowDown size={12} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+
+          {/* Add items search */}
+          <Group mt="sm" gap="xs">
+            <TextInput
+              size="xs"
+              placeholder="Search items to add..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSearchItems(); }}
+              style={{ flex: 1 }}
+            />
+            <Button size="xs" variant="light" onClick={() => void handleSearchItems()} loading={searching}>
+              Search
+            </Button>
+          </Group>
+          {searchResults.length > 0 && (
+            <Paper withBorder p="xs" mt="xs">
+              <Stack gap={4}>
+                {searchResults.map((item) => (
+                  <Group key={item.itemId} justify="space-between">
+                    <Text size="xs">{item.itemCode} — {item.itemName}</Text>
+                    <Button size="xs" variant="subtle" onClick={() => addItem(item)} leftSection={<IconPlus size={12} />}>Add</Button>
+                  </Group>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+
+          {itemsDirty && (
+            <Group mt="xs" justify="flex-end">
+              <Button size="xs" onClick={() => void saveItems()} loading={saving}>Save Items</Button>
+            </Group>
+          )}
+        </Tabs.Panel>
+
+        {/* ── Shop Visibility Tab ── */}
+        <Tabs.Panel value="shops" pt="xs">
+          {detail.shopSchedules.length === 0 ? (
+            <Text size="sm" c="dimmed" py="xs">No shop visibility configured.</Text>
           ) : (
             <Table verticalSpacing="xs" striped>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Item Name</Table.Th>
-                  <Table.Th>Alt Name</Table.Th>
-                  <Table.Th>Display Index</Table.Th>
+                  <Table.Th>Shop</Table.Th>
                   <Table.Th>Enabled</Table.Th>
+                  <Table.Th>Public</Table.Th>
+                  <Table.Th>Days</Table.Th>
+                  <Table.Th>From</Table.Th>
+                  <Table.Th>To</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {detail.items.map((item) => (
-                  <Table.Tr key={item.itemId}>
-                    <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
-                    <Table.Td><Text size="sm" c={item.itemNameAlt ? undefined : 'dimmed'}>{item.itemNameAlt || '—'}</Text></Table.Td>
-                    <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
-                    <Table.Td><Badge size="sm" color={item.enabled ? 'green' : 'gray'}>{item.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
+                {detail.shopSchedules.map((shop, i) => (
+                  <Table.Tr key={shop.shopId}>
+                    <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
+                    <Table.Td><Switch size="xs" checked={shop.enabled} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, enabled: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
+                    <Table.Td><Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => { const u = [...detail.shopSchedules]; u[i] = { ...shop, isPublicDisplay: e.currentTarget.checked }; setDetail({ ...detail, shopSchedules: u }); }} /></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || 'All'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
             </Table>
           )}
-          <Group mt="xs">
-            <Button size="xs" variant="light" component={Link} to={`/menus/smart-categories?id=${categoryId}`} leftSection={<IconEdit size={14} />}>
-              Edit Items in Menus
-            </Button>
+          <Group mt="xs" justify="flex-end">
+            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Visibility</Button>
           </Group>
         </Tabs.Panel>
 
-        <Tabs.Panel value="shops" pt="xs">
-          {detail.shopSchedules.length === 0 ? (
-            <Text size="sm" c="dimmed" py="xs">No shop visibility configured.</Text>
-          ) : (
-            <>
-              <Table verticalSpacing="xs" striped>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Shop</Table.Th>
-                    <Table.Th>Enabled</Table.Th>
-                    <Table.Th>Public</Table.Th>
-                    <Table.Th>Days</Table.Th>
-                    <Table.Th>From Time</Table.Th>
-                    <Table.Th>To Time</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {detail.shopSchedules.map((shop, i) => (
-                    <Table.Tr key={shop.shopId}>
-                      <Table.Td><Text size="sm">{shop.shopName}</Text></Table.Td>
-                      <Table.Td>
-                        <Switch size="xs" checked={shop.enabled} onChange={(e) => {
-                          const updated = [...detail.shopSchedules];
-                          updated[i] = { ...shop, enabled: e.currentTarget.checked };
-                          setDetail({ ...detail, shopSchedules: updated });
-                        }} />
-                      </Table.Td>
-                      <Table.Td>
-                        <Switch size="xs" checked={shop.isPublicDisplay} onChange={(e) => {
-                          const updated = [...detail.shopSchedules];
-                          updated[i] = { ...shop, isPublicDisplay: e.currentTarget.checked };
-                          setDetail({ ...detail, shopSchedules: updated });
-                        }} />
-                      </Table.Td>
-                      <Table.Td><Text size="xs" c="dimmed">{shop.daysOfWeek || 'All'}</Text></Table.Td>
-                      <Table.Td><Text size="xs" c="dimmed">{shop.displayFromTime || '—'}</Text></Table.Td>
-                      <Table.Td><Text size="xs" c="dimmed">{shop.displayToTime || '—'}</Text></Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-              <Group mt="xs" justify="flex-end">
-                <Button size="xs" onClick={() => void saveShopVisibility(detail.shopSchedules, detail.orderChannels)} loading={saving}>
-                  Save Visibility
-                </Button>
-              </Group>
-            </>
-          )}
-        </Tabs.Panel>
-
+        {/* ── Channels Tab ── */}
         <Tabs.Panel value="channels" pt="xs">
           {detail.orderChannels.length === 0 ? (
-            <Text size="sm" c="dimmed" py="xs">No channel mappings configured.</Text>
+            <Text size="sm" c="dimmed" py="xs">No channel mappings.</Text>
           ) : (
-            <>
-              <Table verticalSpacing="xs" striped>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Shop</Table.Th>
-                    <Table.Th>Channel</Table.Th>
-                    <Table.Th>Enabled</Table.Th>
+            <Table verticalSpacing="xs" striped>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Shop</Table.Th>
+                  <Table.Th>Channel</Table.Th>
+                  <Table.Th>Enabled</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {detail.orderChannels.map((ch, i) => (
+                  <Table.Tr key={`${ch.shopId}-${ch.orderChannelId}`}>
+                    <Table.Td><Text size="sm">{ch.shopName}</Text></Table.Td>
+                    <Table.Td><Text size="sm">{ch.name}</Text></Table.Td>
+                    <Table.Td><Switch size="xs" checked={ch.enabled} onChange={(e) => { const u = [...detail.orderChannels]; u[i] = { ...ch, enabled: e.currentTarget.checked }; setDetail({ ...detail, orderChannels: u }); }} /></Table.Td>
                   </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {detail.orderChannels.map((ch, i) => (
-                    <Table.Tr key={`${ch.shopId}-${ch.orderChannelId}`}>
-                      <Table.Td><Text size="sm">{ch.shopName}</Text></Table.Td>
-                      <Table.Td><Text size="sm">{ch.name}</Text></Table.Td>
-                      <Table.Td>
-                        <Switch size="xs" checked={ch.enabled} onChange={(e) => {
-                          const updated = [...detail.orderChannels];
-                          updated[i] = { ...ch, enabled: e.currentTarget.checked };
-                          setDetail({ ...detail, orderChannels: updated });
-                        }} />
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-              <Group mt="xs" justify="flex-end">
-                <Button size="xs" onClick={() => void saveShopVisibility(detail.shopSchedules, detail.orderChannels)} loading={saving}>
-                  Save Channels
-                </Button>
-              </Group>
-            </>
+                ))}
+              </Table.Tbody>
+            </Table>
           )}
+          <Group mt="xs" justify="flex-end">
+            <Button size="xs" onClick={() => void saveDisplaySettings()} loading={saving}>Save Channels</Button>
+          </Group>
         </Tabs.Panel>
       </Tabs>
     </Paper>
@@ -491,7 +572,7 @@ export function OnlineOrderingMenuPage() {
                   rows.push(
                     <Table.Tr key={`${node.smartCategoryId}-detail`} style={{ backgroundColor: '#f8f9fa' }}>
                       <Table.Td colSpan={6} style={{ padding: '12px 16px' }}>
-                        <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} />
+                        <CategoryDetailPanel brandId={brandId} categoryId={node.smartCategoryId} onDataChanged={() => void loadData()} />
                       </Table.Td>
                     </Table.Tr>
                   );
