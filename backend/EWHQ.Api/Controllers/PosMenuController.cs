@@ -392,6 +392,110 @@ public class PosMenuController : ControllerBase
         }
     }
 
+    // ── Sync Built-in Menu ──
+
+    [HttpPost("brand/{brandId:int}/sync-builtin")]
+    [RequireBrandModify]
+    public async Task<IActionResult> SyncBuiltInMenu(int brandId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+
+            var builtIn = await context.MenuHeaders
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.IsBuiltIn && x.Enabled, HttpContext.RequestAborted);
+            if (builtIn == null)
+                return BadRequest(new { message = "No built-in menu found." });
+
+            var menuId = builtIn.MenuId;
+
+            // Get existing MenuDetail records
+            var existingDetails = await context.MenuDetails
+                .Where(x => x.AccountId == accountId && x.MenuId == menuId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            // Remove orphaned entries (categories/smart categories that no longer exist or are disabled)
+            var removedCount = 0;
+            foreach (var detail in existingDetails)
+            {
+                bool isOrphan;
+                if (detail.IsSmartCategory)
+                {
+                    isOrphan = !await context.SmartCategories.AnyAsync(
+                        c => c.AccountId == accountId && c.SmartCategoryId == detail.CategoryId && c.Enabled, HttpContext.RequestAborted);
+                }
+                else
+                {
+                    isOrphan = !await context.ItemCategories.AnyAsync(
+                        c => c.AccountId == accountId && c.CategoryId == detail.CategoryId && c.Enabled, HttpContext.RequestAborted);
+                }
+                if (isOrphan)
+                {
+                    context.MenuDetails.Remove(detail);
+                    removedCount++;
+                }
+            }
+
+            // Add missing root categories (ParentCategoryId == null, not ODO, enabled)
+            var existingCatIds = new HashSet<(int id, bool isSmart)>(
+                existingDetails.Select(d => (d.CategoryId, d.IsSmartCategory)));
+
+            var rootCategories = await context.ItemCategories
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && x.ParentCategoryId == null)
+                .Select(x => x.CategoryId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var rootSmartCategories = await context.SmartCategories
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled && x.ParentSmartCategoryId == null && !(x.IsOdoDisplay ?? false))
+                .Select(x => x.SmartCategoryId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var addedCount = 0;
+            foreach (var catId in rootCategories)
+            {
+                if (!existingCatIds.Contains((catId, false)))
+                {
+                    context.MenuDetails.Add(new MenuDetail
+                    {
+                        AccountId = accountId, MenuId = menuId, CategoryId = catId, IsSmartCategory = false,
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                    addedCount++;
+                }
+            }
+
+            foreach (var catId in rootSmartCategories)
+            {
+                if (!existingCatIds.Contains((catId, true)))
+                {
+                    context.MenuDetails.Add(new MenuDetail
+                    {
+                        AccountId = accountId, MenuId = menuId, CategoryId = catId, IsSmartCategory = true,
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                    addedCount++;
+                }
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            return Ok(new { message = $"Sync complete. Added {addedCount}, removed {removedCount} orphaned entries." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error syncing built-in menu for brand {BrandId}", brandId);
+            return StatusCode(500, new { message = "An error occurred." });
+        }
+    }
+
     // ── Get All Available Categories (for selection) ──
 
     [HttpGet("brand/{brandId:int}/available-categories")]

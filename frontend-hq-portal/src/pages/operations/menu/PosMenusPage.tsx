@@ -90,6 +90,9 @@ const posMenuService = {
 
   getAvailable: async (brandId: number): Promise<AvailableCategory[]> =>
     (await api.get(`/pos-menus/brand/${brandId}/available-categories`)).data,
+
+  syncBuiltIn: async (brandId: number): Promise<{ message: string }> =>
+    (await api.post(`/pos-menus/brand/${brandId}/sync-builtin`, {})).data,
 };
 
 // ── Menu Detail Panel ──
@@ -296,6 +299,7 @@ export function PosMenusPage() {
 
   const [menus, setMenus] = useState<PosMenu[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // Create/Edit modal
@@ -390,6 +394,19 @@ export function PosMenusPage() {
           <Title order={2}>POS Menus</Title>
           <Group>
             <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadMenus()} loading={loading}>Refresh</Button>
+            <Button variant="light" loading={syncing} disabled={!brandId} onClick={async () => {
+              if (!brandId) return;
+              try {
+                setSyncing(true);
+                const result = await posMenuService.syncBuiltIn(brandId);
+                notifications.show({ color: 'green', message: result.message });
+                await loadMenus();
+              } catch {
+                notifications.show({ color: 'red', message: 'Sync failed' });
+              } finally {
+                setSyncing(false);
+              }
+            }}>Sync Built-in Menu</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={openCreate} disabled={!brandId}>New Menu</Button>
           </Group>
         </Group>
