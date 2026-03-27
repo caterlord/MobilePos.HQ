@@ -542,7 +542,7 @@ public class SmartCategoriesController : ControllerBase
             if (source == null)
                 return NotFound(new { message = "Source category not found." });
 
-            // Collect source + all descendants (BFS)
+            // Collect source + all descendants (BFS) in parent-first order
             var toCopy = new List<SmartCategory>();
             var queue = new Queue<int>();
             queue.Enqueue(sourceSmartCategoryId);
@@ -557,32 +557,23 @@ public class SmartCategoriesController : ControllerBase
                     queue.Enqueue(child.SmartCategoryId);
             }
 
-            // Allocate new IDs
-            var maxId = await context.SmartCategories
-                .Where(x => x.AccountId == accountId)
-                .Select(x => (int?)x.SmartCategoryId)
-                .MaxAsync(cancellationToken) ?? 0;
-
-            var idMap = new Dictionary<int, int>(); // old ID → new ID
-            foreach (var cat in toCopy)
-                idMap[cat.SmartCategoryId] = ++maxId;
-
             var rootNewName = string.IsNullOrWhiteSpace(request.NewName) ? $"{source.Name}(1)" : request.NewName.Trim();
+            var idMap = new Dictionary<int, int>(); // old ID → new ID
             var totalItemCount = 0;
 
+            // Copy each category one at a time so DB generates the identity ID
             foreach (var cat in toCopy)
             {
-                var newId = idMap[cat.SmartCategoryId];
                 var isRoot = cat.SmartCategoryId == sourceSmartCategoryId;
 
-                // Map parent: if parent is also being copied, use new ID; otherwise null (root)
+                // Map parent: if parent was already copied, use its new ID; otherwise null (root)
                 int? newParentId = null;
                 if (!isRoot && cat.ParentSmartCategoryId.HasValue && idMap.TryGetValue(cat.ParentSmartCategoryId.Value, out var mappedParent))
                     newParentId = mappedParent;
 
-                context.SmartCategories.Add(new SmartCategory
+                var newCat = new SmartCategory
                 {
-                    SmartCategoryId = newId,
+                    // Do NOT set SmartCategoryId — let DB identity generate it
                     AccountId = accountId,
                     Name = isRoot ? rootNewName : cat.Name,
                     NameAlt = cat.NameAlt,
@@ -607,7 +598,13 @@ public class SmartCategoriesController : ControllerBase
                     CreatedBy = actor,
                     ModifiedDate = now,
                     ModifiedBy = actor,
-                });
+                };
+                context.SmartCategories.Add(newCat);
+                await context.SaveChangesAsync(cancellationToken);
+
+                // Now newCat.SmartCategoryId has the DB-generated value
+                idMap[cat.SmartCategoryId] = newCat.SmartCategoryId;
+                var newId = newCat.SmartCategoryId;
 
                 // Copy items
                 var items = await context.SmartCategoryItemDetails
@@ -645,9 +642,9 @@ public class SmartCategoriesController : ControllerBase
                         CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
                     });
                 }
-            }
 
-            await context.SaveChangesAsync(cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+            }
 
             return Ok(new
             {
