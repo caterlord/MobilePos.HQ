@@ -129,6 +129,7 @@ function CategoryDetailPanel({
 
   // Reorder modal
   const [reorderModalOpened, setReorderModalOpened] = useState(false);
+  const [reorderSaving, setReorderSaving] = useState(false);
 
   // Add items modal
   type ItemRow = { itemId: number; itemCode: string; itemName: string; categoryName?: string };
@@ -281,14 +282,20 @@ function CategoryDetailPanel({
 
   const handleReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!detail) return;
-    // Reassign displayIndex based on new array position (arrayMove only reorders, doesn't update displayIndex)
-    await smartCategoryService.upsertItems(brandId, categoryId, {
-      items: orderedItems.map((item, idx) => ({ itemId: item.itemId, displayIndex: idx * 10, enabled: true })),
-    });
-    notifications.show({ color: 'green', message: 'Item order saved' });
-    setReorderModalOpened(false);
-    await reload();
-    onDataChanged?.();
+    try {
+      setReorderSaving(true);
+      await smartCategoryService.upsertItems(brandId, categoryId, {
+        items: orderedItems.map((item, idx) => ({ itemId: item.itemId, displayIndex: idx * 10, enabled: true })),
+      });
+      notifications.show({ color: 'green', message: 'Item order saved' });
+      setReorderModalOpened(false);
+      await reload();
+      onDataChanged?.();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save order' });
+    } finally {
+      setReorderSaving(false);
+    }
   };
 
   const resetItems = () => {
@@ -398,7 +405,7 @@ function CategoryDetailPanel({
             categoryName={detail.category.name}
             items={sortedItems}
             loading={false}
-            saving={false}
+            saving={reorderSaving}
             onSave={handleReorderSave}
           />
 
