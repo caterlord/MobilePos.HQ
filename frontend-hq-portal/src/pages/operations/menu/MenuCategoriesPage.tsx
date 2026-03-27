@@ -20,8 +20,7 @@ import {
   Popover,
   ScrollArea,
   Divider,
-  Checkbox,
-  Menu
+  Checkbox
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -719,24 +718,9 @@ const MenuCategoriesPage: FC = () => {
                 <Button variant="outline" size="sm" leftSection={<IconArrowsSort size={16} />} onClick={() => { setReorderParentId('ROOT'); setReorderModalOpen(true); }}>
                   Reorder categories
                 </Button>
-                <Button.Group>
-                  <Button size="sm" leftSection={<IconPlus size={16} />} onClick={handleAddReal}>
-                    New category
-                  </Button>
-                  <Menu position="bottom-end" shadow="md">
-                    <Menu.Target>
-                      <ActionIcon variant="filled" color="blue" size={36} aria-label="More category options" style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.2)', borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}>
-                        <IconChevronDown size={14} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Label>Smart Grouping</Menu.Label>
-                      <Menu.Item leftSection={<IconPlus size={14} />} onClick={handleAddReal} style={{ display: 'none' }}>
-                        Removed
-                      </Menu.Item>
-                    </Menu.Dropdown>
-                  </Menu>
-                </Button.Group>
+                <Button size="sm" leftSection={<IconPlus size={16} />} onClick={handleAddReal}>
+                  New category
+                </Button>
               </Group>
 
               {/* Pagination Controls */}
