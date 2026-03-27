@@ -96,6 +96,41 @@ notifications.show({ color: 'red', message: 'Failed to save' });
 notifications.show({ color: 'yellow', message: 'Select a brand first' });
 ```
 
+## Icon-Only Buttons
+
+**All icon-only buttons (ActionIcon) must have a Tooltip** so users can hover to understand what the icon does. Never use an icon button without a tooltip.
+
+```tsx
+// ✅ Correct — tooltip explains the action
+<Tooltip label="Edit" withArrow>
+  <ActionIcon variant="subtle" color="blue" onClick={handleEdit}>
+    <IconEdit size={16} />
+  </ActionIcon>
+</Tooltip>
+
+// ❌ Wrong — no tooltip, user has to guess
+<ActionIcon variant="subtle" color="blue" onClick={handleEdit}>
+  <IconEdit size={16} />
+</ActionIcon>
+```
+
+## Loading Indicators
+
+**Every async action must show a loading indicator** on the button or UI element that triggered it. This is mandatory — no exceptions.
+
+- Every `async` handler that calls an API must have a `loading`/`saving` state variable
+- The triggering `<Button>` must pass `loading={savingState}`
+- For modals with save actions, pass the saving state as a prop
+- Use `try/catch/finally` with `setState(false)` in the `finally` block
+
+```tsx
+// ✅ Correct — button shows spinner while saving
+<Button onClick={() => void handleSave()} loading={saving}>Save</Button>
+
+// ❌ Wrong — no feedback, user doesn't know if save is in progress
+<Button onClick={() => void handleSave()}>Save</Button>
+```
+
 ## Navigation
 
 - Routes defined in three places: `routeConfig.ts` (breadcrumbs), `App.tsx` (routing), `Sidebar.tsx` (navigation)

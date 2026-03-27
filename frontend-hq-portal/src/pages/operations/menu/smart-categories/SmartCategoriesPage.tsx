@@ -391,7 +391,7 @@ function CategoryDetailPanel({
                   <Table.Td><Text size="sm">{item.itemName}</Text></Table.Td>
                   <Table.Td><Text size="sm">{item.displayIndex}</Text></Table.Td>
                   <Table.Td>
-                    <ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon>
+                    <Tooltip label="Remove" withArrow><ActionIcon size="xs" variant="subtle" color="red" onClick={() => removeItem(item.itemId)}><IconTrash size={12} /></ActionIcon></Tooltip>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -757,9 +757,9 @@ function CategoryGrid({
                   <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4}>
-                      <ActionIcon size="sm" variant="subtle" color="blue" onClick={() => onEdit(node)}><IconEdit size={14} /></ActionIcon>
-                      <ActionIcon size="sm" variant="subtle" onClick={() => onCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon>
-                      <ActionIcon size="sm" variant="subtle" color="red" onClick={() => onDelete(node)}><IconTrash size={14} /></ActionIcon>
+                      <Tooltip label="Edit" withArrow><ActionIcon size="sm" variant="subtle" color="blue" onClick={() => onEdit(node)}><IconEdit size={14} /></ActionIcon></Tooltip>
+                      <Tooltip label="Add child" withArrow><ActionIcon size="sm" variant="subtle" onClick={() => onCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon></Tooltip>
+                      <Tooltip label="Delete" withArrow><ActionIcon size="sm" variant="subtle" color="red" onClick={() => onDelete(node)}><IconTrash size={14} /></ActionIcon></Tooltip>
                     </Group>
                   </Table.Td>
                 </Table.Tr>,
