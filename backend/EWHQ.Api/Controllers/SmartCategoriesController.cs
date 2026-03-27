@@ -45,6 +45,42 @@ public class SmartCategoriesController : ControllerBase
         return identifier.Length <= maxLength ? identifier : identifier.Substring(0, maxLength);
     }
 
+    /// <summary>
+    /// Auto-manage built-in menu: add root smart categories, remove child smart categories.
+    /// </summary>
+    private async Task SyncBuiltInMenuAsync(
+        Data.EWHQDbContext context, int accountId, int smartCategoryId,
+        bool isRoot, string actor, DateTime now, CancellationToken cancellationToken)
+    {
+        var builtInMenu = await context.MenuHeaders
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.IsBuiltIn && x.Enabled, cancellationToken);
+
+        if (builtInMenu == null) return;
+
+        var existing = await context.MenuDetails
+            .FirstOrDefaultAsync(x => x.AccountId == accountId && x.MenuId == builtInMenu.MenuId
+                && x.CategoryId == smartCategoryId && x.IsSmartCategory, cancellationToken);
+
+        if (isRoot && existing == null)
+        {
+            // Root category not in built-in menu → add it
+            context.MenuDetails.Add(new MenuDetail
+            {
+                AccountId = accountId,
+                MenuId = builtInMenu.MenuId,
+                CategoryId = smartCategoryId,
+                IsSmartCategory = true,
+                CreatedDate = now, CreatedBy = actor,
+                ModifiedDate = now, ModifiedBy = actor,
+            });
+        }
+        else if (!isRoot && existing != null)
+        {
+            // Child category in built-in menu → remove it
+            context.MenuDetails.Remove(existing);
+        }
+    }
+
     [HttpGet("brand/{brandId}")]
     [RequireBrandView]
     public async Task<ActionResult<IEnumerable<SmartCategoryTreeNodeDto>>> GetSmartCategories(int brandId, CancellationToken cancellationToken)
@@ -347,6 +383,11 @@ public class SmartCategoriesController : ControllerBase
             context.SmartCategories.Add(entity);
             await context.SaveChangesAsync(cancellationToken);
 
+            // Auto-add root smart categories to built-in menu
+            var isRoot = !createDto.ParentSmartCategoryId.HasValue;
+            await SyncBuiltInMenuAsync(context, accountId, entity.SmartCategoryId, isRoot, currentUser, now, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
+
             var detailDto = new SmartCategoryDetailDto
             {
                 Category = MapToDto(entity),
@@ -428,6 +469,10 @@ public class SmartCategoriesController : ControllerBase
             var now = DateTime.UtcNow;
             var currentUser = GetCurrentUserIdentifier();
 
+            // Track parent change for built-in menu sync
+            var oldParentId = category.ParentSmartCategoryId;
+            var newParentId = updateDto.ParentSmartCategoryId;
+
             var normalizedName = updateDto.Name.Trim();
 
             category.ParentSmartCategoryId = updateDto.ParentSmartCategoryId;
@@ -455,6 +500,14 @@ public class SmartCategoriesController : ControllerBase
             category.ModifiedBy = currentUser;
 
             await context.SaveChangesAsync(cancellationToken);
+
+            // Sync built-in menu if parent changed (root ↔ child)
+            if (oldParentId != newParentId)
+            {
+                var isNowRoot = !newParentId.HasValue;
+                await SyncBuiltInMenuAsync(context, accountId, smartCategoryId, isNowRoot, currentUser, now, cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+            }
 
             return NoContent();
         }

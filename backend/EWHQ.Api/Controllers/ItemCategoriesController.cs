@@ -173,6 +173,25 @@ public class ItemCategoriesController : ControllerBase
             context.ItemCategories.Add(category);
             await context.SaveChangesAsync();
 
+            // Auto-add root categories to built-in menu
+            if (!createDto.ParentCategoryId.HasValue)
+            {
+                var builtInMenu = await context.MenuHeaders
+                    .FirstOrDefaultAsync(x => x.AccountId == accountId && x.IsBuiltIn && x.Enabled);
+                if (builtInMenu != null)
+                {
+                    var actor = User.FindFirst(ClaimTypes.Email)?.Value ?? "System";
+                    var now = DateTime.UtcNow;
+                    context.MenuDetails.Add(new MenuDetail
+                    {
+                        AccountId = accountId, MenuId = builtInMenu.MenuId,
+                        CategoryId = category.CategoryId, IsSmartCategory = false,
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                    await context.SaveChangesAsync();
+                }
+            }
+
             return CreatedAtAction(
                 nameof(GetItemCategory),
                 new { brandId, categoryId = category.CategoryId },
@@ -229,6 +248,9 @@ public class ItemCategoriesController : ControllerBase
                 return NotFound(new { message = "Item category not found" });
             }
 
+            // Track parent change for built-in menu sync
+            var oldParentId = category.ParentCategoryId;
+
             // Only update fields that are provided (not null/default in DTO)
             if (!string.IsNullOrEmpty(updateDto.CategoryName))
                 category.CategoryName = updateDto.CategoryName;
@@ -282,6 +304,38 @@ public class ItemCategoriesController : ControllerBase
             category.ModifiedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "System";
 
             await context.SaveChangesAsync();
+
+            // Sync built-in menu if parent changed (root ↔ child)
+            var newParentId = category.ParentCategoryId;
+            if (oldParentId != newParentId)
+            {
+                var builtInMenu = await context.MenuHeaders
+                    .FirstOrDefaultAsync(x => x.AccountId == accountId && x.IsBuiltIn && x.Enabled);
+                if (builtInMenu != null)
+                {
+                    var existing = await context.MenuDetails
+                        .FirstOrDefaultAsync(x => x.AccountId == accountId && x.MenuId == builtInMenu.MenuId
+                            && x.CategoryId == categoryId && !x.IsSmartCategory);
+                    var isNowRoot = !newParentId.HasValue;
+                    var actor = User.FindFirst(ClaimTypes.Email)?.Value ?? "System";
+                    var now = DateTime.UtcNow;
+
+                    if (isNowRoot && existing == null)
+                    {
+                        context.MenuDetails.Add(new MenuDetail
+                        {
+                            AccountId = accountId, MenuId = builtInMenu.MenuId,
+                            CategoryId = categoryId, IsSmartCategory = false,
+                            CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                        });
+                    }
+                    else if (!isNowRoot && existing != null)
+                    {
+                        context.MenuDetails.Remove(existing);
+                    }
+                    await context.SaveChangesAsync();
+                }
+            }
 
             return NoContent();
         }
