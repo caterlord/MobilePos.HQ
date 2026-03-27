@@ -586,6 +586,9 @@ public class EWHQDbContext : DbContext
 
         modelBuilder.Entity<SmartCategory>()
             .HasKey(e => new { e.SmartCategoryId, e.AccountId });
+        modelBuilder.Entity<SmartCategory>()
+            .Property(e => e.SmartCategoryId)
+            .ValueGeneratedOnAdd();
 
         modelBuilder.Entity<SmartCategoryItemDetail>()
             .HasKey(e => new { e.ItemId, e.AccountId, e.SmartCategoryId });

@@ -486,23 +486,44 @@ public class SmartCategoriesController : ControllerBase
                 return NotFound(new { message = "Smart category not found" });
             }
 
-            var hasChildren = await context.SmartCategories
-                .AnyAsync(c => c.AccountId == accountId && c.ParentSmartCategoryId == smartCategoryId, cancellationToken);
+            // Collect this category + all descendants for cascade delete
+            var allCats = await context.SmartCategories
+                .Where(c => c.AccountId == accountId && c.Enabled)
+                .Select(c => new { c.SmartCategoryId, c.ParentSmartCategoryId })
+                .ToListAsync(cancellationToken);
 
-            if (hasChildren)
+            var toDelete = new List<int>();
+            var queue = new Queue<int>();
+            queue.Enqueue(smartCategoryId);
+            while (queue.Count > 0)
             {
-                return BadRequest(new { message = "Cannot delete a smart category that has child categories." });
+                var id = queue.Dequeue();
+                toDelete.Add(id);
+                foreach (var child in allCats.Where(c => c.ParentSmartCategoryId == id))
+                    queue.Enqueue(child.SmartCategoryId);
             }
 
-            var hasItems = await context.SmartCategoryItemDetails
-                .AnyAsync(i => i.AccountId == accountId && i.SmartCategoryId == smartCategoryId, cancellationToken);
+            // Delete items, shop details, order channel mappings, then categories
+            var items = await context.SmartCategoryItemDetails
+                .Where(i => i.AccountId == accountId && toDelete.Contains(i.SmartCategoryId))
+                .ToListAsync(cancellationToken);
+            context.SmartCategoryItemDetails.RemoveRange(items);
 
-            if (hasItems)
-            {
-                return BadRequest(new { message = "Cannot delete a smart category that has assigned items." });
-            }
+            var shopDetails = await context.SmartCategoryShopDetails
+                .Where(s => s.AccountId == accountId && toDelete.Contains(s.SmartCategoryId))
+                .ToListAsync(cancellationToken);
+            context.SmartCategoryShopDetails.RemoveRange(shopDetails);
 
-            context.SmartCategories.Remove(category);
+            var channelMappings = await context.SmartCategoryOrderChannelMappings
+                .Where(m => m.AccountId == accountId && toDelete.Contains(m.SmartCategoryId))
+                .ToListAsync(cancellationToken);
+            context.SmartCategoryOrderChannelMappings.RemoveRange(channelMappings);
+
+            var cats = await context.SmartCategories
+                .Where(c => c.AccountId == accountId && toDelete.Contains(c.SmartCategoryId))
+                .ToListAsync(cancellationToken);
+            context.SmartCategories.RemoveRange(cats);
+
             await context.SaveChangesAsync(cancellationToken);
 
             return NoContent();
@@ -558,26 +579,20 @@ public class SmartCategoriesController : ControllerBase
             }
 
             var rootNewName = string.IsNullOrWhiteSpace(request.NewName) ? $"{source.Name}(1)" : request.NewName.Trim();
-            var idMap = new Dictionary<int, int>(); // old ID → new ID
             var totalItemCount = 0;
 
-            // Copy each category one at a time so DB generates the identity ID
+            // Pass 1: Batch-insert all categories (ParentSmartCategoryId = null temporarily)
+            // EF will populate SmartCategoryId after SaveChanges
+            var newEntities = new Dictionary<int, SmartCategory>(); // old ID → new entity
             foreach (var cat in toCopy)
             {
                 var isRoot = cat.SmartCategoryId == sourceSmartCategoryId;
-
-                // Map parent: if parent was already copied, use its new ID; otherwise null (root)
-                int? newParentId = null;
-                if (!isRoot && cat.ParentSmartCategoryId.HasValue && idMap.TryGetValue(cat.ParentSmartCategoryId.Value, out var mappedParent))
-                    newParentId = mappedParent;
-
                 var newCat = new SmartCategory
                 {
-                    // Do NOT set SmartCategoryId — let DB identity generate it
                     AccountId = accountId,
                     Name = isRoot ? rootNewName : cat.Name,
                     NameAlt = cat.NameAlt,
-                    ParentSmartCategoryId = newParentId,
+                    ParentSmartCategoryId = null, // set in pass 2
                     DisplayIndex = cat.DisplayIndex,
                     Enabled = true,
                     IsTerminal = cat.IsTerminal,
@@ -600,13 +615,29 @@ public class SmartCategoriesController : ControllerBase
                     ModifiedBy = actor,
                 };
                 context.SmartCategories.Add(newCat);
-                await context.SaveChangesAsync(cancellationToken);
+                newEntities[cat.SmartCategoryId] = newCat;
+            }
+            await context.SaveChangesAsync(cancellationToken);
 
-                // Now newCat.SmartCategoryId has the DB-generated value
-                idMap[cat.SmartCategoryId] = newCat.SmartCategoryId;
-                var newId = newCat.SmartCategoryId;
+            // Build old→new ID map (EF populated SmartCategoryId after save)
+            var idMap = newEntities.ToDictionary(kv => kv.Key, kv => kv.Value.SmartCategoryId);
 
-                // Copy items
+            // Pass 2: Fix parent-child relationships
+            foreach (var cat in toCopy)
+            {
+                var isRoot = cat.SmartCategoryId == sourceSmartCategoryId;
+                if (!isRoot && cat.ParentSmartCategoryId.HasValue && idMap.TryGetValue(cat.ParentSmartCategoryId.Value, out var mappedParent))
+                {
+                    newEntities[cat.SmartCategoryId].ParentSmartCategoryId = mappedParent;
+                }
+            }
+            await context.SaveChangesAsync(cancellationToken);
+
+            // Pass 3: Batch-copy items and shop details for all categories
+            foreach (var cat in toCopy)
+            {
+                var newId = idMap[cat.SmartCategoryId];
+
                 var items = await context.SmartCategoryItemDetails
                     .AsNoTracking()
                     .Where(x => x.AccountId == accountId && x.SmartCategoryId == cat.SmartCategoryId && x.Enabled)
@@ -623,7 +654,6 @@ public class SmartCategoriesController : ControllerBase
                     });
                 }
 
-                // Copy shop details
                 var shopDetails = await context.SmartCategoryShopDetails
                     .AsNoTracking()
                     .Where(x => x.AccountId == accountId && x.SmartCategoryId == cat.SmartCategoryId && x.Enabled)
@@ -642,9 +672,8 @@ public class SmartCategoriesController : ControllerBase
                         CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
                     });
                 }
-
-                await context.SaveChangesAsync(cancellationToken);
             }
+            await context.SaveChangesAsync(cancellationToken);
 
             return Ok(new
             {
