@@ -281,9 +281,14 @@ function CategoryDetailPanel({
 
   const handleReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!detail) return;
-    setDetail({ ...detail, items: orderedItems });
-    setItemsDirty(true);
+    // Save directly to DB (consistent with other reorder modals)
+    await smartCategoryService.upsertItems(brandId, categoryId, {
+      items: orderedItems.map((i) => ({ itemId: i.itemId, displayIndex: i.displayIndex, enabled: true })),
+    });
+    notifications.show({ color: 'green', message: 'Item order saved' });
     setReorderModalOpened(false);
+    await reload();
+    onDataChanged?.();
   };
 
   const resetItems = () => {
