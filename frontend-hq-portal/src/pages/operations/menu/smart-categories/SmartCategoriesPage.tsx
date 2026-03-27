@@ -796,7 +796,6 @@ export function SmartCategoriesPage() {
   // Create/Edit modal
   const [modalOpened, setModalOpened] = useState(false);
   const [editTarget, setEditTarget] = useState<FlatNode | null>(null);
-  const [createForOdo, setCreateForOdo] = useState(false);
   const [form, setForm] = useState<SmartCategoryUpsertPayload>({
     name: '', nameAlt: '', parentSmartCategoryId: null, displayIndex: 0,
     enabled: true, isTerminal: true, isPublicDisplay: true, buttonStyleId: 0,
@@ -806,7 +805,6 @@ export function SmartCategoriesPage() {
 
   const allFlat = useMemo(() => flattenTree(tree), [tree]);
   const posNodes = useMemo(() => allFlat.filter((n) => !n.isOdoDisplay), [allFlat]);
-  const onlineNodes = useMemo(() => allFlat.filter((n) => n.isOdoDisplay), [allFlat]);
 
   const loadData = useCallback(async () => {
     if (!brandId) { setTree([]); return; }
@@ -831,25 +829,23 @@ export function SmartCategoriesPage() {
       .map((n) => ({ value: String(n.smartCategoryId), label: `${'  '.repeat(n.depth)}${n.name}` })),
   ], [allFlat, editTarget]);
 
-  const openCreate = (isOdo: boolean, parentId?: number | null) => {
+  const openCreate = (parentId?: number | null) => {
     setEditTarget(null);
-    setCreateForOdo(isOdo);
     setForm({
       name: '', nameAlt: '', parentSmartCategoryId: parentId ?? null,
-      displayIndex: allFlat.length * 10, enabled: true, isTerminal: true,
-      isPublicDisplay: true, buttonStyleId: 0, isOdoDisplay: isOdo,
+      displayIndex: posNodes.length * 10, enabled: true, isTerminal: true,
+      isPublicDisplay: true, buttonStyleId: 0, isOdoDisplay: false,
     });
     setModalOpened(true);
   };
 
   const openEdit = (node: FlatNode) => {
     setEditTarget(node);
-    setCreateForOdo(node.isOdoDisplay);
     setForm({
       name: node.name, nameAlt: node.nameAlt, parentSmartCategoryId: node.parentSmartCategoryId,
       displayIndex: node.displayIndex, enabled: node.enabled, isTerminal: true,
       isPublicDisplay: true, buttonStyleId: node.buttonStyleId,
-      isOdoDisplay: node.isOdoDisplay,
+      isOdoDisplay: false,
     });
     setModalOpened(true);
   };
@@ -901,46 +897,25 @@ export function SmartCategoriesPage() {
         {!brandId && <Alert icon={<IconAlertCircle size={16} />} color="yellow">Select a brand to manage smart categories.</Alert>}
         {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
 
-        {/* POS Smart Categories */}
-        <Stack gap="sm">
-          <Group justify="space-between">
-            <Title order={4}>POS Smart Categories</Title>
-            <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => openCreate(false)} disabled={!brandId}>
-              New POS Category
-            </Button>
-          </Group>
-          {brandId && (
-            <CategoryGrid
-              brandId={brandId} nodes={posNodes} loading={loading} isOdo={false}
-              expandedId={expandedId} setExpandedId={setExpandedId}
-              onEdit={openEdit} onCreate={(parentId) => openCreate(false, parentId)}
-              onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
-            />
-          )}
-        </Stack>
+        <Group justify="flex-end">
+          <Button leftSection={<IconPlus size={16} />} onClick={() => openCreate()} disabled={!brandId}>
+            New Smart Category
+          </Button>
+        </Group>
 
-        {/* Online Smart Categories */}
-        <Stack gap="sm">
-          <Group justify="space-between">
-            <Title order={4}>Online Smart Categories</Title>
-            <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => openCreate(true)} disabled={!brandId}>
-              New Online Category
-            </Button>
-          </Group>
-          {brandId && (
-            <CategoryGrid
-              brandId={brandId} nodes={onlineNodes} loading={loading} isOdo={true}
-              expandedId={expandedId} setExpandedId={setExpandedId}
-              onEdit={openEdit} onCreate={(parentId) => openCreate(true, parentId)}
-              onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
-            />
-          )}
-        </Stack>
+        {brandId && (
+          <CategoryGrid
+            brandId={brandId} nodes={posNodes} loading={loading} isOdo={false}
+            expandedId={expandedId} setExpandedId={setExpandedId}
+            onEdit={openEdit} onCreate={(parentId) => openCreate(parentId)}
+            onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
+          />
+        )}
       </Stack>
 
       {/* Create/Edit Modal */}
       <Modal opened={modalOpened} onClose={() => setModalOpened(false)}
-        title={editTarget ? 'Edit Smart Category' : (createForOdo ? 'New Online Smart Category' : 'New POS Smart Category')} size="md">
+        title={editTarget ? 'Edit Smart Category' : 'New Smart Category'} size="md">
         <Stack gap="md">
           <TextInput label="Category Name" required value={form.name}
             onChange={(e) => setForm({ ...form, name: e.currentTarget.value })} />
@@ -954,9 +929,6 @@ export function SmartCategoriesPage() {
             onChange={(v) => setForm({ ...form, displayIndex: typeof v === 'number' ? v : 0 })} />
           <Switch label="Public Display" checked={form.isPublicDisplay}
             onChange={(e) => setForm({ ...form, isPublicDisplay: e.currentTarget.checked })} />
-          <Switch label="Online Display (ODO)" checked={form.isOdoDisplay ?? false}
-            onChange={(e) => setForm({ ...form, isOdoDisplay: e.currentTarget.checked })}
-            description="When enabled, this category appears in online ordering instead of POS" />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleSave()} loading={submitting}>{editTarget ? 'Update' : 'Create'}</Button>

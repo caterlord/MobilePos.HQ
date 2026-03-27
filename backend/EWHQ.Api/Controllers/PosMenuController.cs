@@ -43,7 +43,7 @@ public class PosMenuController : ControllerBase
 
             var menus = await context.MenuHeaders
                 .AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.Enabled)
+                .Where(x => x.AccountId == accountId && x.Enabled && !(x.IsOdoDisplay ?? false))
                 .OrderBy(x => x.DisplayOrder)
                 .ThenBy(x => x.MenuName)
                 .Select(x => new
