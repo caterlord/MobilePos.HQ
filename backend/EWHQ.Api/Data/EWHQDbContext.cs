@@ -436,6 +436,9 @@ public class EWHQDbContext : DbContext
 
         modelBuilder.Entity<MenuHeader>()
             .HasKey(e => new { e.MenuId, e.AccountId });
+        modelBuilder.Entity<MenuHeader>()
+            .Property(e => e.MenuId)
+            .ValueGeneratedOnAdd();
 
         modelBuilder.Entity<MenuHeaderMetaOnline>()
             .HasKey(e => new { e.MenuId, e.AccountId });
