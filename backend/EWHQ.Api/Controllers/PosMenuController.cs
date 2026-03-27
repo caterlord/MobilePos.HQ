@@ -548,6 +548,127 @@ public class PosMenuController : ControllerBase
             return StatusCode(500, new { message = "An error occurred." });
         }
     }
+    // ── Get Single Menu Detail ──
+
+    [HttpGet("brand/{brandId:int}/{menuId:int}")]
+    [RequireBrandView]
+    public async Task<IActionResult> GetMenu(int brandId, int menuId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var menu = await context.MenuHeaders.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.MenuId == menuId, HttpContext.RequestAborted);
+            if (menu == null) return NotFound(new { message = "Menu not found." });
+
+            var shopCount = await context.MenuShopDetails.AsNoTracking()
+                .CountAsync(x => x.AccountId == accountId && x.MenuId == menuId && x.Enabled, HttpContext.RequestAborted);
+
+            return Ok(new
+            {
+                menu.MenuId, menu.MenuName, menuNameAlt = menu.MenuNameAlt ?? "",
+                menuCode = menu.MenuCode ?? "", menu.DisplayOrder, menu.IsBuiltIn, menu.IsPublished,
+                shopCount,
+            });
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "Error"); return StatusCode(500, new { message = "An error occurred." }); }
+    }
+
+    // ── Shop Schedule ──
+
+    [HttpGet("brand/{brandId:int}/{menuId:int}/shop-schedule")]
+    [RequireBrandView]
+    public async Task<IActionResult> GetShopSchedule(int brandId, int menuId)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+
+            var allShops = await context.Shops.AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .OrderBy(x => x.Name)
+                .Select(x => new { x.ShopId, x.Name })
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var schedules = await context.MenuShopDetails.AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.MenuId == menuId)
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var scheduleMap = schedules.ToDictionary(x => x.ShopId);
+
+            var result = allShops.Select(shop =>
+            {
+                scheduleMap.TryGetValue(shop.ShopId, out var sd);
+                return new
+                {
+                    shopId = shop.ShopId,
+                    shopName = shop.Name ?? $"Shop {shop.ShopId}",
+                    enabled = sd?.Enabled ?? false,
+                    isPublicDisplay = sd?.IsPublicDisplay ?? false,
+                    daysOfWeek = sd?.DaysOfWeek ?? "",
+                    months = sd?.Months ?? "",
+                    dates = sd?.Dates ?? "",
+                    displayFromTime = sd?.DisplayFromTime?.ToString(@"hh\:mm") ?? "",
+                    displayToTime = sd?.DisplayToTime?.ToString(@"hh\:mm") ?? "",
+                };
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "Error"); return StatusCode(500, new { message = "An error occurred." }); }
+    }
+
+    [HttpPut("brand/{brandId:int}/{menuId:int}/shop-schedule")]
+    [RequireBrandModify]
+    public async Task<IActionResult> UpdateShopSchedule(int brandId, int menuId, [FromBody] List<MenuShopScheduleEntry> entries)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+
+            var existing = await context.MenuShopDetails
+                .Where(x => x.AccountId == accountId && x.MenuId == menuId)
+                .ToListAsync(HttpContext.RequestAborted);
+            var existingMap = existing.ToDictionary(x => x.ShopId);
+
+            foreach (var entry in entries)
+            {
+                if (existingMap.TryGetValue(entry.ShopId, out var sd))
+                {
+                    sd.Enabled = entry.Enabled;
+                    sd.IsPublicDisplay = entry.IsPublicDisplay;
+                    sd.DaysOfWeek = entry.DaysOfWeek ?? "";
+                    sd.Months = entry.Months ?? "";
+                    sd.Dates = entry.Dates ?? "";
+                    sd.DisplayFromTime = string.IsNullOrEmpty(entry.DisplayFromTime) ? null : TimeSpan.Parse(entry.DisplayFromTime);
+                    sd.DisplayToTime = string.IsNullOrEmpty(entry.DisplayToTime) ? null : TimeSpan.Parse(entry.DisplayToTime);
+                    sd.ModifiedDate = now;
+                    sd.ModifiedBy = actor;
+                }
+                else if (entry.Enabled)
+                {
+                    context.MenuShopDetails.Add(new MenuShopDetail
+                    {
+                        AccountId = accountId, MenuId = menuId, ShopId = entry.ShopId,
+                        Enabled = true, IsPublicDisplay = entry.IsPublicDisplay,
+                        DaysOfWeek = entry.DaysOfWeek ?? "", Months = entry.Months ?? "", Dates = entry.Dates ?? "",
+                        DisplayFromTime = string.IsNullOrEmpty(entry.DisplayFromTime) ? null : TimeSpan.Parse(entry.DisplayFromTime),
+                        DisplayToTime = string.IsNullOrEmpty(entry.DisplayToTime) ? null : TimeSpan.Parse(entry.DisplayToTime),
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                }
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            return Ok(new { message = "Shop schedule updated." });
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "Error"); return StatusCode(500, new { message = "An error occurred." }); }
+    }
 }
 
 // ── Request DTOs ──
@@ -570,4 +691,16 @@ public class MenuCategoryEntry
 {
     public int CategoryId { get; set; }
     public bool IsSmartCategory { get; set; }
+}
+
+public class MenuShopScheduleEntry
+{
+    public int ShopId { get; set; }
+    public bool Enabled { get; set; }
+    public bool IsPublicDisplay { get; set; }
+    public string? DaysOfWeek { get; set; }
+    public string? Months { get; set; }
+    public string? Dates { get; set; }
+    public string? DisplayFromTime { get; set; }
+    public string? DisplayToTime { get; set; }
 }
