@@ -42,6 +42,11 @@ class SmartCategoryService {
     await api.delete(`/smart-categories/brand/${brandId}/${smartCategoryId}`);
   }
 
+  async copy(brandId: number, sourceId: number, newName: string, isOdoDisplay: boolean): Promise<{ smartCategoryId: number; name: string; itemCount: number }> {
+    const response = await api.post(`/smart-categories/brand/${brandId}/copy/${sourceId}`, { newName, isOdoDisplay });
+    return response.data;
+  }
+
   async reorder(brandId: number, payload: SmartCategoryReorderRequest): Promise<void> {
     await api.put(`/smart-categories/brand/${brandId}/reorder`, payload);
   }

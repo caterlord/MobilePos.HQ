@@ -227,3 +227,9 @@ public class SmartCategoryReorderRequestDto
     [MinLength(1)]
     public IReadOnlyList<SmartCategoryReorderEntryDto> Categories { get; set; } = Array.Empty<SmartCategoryReorderEntryDto>();
 }
+
+public class CopySmartCategoryRequest
+{
+    public string? NewName { get; set; }
+    public bool IsOdoDisplay { get; set; }
+}

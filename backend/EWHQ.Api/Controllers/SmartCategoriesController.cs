@@ -519,6 +519,115 @@ public class SmartCategoriesController : ControllerBase
         }
     }
 
+    [HttpPost("brand/{brandId}/copy/{sourceSmartCategoryId}")]
+    [RequireBrandModify]
+    public async Task<IActionResult> CopySmartCategory(
+        int brandId, int sourceSmartCategoryId,
+        [FromBody] CopySmartCategoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+
+            var source = await context.SmartCategories
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId, cancellationToken);
+
+            if (source == null)
+                return NotFound(new { message = "Source category not found." });
+
+            var newId = (await context.SmartCategories
+                .Where(x => x.AccountId == accountId)
+                .Select(x => (int?)x.SmartCategoryId)
+                .MaxAsync(cancellationToken) ?? 0) + 1;
+
+            var newName = string.IsNullOrWhiteSpace(request.NewName) ? $"{source.Name}(1)" : request.NewName.Trim();
+
+            var newCat = new SmartCategory
+            {
+                SmartCategoryId = newId,
+                AccountId = accountId,
+                Name = newName,
+                NameAlt = source.NameAlt,
+                ParentSmartCategoryId = null,
+                DisplayIndex = source.DisplayIndex + 1,
+                Enabled = true,
+                IsTerminal = true,
+                IsPublicDisplay = true,
+                ButtonStyleId = source.ButtonStyleId,
+                Description = source.Description,
+                DescriptionAlt = source.DescriptionAlt,
+                ImageFileName = source.ImageFileName,
+                ImageFileName2 = source.ImageFileName2,
+                ImageFileName3 = source.ImageFileName3,
+                IsSelfOrderingDisplay = false,
+                IsOnlineStoreDisplay = false,
+                IsOdoDisplay = request.IsOdoDisplay,
+                IsKioskDisplay = false,
+                IsTableOrderingDisplay = false,
+                Remark = source.Remark,
+                CreatedDate = now,
+                CreatedBy = actor,
+                ModifiedDate = now,
+                ModifiedBy = actor,
+            };
+            context.SmartCategories.Add(newCat);
+
+            // Copy items
+            var sourceItems = await context.SmartCategoryItemDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId && x.Enabled)
+                .ToListAsync(cancellationToken);
+
+            foreach (var item in sourceItems)
+            {
+                context.SmartCategoryItemDetails.Add(new SmartCategoryItemDetail
+                {
+                    SmartCategoryId = newId, AccountId = accountId, ItemId = item.ItemId,
+                    DisplayIndex = item.DisplayIndex, Enabled = true,
+                    CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                });
+            }
+
+            // Copy shop details
+            var sourceShopDetails = await context.SmartCategoryShopDetails
+                .AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId && x.Enabled)
+                .ToListAsync(cancellationToken);
+
+            foreach (var sd in sourceShopDetails)
+            {
+                context.SmartCategoryShopDetails.Add(new SmartCategoryShopDetail
+                {
+                    SmartCategoryId = newId, AccountId = accountId, ShopId = sd.ShopId,
+                    DisplayIndex = sd.DisplayIndex, Enabled = true,
+                    DisplayFromDate = sd.DisplayFromDate, DisplayToDate = sd.DisplayToDate,
+                    DisplayFromTime = sd.DisplayFromTime, DisplayToTime = sd.DisplayToTime,
+                    DaysOfWeek = sd.DaysOfWeek, Months = sd.Months, Dates = sd.Dates,
+                    IsPublicDisplay = sd.IsPublicDisplay,
+                    CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                });
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+
+            return Ok(new { smartCategoryId = newId, name = newName, itemCount = sourceItems.Count });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Brand not found: {BrandId}", brandId);
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error copying smart category {SourceId} for brand {BrandId}", sourceSmartCategoryId, brandId);
+            return StatusCode(500, new { message = "An error occurred while copying." });
+        }
+    }
+
     [HttpPut("brand/{brandId}/reorder")]
     [RequireBrandModify]
     public async Task<ActionResult> ReorderSmartCategories(

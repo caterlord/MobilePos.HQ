@@ -12,6 +12,7 @@ import {
   MultiSelect,
   NumberInput,
   Paper,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -28,6 +29,7 @@ import {
   IconArrowsSort,
   IconChevronDown,
   IconChevronRight,
+  IconCopy,
   IconEdit,
   IconPlus,
   IconRefresh,
@@ -803,8 +805,17 @@ export function SmartCategoriesPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Copy from existing modal
+  const [copyModalOpened, setCopyModalOpened] = useState(false);
+  const [copySourceFilter, setCopySourceFilter] = useState<'pos' | 'online'>('pos');
+  const [copySelectedId, setCopySelectedId] = useState<number | null>(null);
+  const [copyNewName, setCopyNewName] = useState('');
+  const [copying, setCopying] = useState(false);
+
   const allFlat = useMemo(() => flattenTree(tree), [tree]);
   const posNodes = useMemo(() => allFlat.filter((n) => !n.isOdoDisplay), [allFlat]);
+  const onlineNodes = useMemo(() => allFlat.filter((n) => n.isOdoDisplay), [allFlat]);
+  const copySourceNodes = useMemo(() => copySourceFilter === 'online' ? onlineNodes : posNodes, [copySourceFilter, posNodes, onlineNodes]);
 
   const loadData = useCallback(async () => {
     if (!brandId) { setTree([]); return; }
@@ -873,6 +884,28 @@ export function SmartCategoriesPage() {
     }
   };
 
+  const openCopyModal = () => {
+    setCopySourceFilter('pos');
+    setCopySelectedId(null);
+    setCopyNewName('');
+    setCopyModalOpened(true);
+  };
+
+  const handleCopy = async () => {
+    if (!brandId || !copySelectedId) return;
+    try {
+      setCopying(true);
+      const result = await smartCategoryService.copy(brandId, copySelectedId, copyNewName, false);
+      notifications.show({ color: 'green', message: `Copied "${result.name}" with ${result.itemCount} items` });
+      setCopyModalOpened(false);
+      await loadData();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to copy' });
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const handleDelete = async (node: FlatNode) => {
     if (!brandId) return;
     if (!window.confirm(`Delete smart category "${node.name}"?`)) return;
@@ -898,6 +931,9 @@ export function SmartCategoriesPage() {
         {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
 
         <Group justify="flex-end">
+          <Button variant="light" leftSection={<IconCopy size={16} />} onClick={openCopyModal} disabled={!brandId}>
+            Copy from Existing
+          </Button>
           <Button leftSection={<IconPlus size={16} />} onClick={() => openCreate()} disabled={!brandId}>
             New Smart Category
           </Button>
@@ -932,6 +968,65 @@ export function SmartCategoriesPage() {
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleSave()} loading={submitting}>{editTarget ? 'Update' : 'Create'}</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Copy from Existing Modal */}
+      <Modal opened={copyModalOpened} onClose={() => setCopyModalOpened(false)} title="Copy from Existing Smart Category" size="lg">
+        <Stack gap="md">
+          <SegmentedControl
+            value={copySourceFilter}
+            onChange={(v) => { setCopySourceFilter(v as 'pos' | 'online'); setCopySelectedId(null); setCopyNewName(''); }}
+            data={[
+              { value: 'pos', label: `POS Categories (${posNodes.length})` },
+              { value: 'online', label: `Online Categories (${onlineNodes.length})` },
+            ]}
+          />
+
+          {copySourceNodes.length === 0 ? (
+            <Text c="dimmed" py="md">No {copySourceFilter === 'online' ? 'online' : 'POS'} smart categories available.</Text>
+          ) : (
+            <Stack gap={0} style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #eee', borderRadius: 4 }}>
+              {copySourceNodes.map((node) => (
+                <Group key={node.smartCategoryId} gap="sm" py={6} px="xs"
+                  style={{
+                    borderBottom: '1px solid #f0f0f0',
+                    cursor: 'pointer',
+                    backgroundColor: copySelectedId === node.smartCategoryId ? 'var(--mantine-color-blue-0)' : undefined,
+                  }}
+                  onClick={() => {
+                    setCopySelectedId(node.smartCategoryId);
+                    setCopyNewName(`${node.name}(1)`);
+                  }}
+                >
+                  <Text size="sm" fw={copySelectedId === node.smartCategoryId ? 600 : 400} style={{ flex: 1 }}>
+                    {'  '.repeat(node.depth)}{node.name}
+                  </Text>
+                  <Badge size="xs" variant="light">{node.itemCount} items</Badge>
+                </Group>
+              ))}
+            </Stack>
+          )}
+
+          {copySelectedId && (
+            <TextInput
+              label="New category name"
+              value={copyNewName}
+              onChange={(e) => setCopyNewName(e.currentTarget.value)}
+              required
+            />
+          )}
+
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setCopyModalOpened(false)}>Cancel</Button>
+            <Button
+              disabled={!copySelectedId || !copyNewName.trim()}
+              onClick={() => void handleCopy()}
+              loading={copying}
+            >
+              Copy
+            </Button>
           </Group>
         </Stack>
       </Modal>
