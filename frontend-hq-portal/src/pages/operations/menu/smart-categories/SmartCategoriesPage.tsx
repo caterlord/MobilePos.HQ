@@ -896,7 +896,8 @@ export function SmartCategoriesPage() {
     try {
       setCopying(true);
       const result = await smartCategoryService.copy(brandId, copySelectedId, copyNewName, false);
-      notifications.show({ color: 'green', message: `Copied "${result.name}" with ${result.itemCount} items` });
+      const catMsg = result.categoriesCopied > 1 ? ` (${result.categoriesCopied} categories)` : '';
+      notifications.show({ color: 'green', message: `Copied "${result.name}" with ${result.itemCount} items${catMsg}` });
       setCopyModalOpened(false);
       await loadData();
     } catch {

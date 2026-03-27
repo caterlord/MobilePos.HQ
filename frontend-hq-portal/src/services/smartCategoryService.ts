@@ -42,7 +42,7 @@ class SmartCategoryService {
     await api.delete(`/smart-categories/brand/${brandId}/${smartCategoryId}`);
   }
 
-  async copy(brandId: number, sourceId: number, newName: string, isOdoDisplay: boolean): Promise<{ smartCategoryId: number; name: string; itemCount: number }> {
+  async copy(brandId: number, sourceId: number, newName: string, isOdoDisplay: boolean): Promise<{ smartCategoryId: number; name: string; itemCount: number; categoriesCopied: number }> {
     const response = await api.post(`/smart-categories/brand/${brandId}/copy/${sourceId}`, { newName, isOdoDisplay });
     return response.data;
   }

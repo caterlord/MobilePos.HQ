@@ -532,89 +532,130 @@ public class SmartCategoriesController : ControllerBase
             var now = DateTime.UtcNow;
             var actor = GetCurrentUserIdentifier();
 
-            var source = await context.SmartCategories
+            // Load all categories to find source + descendants
+            var allCategories = await context.SmartCategories
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId, cancellationToken);
+                .Where(x => x.AccountId == accountId && x.Enabled)
+                .ToListAsync(cancellationToken);
 
+            var source = allCategories.FirstOrDefault(x => x.SmartCategoryId == sourceSmartCategoryId);
             if (source == null)
                 return NotFound(new { message = "Source category not found." });
 
-            var newId = (await context.SmartCategories
-                .Where(x => x.AccountId == accountId)
-                .Select(x => (int?)x.SmartCategoryId)
-                .MaxAsync(cancellationToken) ?? 0) + 1;
-
-            var newName = string.IsNullOrWhiteSpace(request.NewName) ? $"{source.Name}(1)" : request.NewName.Trim();
-
-            var newCat = new SmartCategory
+            // Collect source + all descendants (BFS)
+            var toCopy = new List<SmartCategory>();
+            var queue = new Queue<int>();
+            queue.Enqueue(sourceSmartCategoryId);
+            var visited = new HashSet<int>();
+            while (queue.Count > 0)
             {
-                SmartCategoryId = newId,
-                AccountId = accountId,
-                Name = newName,
-                NameAlt = source.NameAlt,
-                ParentSmartCategoryId = null,
-                DisplayIndex = source.DisplayIndex + 1,
-                Enabled = true,
-                IsTerminal = true,
-                IsPublicDisplay = true,
-                ButtonStyleId = source.ButtonStyleId,
-                Description = source.Description,
-                DescriptionAlt = source.DescriptionAlt,
-                ImageFileName = source.ImageFileName,
-                ImageFileName2 = source.ImageFileName2,
-                ImageFileName3 = source.ImageFileName3,
-                IsSelfOrderingDisplay = false,
-                IsOnlineStoreDisplay = false,
-                IsOdoDisplay = request.IsOdoDisplay,
-                IsKioskDisplay = false,
-                IsTableOrderingDisplay = false,
-                Remark = source.Remark,
-                CreatedDate = now,
-                CreatedBy = actor,
-                ModifiedDate = now,
-                ModifiedBy = actor,
-            };
-            context.SmartCategories.Add(newCat);
-
-            // Copy items
-            var sourceItems = await context.SmartCategoryItemDetails
-                .AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId && x.Enabled)
-                .ToListAsync(cancellationToken);
-
-            foreach (var item in sourceItems)
-            {
-                context.SmartCategoryItemDetails.Add(new SmartCategoryItemDetail
-                {
-                    SmartCategoryId = newId, AccountId = accountId, ItemId = item.ItemId,
-                    DisplayIndex = item.DisplayIndex, Enabled = true,
-                    CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
-                });
+                var id = queue.Dequeue();
+                if (!visited.Add(id)) continue;
+                var cat = allCategories.FirstOrDefault(x => x.SmartCategoryId == id);
+                if (cat != null) toCopy.Add(cat);
+                foreach (var child in allCategories.Where(x => x.ParentSmartCategoryId == id))
+                    queue.Enqueue(child.SmartCategoryId);
             }
 
-            // Copy shop details
-            var sourceShopDetails = await context.SmartCategoryShopDetails
-                .AsNoTracking()
-                .Where(x => x.AccountId == accountId && x.SmartCategoryId == sourceSmartCategoryId && x.Enabled)
-                .ToListAsync(cancellationToken);
+            // Allocate new IDs
+            var maxId = await context.SmartCategories
+                .Where(x => x.AccountId == accountId)
+                .Select(x => (int?)x.SmartCategoryId)
+                .MaxAsync(cancellationToken) ?? 0;
 
-            foreach (var sd in sourceShopDetails)
+            var idMap = new Dictionary<int, int>(); // old ID → new ID
+            foreach (var cat in toCopy)
+                idMap[cat.SmartCategoryId] = ++maxId;
+
+            var rootNewName = string.IsNullOrWhiteSpace(request.NewName) ? $"{source.Name}(1)" : request.NewName.Trim();
+            var totalItemCount = 0;
+
+            foreach (var cat in toCopy)
             {
-                context.SmartCategoryShopDetails.Add(new SmartCategoryShopDetail
+                var newId = idMap[cat.SmartCategoryId];
+                var isRoot = cat.SmartCategoryId == sourceSmartCategoryId;
+
+                // Map parent: if parent is also being copied, use new ID; otherwise null (root)
+                int? newParentId = null;
+                if (!isRoot && cat.ParentSmartCategoryId.HasValue && idMap.TryGetValue(cat.ParentSmartCategoryId.Value, out var mappedParent))
+                    newParentId = mappedParent;
+
+                context.SmartCategories.Add(new SmartCategory
                 {
-                    SmartCategoryId = newId, AccountId = accountId, ShopId = sd.ShopId,
-                    DisplayIndex = sd.DisplayIndex, Enabled = true,
-                    DisplayFromDate = sd.DisplayFromDate, DisplayToDate = sd.DisplayToDate,
-                    DisplayFromTime = sd.DisplayFromTime, DisplayToTime = sd.DisplayToTime,
-                    DaysOfWeek = sd.DaysOfWeek, Months = sd.Months, Dates = sd.Dates,
-                    IsPublicDisplay = sd.IsPublicDisplay,
-                    CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    SmartCategoryId = newId,
+                    AccountId = accountId,
+                    Name = isRoot ? rootNewName : cat.Name,
+                    NameAlt = cat.NameAlt,
+                    ParentSmartCategoryId = newParentId,
+                    DisplayIndex = cat.DisplayIndex,
+                    Enabled = true,
+                    IsTerminal = cat.IsTerminal,
+                    IsPublicDisplay = cat.IsPublicDisplay,
+                    ButtonStyleId = cat.ButtonStyleId,
+                    Description = cat.Description,
+                    DescriptionAlt = cat.DescriptionAlt,
+                    ImageFileName = cat.ImageFileName,
+                    ImageFileName2 = cat.ImageFileName2,
+                    ImageFileName3 = cat.ImageFileName3,
+                    IsSelfOrderingDisplay = false,
+                    IsOnlineStoreDisplay = false,
+                    IsOdoDisplay = request.IsOdoDisplay,
+                    IsKioskDisplay = false,
+                    IsTableOrderingDisplay = false,
+                    Remark = cat.Remark,
+                    CreatedDate = now,
+                    CreatedBy = actor,
+                    ModifiedDate = now,
+                    ModifiedBy = actor,
                 });
+
+                // Copy items
+                var items = await context.SmartCategoryItemDetails
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.SmartCategoryId == cat.SmartCategoryId && x.Enabled)
+                    .ToListAsync(cancellationToken);
+
+                totalItemCount += items.Count;
+                foreach (var item in items)
+                {
+                    context.SmartCategoryItemDetails.Add(new SmartCategoryItemDetail
+                    {
+                        SmartCategoryId = newId, AccountId = accountId, ItemId = item.ItemId,
+                        DisplayIndex = item.DisplayIndex, Enabled = true,
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                }
+
+                // Copy shop details
+                var shopDetails = await context.SmartCategoryShopDetails
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.SmartCategoryId == cat.SmartCategoryId && x.Enabled)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var sd in shopDetails)
+                {
+                    context.SmartCategoryShopDetails.Add(new SmartCategoryShopDetail
+                    {
+                        SmartCategoryId = newId, AccountId = accountId, ShopId = sd.ShopId,
+                        DisplayIndex = sd.DisplayIndex, Enabled = true,
+                        DisplayFromDate = sd.DisplayFromDate, DisplayToDate = sd.DisplayToDate,
+                        DisplayFromTime = sd.DisplayFromTime, DisplayToTime = sd.DisplayToTime,
+                        DaysOfWeek = sd.DaysOfWeek, Months = sd.Months, Dates = sd.Dates,
+                        IsPublicDisplay = sd.IsPublicDisplay,
+                        CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                    });
+                }
             }
 
             await context.SaveChangesAsync(cancellationToken);
 
-            return Ok(new { smartCategoryId = newId, name = newName, itemCount = sourceItems.Count });
+            return Ok(new
+            {
+                smartCategoryId = idMap[sourceSmartCategoryId],
+                name = rootNewName,
+                itemCount = totalItemCount,
+                categoriesCopied = toCopy.Count
+            });
         }
         catch (InvalidOperationException ex)
         {
