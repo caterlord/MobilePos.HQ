@@ -32,8 +32,10 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBrands } from '../../../contexts/BrandContext';
 import api from '../../../services/api';
+import itemCategoryService from '../../../services/itemCategoryService';
+import smartCategoryService from '../../../services/smartCategoryService';
 import { SmartCategoryItemsReorderModal } from './smart-categories/SmartCategoryItemsReorderModal';
-import type { SmartCategoryItemAssignment } from '../../../types/smartCategory';
+import type { SmartCategoryItemAssignment, SmartCategoryTreeNode } from '../../../types/smartCategory';
 
 // ── Types ──
 
@@ -123,9 +125,15 @@ export function PosMenuEditorPage() {
   const [shopModalOpened, setShopModalOpened] = useState(false);
   const [shopSaving, setShopSaving] = useState(false);
 
-  // Reorder modal (drag-and-drop, reuses SmartCategoryItemsReorderModal)
+  // Reorder modal with drill-down navigation
   const [reorderModalOpened, setReorderModalOpened] = useState(false);
   const [reorderSaving, setReorderSaving] = useState(false);
+  const [expandableIds, setExpandableIds] = useState<Set<number>>(new Set());
+  const [reorderParentId, setReorderParentId] = useState<number | null>(null);
+  const [reorderStack, setReorderStack] = useState<{ parentId: number | null; name: string }[]>([]);
+  // Full trees for drill-down child lookup
+  const [allItemCategories, setAllItemCategories] = useState<{ categoryId: number; parentCategoryId?: number; categoryName: string; categoryNameAlt?: string; displayIndex: number }[]>([]);
+  const [allSmartCategories, setAllSmartCategories] = useState<SmartCategoryTreeNode[]>([]);
 
   const loadAll = useCallback(async () => {
     if (!brandId || !menuId) return;
@@ -138,6 +146,33 @@ export function PosMenuEditorPage() {
       setCategories(cats);
       const schedule = await svc.getShopSchedule(brandId, menuId);
       setShopSchedule(schedule);
+
+      // Load full trees to determine which categories have children (for drill-down)
+      try {
+        const [itemCats, smartTree] = await Promise.allSettled([
+          itemCategoryService.getItemCategories(brandId),
+          smartCategoryService.getTree(brandId),
+        ]);
+        const icats = itemCats.status === 'fulfilled' ? itemCats.value : [];
+        const stree = smartTree.status === 'fulfilled' ? smartTree.value : [];
+        setAllItemCategories(icats.map(c => ({ categoryId: c.categoryId, parentCategoryId: c.parentCategoryId, categoryName: c.categoryName, categoryNameAlt: c.categoryNameAlt, displayIndex: c.displayIndex })));
+        setAllSmartCategories(stree);
+
+        // Build expandable IDs matching reorderAsItems convention:
+        // positive = regular category, negative = smart category
+        const expandable = new Set<number>();
+        for (const ic of icats) {
+          if (ic.parentCategoryId) expandable.add(ic.parentCategoryId); // positive for regular
+        }
+        const markSmartParents = (nodes: SmartCategoryTreeNode[]): void => {
+          for (const n of nodes) {
+            if (n.children.length > 0) expandable.add(-(n.smartCategoryId)); // negative for smart
+            markSmartParents(n.children);
+          }
+        };
+        markSmartParents(stree);
+        setExpandableIds(expandable);
+      } catch { /* non-blocking */ }
     } catch {
       notifications.show({ color: 'red', message: 'Failed to load menu' });
     } finally {
@@ -191,21 +226,96 @@ export function PosMenuEditorPage() {
   };
 
   // ── Reorder (drag-and-drop via SmartCategoryItemsReorderModal) ──
-  const openReorder = () => setReorderModalOpened(true);
+  const openReorder = () => {
+    setReorderParentId(null);
+    setReorderStack([]);
+    setReorderModalOpened(true);
+  };
 
   // Map categories to the reorder modal's expected format
-  const reorderAsItems: SmartCategoryItemAssignment[] = useMemo(() =>
-    categories.map((c) => ({
-      itemId: c.categoryId * (c.isSmartCategory ? -1 : 1), // unique key: negative for smart
-      itemCode: c.isSmartCategory ? 'Smart Category' : 'Category',
-      itemName: c.categoryName || '—',
-      itemNameAlt: c.categoryNameAlt,
-      displayIndex: c.displayIndex,
-      enabled: true,
-      modifiedDate: '',
-      modifiedBy: '',
-    })),
-  [categories]);
+  // When reorderParentId is null, show menu categories. When set, show children from source trees.
+  const reorderAsItems: SmartCategoryItemAssignment[] = useMemo(() => {
+    if (reorderParentId === null) {
+      // Root level: show menu categories
+      return categories.map((c) => ({
+        itemId: c.categoryId * (c.isSmartCategory ? -1 : 1),
+        itemCode: c.isSmartCategory ? 'Smart Category' : 'Category',
+        itemName: c.categoryName || '—',
+        itemNameAlt: c.categoryNameAlt,
+        displayIndex: c.displayIndex,
+        enabled: true, modifiedDate: '', modifiedBy: '',
+      }));
+    }
+    // Nested level: show children from source trees
+    const isSmartParent = reorderParentId < 0;
+    const parentId = Math.abs(reorderParentId);
+    if (isSmartParent) {
+      // Find children in smart category tree
+      const findChildren = (nodes: SmartCategoryTreeNode[]): SmartCategoryTreeNode[] => {
+        for (const n of nodes) {
+          if (n.smartCategoryId === parentId) return n.children;
+          const found = findChildren(n.children);
+          if (found.length > 0) return found;
+        }
+        return [];
+      };
+      return findChildren(allSmartCategories).map(n => ({
+        itemId: -(n.smartCategoryId),
+        itemCode: 'Smart Category',
+        itemName: n.name, itemNameAlt: n.nameAlt,
+        displayIndex: n.displayIndex,
+        enabled: true, modifiedDate: '', modifiedBy: '',
+      }));
+    } else {
+      // Find children in item categories
+      return allItemCategories
+        .filter(c => c.parentCategoryId === parentId)
+        .sort((a, b) => a.displayIndex - b.displayIndex)
+        .map(c => ({
+          itemId: c.categoryId,
+          itemCode: 'Category',
+          itemName: c.categoryName, itemNameAlt: c.categoryNameAlt,
+          displayIndex: c.displayIndex,
+          enabled: true, modifiedDate: '', modifiedBy: '',
+        }));
+    }
+  }, [categories, reorderParentId, allSmartCategories, allItemCategories]);
+
+  const reorderCategoryName = useMemo(() => {
+    if (reorderParentId === null) return menu?.menuName ?? 'Menu';
+    const isSmartParent = reorderParentId < 0;
+    const parentId = Math.abs(reorderParentId);
+    if (isSmartParent) {
+      const findName = (nodes: SmartCategoryTreeNode[]): string => {
+        for (const n of nodes) {
+          if (n.smartCategoryId === parentId) return n.name;
+          const found = findName(n.children);
+          if (found) return found;
+        }
+        return '';
+      };
+      return findName(allSmartCategories) || 'Children';
+    }
+    return allItemCategories.find(c => c.categoryId === parentId)?.categoryName || 'Children';
+  }, [reorderParentId, menu, allSmartCategories, allItemCategories]);
+
+  const reorderBreadcrumb = useMemo(() =>
+    reorderStack.map(s => ({ id: s.parentId ?? 0, name: s.name })),
+  [reorderStack]);
+
+  const handleReorderDrillDown = (itemId: number) => {
+    setReorderStack(prev => [...prev, {
+      parentId: reorderParentId,
+      name: reorderParentId === null ? 'Root' : reorderCategoryName,
+    }]);
+    setReorderParentId(itemId);
+  };
+
+  const handleReorderBreadcrumbClick = (index: number) => {
+    const target = reorderStack[index];
+    setReorderStack(prev => prev.slice(0, index));
+    setReorderParentId(target.parentId);
+  };
 
   // Map back from reorder modal format and save
   const handleReorderSave = async (orderedItems: SmartCategoryItemAssignment[]) => {
@@ -440,11 +550,15 @@ export function PosMenuEditorPage() {
       <SmartCategoryItemsReorderModal
         opened={reorderModalOpened}
         onClose={() => setReorderModalOpened(false)}
-        categoryName={menu?.menuName ?? 'Menu'}
+        categoryName={reorderCategoryName}
         items={reorderAsItems}
         loading={false}
         saving={reorderSaving}
         onSave={handleReorderSave}
+        expandableIds={expandableIds}
+        onDrillDown={handleReorderDrillDown}
+        breadcrumb={reorderBreadcrumb}
+        onBreadcrumbClick={handleReorderBreadcrumbClick}
       />
 
       {/* ── Shop Schedule Edit Modal ── */}
