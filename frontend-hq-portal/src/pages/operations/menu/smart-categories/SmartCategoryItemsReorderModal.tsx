@@ -613,7 +613,9 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
                   ref={gridRef}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gridTemplateColumns: orderedItems.length <= 3
+                      ? `repeat(${orderedItems.length}, minmax(180px, 260px))`
+                      : 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: 'var(--mantine-spacing-md)',
                   }}
                 >
