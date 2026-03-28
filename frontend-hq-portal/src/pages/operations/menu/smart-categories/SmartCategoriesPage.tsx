@@ -729,15 +729,16 @@ function CategoryGrid({
             <Table.Th>Category Name</Table.Th>
             <Table.Th>Alt Name</Table.Th>
             <Table.Th>Items</Table.Th>
-            <Table.Th>Ordering</Table.Th>
+            <Table.Th>Display Index</Table.Th>
+            <Table.Th>Style</Table.Th>
             <Table.Th>Published</Table.Th>
-            <Table.Th style={{ width: 120 }}>Actions</Table.Th>
+            <Table.Th style={{ width: 140 }}>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {nodes.length === 0 ? (
             <Table.Tr>
-              <Table.Td colSpan={7}>
+              <Table.Td colSpan={8}>
                 <Text c="dimmed" ta="center" py="md">{loading ? 'Loading...' : emptyMsg}</Text>
               </Table.Td>
             </Table.Tr>
@@ -761,6 +762,7 @@ function CategoryGrid({
                   <Table.Td><Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text></Table.Td>
                   <Table.Td><Badge size="sm" variant="light">{node.itemCount}</Badge></Table.Td>
                   <Table.Td><Text size="sm">{node.displayIndex}</Text></Table.Td>
+                  <Table.Td><Text size="sm" c={node.buttonStyleId ? undefined : 'dimmed'}>#{node.buttonStyleId || '—'}</Text></Table.Td>
                   <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4}>

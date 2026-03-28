@@ -35,11 +35,15 @@ const DEFAULT_ITEMS_PER_ROW = 4;
 interface MenuCategoriesReorderModalProps {
   opened: boolean;
   onClose: () => void;
-  categoryName: string; // E.g. Default to 'Root Categories' or 'Category: Drinks'
+  categoryName: string;
   categories: CategoryItem[];
   loading: boolean;
   saving: boolean;
   onSave: (orderedCategories: CategoryItem[]) => Promise<void>;
+  expandableIds?: Set<number>;
+  onDrillDown?: (categoryId: number) => void;
+  breadcrumb?: { id: number; name: string }[];
+  onBreadcrumbClick?: (index: number) => void;
 }
 
 interface SortableRowProps {
@@ -47,10 +51,12 @@ interface SortableRowProps {
   index: number;
   selected: boolean;
   focused: boolean;
+  expandable?: boolean;
+  onExpand?: (categoryId: number) => void;
   onSelect: (uniqueId: string) => void;
 }
 
-const SortableCard: FC<SortableRowProps> = ({ category, index, selected, focused, onSelect }) => {
+const SortableCard: FC<SortableRowProps> = ({ category, index, selected, focused, onSelect, expandable, onExpand }) => {
   const {
     attributes,
     listeners,
@@ -133,6 +139,19 @@ const SortableCard: FC<SortableRowProps> = ({ category, index, selected, focused
               {category.categoryNameAlt}
             </Text>
           )}
+          {expandable && (
+            <Tooltip label="Reorder children" withArrow>
+              <Box
+                component="span"
+                onClick={(e) => { e.stopPropagation(); onExpand?.(category.categoryId); }}
+                style={{ cursor: 'pointer', marginTop: 4 }}
+              >
+                <Badge size="xs" variant="outline" color="indigo" rightSection="›" style={{ cursor: 'pointer' }}>
+                  sub-items
+                </Badge>
+              </Box>
+            </Tooltip>
+          )}
         </Stack>
       </Group>
     </Box>
@@ -147,6 +166,10 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
   loading,
   saving,
   onSave,
+  expandableIds,
+  onDrillDown,
+  breadcrumb,
+  onBreadcrumbClick,
 }) => {
   const [orderedCategories, setOrderedCategories] = useState<CategoryItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -546,6 +569,19 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
         style={{ padding: 24, width: '100%', height: '100%' }}
       >
         <Stack gap="xs">
+          {breadcrumb && breadcrumb.length > 0 && (
+            <Group gap={6}>
+              {breadcrumb.map((crumb, i) => (
+                <Group key={crumb.id} gap={6}>
+                  {i > 0 && <Text size="sm" c="dimmed">›</Text>}
+                  <Text size="sm" fw={500} c="blue" style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => onBreadcrumbClick?.(i)}>{crumb.name}</Text>
+                </Group>
+              ))}
+              <Text size="sm" c="dimmed">›</Text>
+              <Text size="sm" fw={600}>{categoryName}</Text>
+            </Group>
+          )}
           <Text size="sm" c="dimmed">
             Drag items or use the shortcuts below.
           </Text>
@@ -626,6 +662,8 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
                       selected={cat.uniqueId === selectedCategoryId}
                       focused={cat.uniqueId === focusedCategoryId}
                       onSelect={handleSelect}
+                      expandable={expandableIds?.has(cat.categoryId)}
+                      onExpand={onDrillDown}
                     />
                   ))}
                 </Box>

@@ -108,6 +108,7 @@ const MenuCategoriesPage: FC = () => {
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [reorderParentId, setReorderParentId] = useState<string | null | 'ROOT'>('ROOT');
   const [savingOrder, setSavingOrder] = useState(false);
+  const [reorderStack, setReorderStack] = useState<{ parentId: string | null | 'ROOT'; name: string }[]>([]);
 
   // Reordering Modal Data
   const reorderCategoriesList = useMemo(() => {
@@ -116,6 +117,39 @@ const MenuCategoriesPage: FC = () => {
       .filter(c => (c.parentUniqueId ?? null) === parentId)
       .sort((a, b) => a.displayIndex - b.displayIndex);
   }, [categories, reorderParentId]);
+
+  const reorderExpandableIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const c of categories) {
+      if (c.parentCategoryId) ids.add(c.parentCategoryId);
+    }
+    return ids;
+  }, [categories]);
+
+  const reorderBreadcrumb = useMemo(() =>
+    reorderStack.map(s => ({ id: typeof s.parentId === 'string' ? 0 : (s.parentId ?? 0), name: s.name })),
+  [reorderStack]);
+
+  const reorderCategoryName = useMemo(() => {
+    if (reorderParentId === 'ROOT') return 'Root Categories';
+    return categories.find(c => c.uniqueId === reorderParentId)?.categoryName || 'Sub-categories';
+  }, [reorderParentId, categories]);
+
+  const handleReorderDrillDown = (categoryId: number) => {
+    const cat = categories.find(c => c.categoryId === categoryId);
+    if (!cat) return;
+    setReorderStack(prev => [...prev, {
+      parentId: reorderParentId,
+      name: reorderParentId === 'ROOT' ? 'Root' : (categories.find(c => c.uniqueId === reorderParentId)?.categoryName ?? 'Parent'),
+    }]);
+    setReorderParentId(cat.uniqueId);
+  };
+
+  const handleReorderBreadcrumbClick = (index: number) => {
+    const target = reorderStack[index];
+    setReorderStack(prev => prev.slice(0, index));
+    setReorderParentId(target.parentId);
+  };
 
   const [formData, setFormData] = useState<CreateItemCategory>({
     categoryName: '',
@@ -565,7 +599,7 @@ const MenuCategoriesPage: FC = () => {
             </Tooltip>
             {cat.children.length > 0 && (
               <Tooltip label="Reorder children" withArrow position="top">
-                <ActionIcon variant="subtle" color="indigo" onClick={() => { setReorderParentId(cat.uniqueId); setReorderModalOpen(true); }}>
+                <ActionIcon variant="subtle" color="indigo" onClick={() => { setReorderParentId(cat.uniqueId); setReorderStack([]); setReorderModalOpen(true); }}>
                   <IconArrowsSort size={16} />
                 </ActionIcon>
               </Tooltip>
@@ -715,7 +749,7 @@ const MenuCategoriesPage: FC = () => {
                   </ActionIcon>
                 </Tooltip>
 
-                <Button variant="outline" size="sm" leftSection={<IconArrowsSort size={16} />} onClick={() => { setReorderParentId('ROOT'); setReorderModalOpen(true); }}>
+                <Button variant="outline" size="sm" leftSection={<IconArrowsSort size={16} />} onClick={() => { setReorderParentId('ROOT'); setReorderStack([]); setReorderModalOpen(true); }}>
                   Reorder categories
                 </Button>
                 <Button size="sm" leftSection={<IconPlus size={16} />} onClick={handleAddReal}>
@@ -812,11 +846,15 @@ const MenuCategoriesPage: FC = () => {
       <MenuCategoriesReorderModal
         opened={reorderModalOpen}
         onClose={() => setReorderModalOpen(false)}
-        categoryName={reorderParentId === 'ROOT' ? 'Root Categories' : (categories.find(c => c.uniqueId === reorderParentId)?.categoryName || 'Sub-categories')}
-            categories={reorderCategoriesList}
+        categoryName={reorderCategoryName}
+        categories={reorderCategoriesList}
         loading={false}
         saving={savingOrder}
         onSave={handleSaveReorder}
+        expandableIds={reorderExpandableIds}
+        onDrillDown={handleReorderDrillDown}
+        breadcrumb={reorderBreadcrumb}
+        onBreadcrumbClick={handleReorderBreadcrumbClick}
       />
     </Box>
   );
