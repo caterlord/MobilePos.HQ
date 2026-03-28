@@ -932,7 +932,7 @@ export function SmartCategoriesPage() {
   const catReorderAsItems = useMemo(() =>
     posNodes.map((n) => ({
       itemId: n.smartCategoryId,
-      itemCode: `#${n.displayIndex}`,
+      itemCode: n.nameAlt ?? '',
       itemName: n.name,
       itemNameAlt: n.nameAlt,
       displayIndex: n.displayIndex,
