@@ -128,7 +128,9 @@ const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, on
               {item.itemName || 'Untitled item'}
             </Text>
           </Tooltip>
-          {item.itemCode && item.itemCode !== 'Smart Category' && item.itemCode !== 'Category' ? (
+          {item.itemNameAlt ? (
+            <Text size="xs" c="dimmed" lineClamp={1}>{item.itemNameAlt}</Text>
+          ) : item.itemCode && item.itemCode !== 'Smart Category' && item.itemCode !== 'Category' ? (
             <Text size="xs" c="dimmed">{item.itemCode}</Text>
           ) : null}
         </Stack>
