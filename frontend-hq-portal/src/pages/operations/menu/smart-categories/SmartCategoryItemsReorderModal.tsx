@@ -575,12 +575,13 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
       >
         <Stack gap="xs">
           {breadcrumb && breadcrumb.length > 0 && (
-            <Group gap={4}>
+            <Group gap={6}>
               {breadcrumb.map((crumb, i) => (
-                <Group key={crumb.id} gap={4}>
-                  {i > 0 && <Text size="xs" c="dimmed">›</Text>}
+                <Group key={crumb.id} gap={6}>
+                  {i > 0 && <Text size="sm" c="dimmed">›</Text>}
                   <Text
-                    size="xs"
+                    size="sm"
+                    fw={500}
                     c="blue"
                     style={{ cursor: 'pointer', textDecoration: 'underline' }}
                     onClick={() => onBreadcrumbClick?.(i)}
@@ -589,7 +590,8 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
                   </Text>
                 </Group>
               ))}
-              <Text size="xs" c="dimmed">› {categoryName}</Text>
+              <Text size="sm" c="dimmed">›</Text>
+              <Text size="sm" fw={600}>{categoryName}</Text>
             </Group>
           )}
           <Text size="sm" c="dimmed">
