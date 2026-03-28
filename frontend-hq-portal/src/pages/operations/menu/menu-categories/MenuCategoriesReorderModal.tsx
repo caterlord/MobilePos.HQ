@@ -612,7 +612,9 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
                   ref={gridRef}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gridTemplateColumns: orderedCategories.length <= 3
+                      ? `repeat(${orderedCategories.length}, minmax(180px, 260px))`
+                      : 'repeat(auto-fit, minmax(200px, 1fr))',
                     gap: 'var(--mantine-spacing-md)',
                   }}
                 >
