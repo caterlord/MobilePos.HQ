@@ -124,9 +124,13 @@ const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, on
             </Text>
           </Tooltip>
           {item.itemCode ? (
-            <Text size="xs" c="dimmed">
-              {item.itemCode}
-            </Text>
+            item.itemCode === 'Smart Category' || item.itemCode === 'Category' ? (
+              <Badge size="xs" variant="light" color={item.itemCode === 'Smart Category' ? 'violet' : 'blue'}>
+                {item.itemCode}
+              </Badge>
+            ) : (
+              <Text size="xs" c="dimmed">{item.itemCode}</Text>
+            )
           ) : null}
         </Stack>
       </Group>
