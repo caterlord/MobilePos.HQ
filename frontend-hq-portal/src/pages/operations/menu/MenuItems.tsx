@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
   Tooltip,
+  SegmentedControl,
   UnstyledButton,
 } from '@mantine/core';
 import type { ColumnDef, ColumnSizingState, VisibilityState } from '@tanstack/react-table';
@@ -113,6 +114,7 @@ const MenuItemsPage: FC = () => {
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebouncedValue(search, 800);
+  const [itemTypeFilter, setItemTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'displayIndex' | 'itemId' | 'itemCode' | 'name'>('displayIndex');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -534,6 +536,17 @@ const MenuItemsPage: FC = () => {
         ),
       },
       {
+        id: 'itemType',
+        header: 'Type',
+        size: 100,
+        cell: ({ row }) => {
+          const item = row.original;
+          if (item.isModifier) return <Badge variant="light" color="violet" size="sm">Modifier</Badge>;
+          if (item.isFollowSetDynamic || item.isFollowSetStandard) return <Badge variant="light" color="teal" size="sm">Set Item</Badge>;
+          return <Badge variant="light" color="blue" size="sm">Sellable</Badge>;
+        },
+      },
+      {
         id: 'buttonStyle',
         header: 'Button Style',
         size: 200,
@@ -903,6 +916,7 @@ const MenuItemsPage: FC = () => {
         const response = await menuItemService.getMenuItems(brandId, {
           categoryId: selectedCategoryId ?? undefined,
           search: debouncedSearch || undefined,
+          itemType: itemTypeFilter === 'all' ? undefined : itemTypeFilter as 'sellable' | 'modifier' | 'setItem',
           sortBy,
           sortDirection,
           page,
@@ -918,7 +932,7 @@ const MenuItemsPage: FC = () => {
     };
 
     loadItems();
-  }, [brandId, filtersReady, selectedCategoryId, debouncedSearch, sortBy, sortDirection, page, reloadToken]);
+  }, [brandId, filtersReady, selectedCategoryId, debouncedSearch, itemTypeFilter, sortBy, sortDirection, page, reloadToken]);
 
   const categoryTree = useMemo(() => buildCategoryTree(lookups?.categories ?? []), [lookups?.categories]);
 
@@ -1552,6 +1566,20 @@ const handleSubmit = async () => {
                           )}
                         </ActionIcon>
                       </Tooltip>
+
+                      {/* Item Type Filter */}
+                      <SegmentedControl
+                        value={itemTypeFilter}
+                        onChange={(value) => { setItemTypeFilter(value); setPage(1); }}
+                        data={[
+                          { value: 'all', label: 'All' },
+                          { value: 'sellable', label: 'Sellable' },
+                          { value: 'modifier', label: 'Modifiers' },
+                          { value: 'setItem', label: 'Set Items' },
+                        ]}
+                        size="xs"
+                      />
+
                       <Popover
                         opened={searchPopoverOpened}
                         onChange={setSearchPopoverOpened}

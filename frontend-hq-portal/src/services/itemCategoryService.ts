@@ -2,8 +2,9 @@ import api from './api';
 import type { ItemCategory, CreateItemCategory, UpdateItemCategory } from '../types/itemCategory';
 
 class ItemCategoryService {
-  async getItemCategories(brandId: number): Promise<ItemCategory[]> {
-    const response = await api.get(`/item-categories/brand/${brandId}`);
+  async getItemCategories(brandId: number, categoryTypeId?: number): Promise<ItemCategory[]> {
+    const params = categoryTypeId != null ? `?categoryTypeId=${categoryTypeId}` : '';
+    const response = await api.get(`/item-categories/brand/${brandId}${params}`);
     return response.data;
   }
 

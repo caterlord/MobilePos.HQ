@@ -25,6 +25,7 @@ const buildQueryString = (query: MenuItemListQuery): string => {
   if (query.includeDisabled) params.set('includeDisabled', 'true');
   if (query.hasModifier !== undefined) params.set('hasModifier', query.hasModifier ? 'true' : 'false');
   if (query.isPromoItem !== undefined) params.set('isPromoItem', query.isPromoItem ? 'true' : 'false');
+  if (query.itemType) params.set('itemType', query.itemType);
   if (query.sortBy) params.set('sortBy', query.sortBy);
   if (query.sortDirection) params.set('sortDirection', query.sortDirection);
   if (query.page) params.set('page', String(query.page));

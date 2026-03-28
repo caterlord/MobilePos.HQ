@@ -474,6 +474,9 @@ public class MenuItemsController : ControllerBase
                 IsPriceShow = i.IsPriceShow,
                 HasModifier = i.HasModifier,
                 IsModifier = i.IsModifier,
+                IsFollowSet = i.IsFollowSet,
+                IsFollowSetDynamic = i.IsFollowSetDynamic,
+                IsFollowSetStandard = i.IsFollowSetStandard,
                 IsPromoItem = i.IsPromoItem,
                 IsManualPrice = i.IsManualPrice,
                 IsManualName = i.IsManualName,
@@ -966,6 +969,22 @@ public class MenuItemsController : ControllerBase
             if (query.IsPromoItem.HasValue)
             {
                 itemsBaseQuery = itemsBaseQuery.Where(i => i.IsPromoItem == query.IsPromoItem.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.ItemType))
+            {
+                switch (query.ItemType.ToLowerInvariant())
+                {
+                    case "sellable":
+                        itemsBaseQuery = itemsBaseQuery.Where(i => !i.IsModifier && !i.IsFollowSetDynamic && !i.IsFollowSetStandard);
+                        break;
+                    case "modifier":
+                        itemsBaseQuery = itemsBaseQuery.Where(i => i.IsModifier);
+                        break;
+                    case "setitem":
+                        itemsBaseQuery = itemsBaseQuery.Where(i => i.IsFollowSetDynamic || i.IsFollowSetStandard);
+                        break;
+                }
             }
 
             var categoryCounts = await itemsBaseQuery

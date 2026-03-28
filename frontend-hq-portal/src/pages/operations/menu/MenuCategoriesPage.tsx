@@ -20,7 +20,8 @@ import {
   Popover,
   ScrollArea,
   Divider,
-  Checkbox
+  Checkbox,
+  SegmentedControl
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
@@ -84,6 +85,8 @@ const MenuCategoriesPage: FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem | null>(null);
   
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState<string>('all');
+
   const [filterText, setFilterText] = useState('');
   const [searchPopoverOpened, setSearchPopoverOpened] = useState(false);
   const isSearchActive = searchPopoverOpened || Boolean(filterText);
@@ -159,7 +162,8 @@ const MenuCategoriesPage: FC = () => {
     isPublicDisplay: true,
     isModifier: false,
     isSelfOrderingDisplay: true,
-    isOnlineStoreDisplay: true
+    isOnlineStoreDisplay: true,
+    categoryTypeId: 1,
   });
   
   const [buttonStyles, setButtonStyles] = useState<ButtonStyle[]>([]);
@@ -232,6 +236,7 @@ const MenuCategoriesPage: FC = () => {
       isModifier: false,
       isSelfOrderingDisplay: true,
       isOnlineStoreDisplay: true,
+      categoryTypeId: 1,
       ...overrides
     });
     setDialogOpen(true);
@@ -326,10 +331,21 @@ const MenuCategoriesPage: FC = () => {
     });
   }, []);
 
+  // Filter by category type
+  const filteredCategories = useMemo(() => {
+    if (categoryTypeFilter === 'all') return categories;
+    return categories.filter(c => {
+      const typeId = c.categoryTypeId ?? 1;
+      if (categoryTypeFilter === 'sellable') return typeId === 1;
+      if (categoryTypeFilter === 'modifier') return typeId === 2;
+      return true;
+    });
+  }, [categories, categoryTypeFilter]);
+
   // Tree Building
   const categoryTree = useMemo(() => {
     const buildTree = (parentUniqueId: string | null | undefined, level: number = 0): CategoryTreeNode[] => {
-      return categories
+      return filteredCategories
         .filter(cat => (cat.parentUniqueId ?? null) === (parentUniqueId ?? null))
         .sort((a, b) => {
           let comparison = 0;
@@ -345,7 +361,7 @@ const MenuCategoriesPage: FC = () => {
         }));
     };
     return buildTree(null);
-  }, [categories, sortBy, sortDirection]);
+  }, [filteredCategories, sortBy, sortDirection]);
 
   const flattenedTree = useMemo(() => {
     const nodeMatchesFilter = (node: CategoryTreeNode, searchText: string): boolean => {
@@ -533,6 +549,18 @@ const MenuCategoriesPage: FC = () => {
       cell: ({ row }) => <Text size="sm" fw={600}>{row.original.categoryId}</Text>
     },
     {
+      id: 'categoryType',
+      header: 'Type',
+      size: 100,
+      cell: ({ row }) => {
+        const typeId = row.original.categoryTypeId;
+        if (typeId === 2) return <Badge variant="light" color="violet" size="sm">Modifier</Badge>;
+        if (typeId === 3) return <Badge variant="light" color="gray" size="sm">Set</Badge>;
+        if (typeId === 4) return <Badge variant="light" color="gray" size="sm">Combo</Badge>;
+        return <Badge variant="light" color="blue" size="sm">Sellable</Badge>;
+      }
+    },
+    {
       accessorKey: 'categoryName',
       header: 'Category Name',
       size: 250,
@@ -682,6 +710,18 @@ const MenuCategoriesPage: FC = () => {
                   </Popover.Dropdown>
                 </Popover>
 
+                {/* Category Type Filter */}
+                <SegmentedControl
+                  value={categoryTypeFilter}
+                  onChange={(value) => { setCategoryTypeFilter(value); setPage(1); }}
+                  data={[
+                    { value: 'all', label: 'All' },
+                    { value: 'sellable', label: 'Sellable' },
+                    { value: 'modifier', label: 'Modifier' },
+                  ]}
+                  size="xs"
+                />
+
                 {/* Sort Popover */}
                 <Popover opened={sortPopoverOpened} onChange={setSortPopoverOpened} withinPortal={false} position="bottom-start" shadow="md">
                   <Popover.Target>
@@ -804,6 +844,18 @@ const MenuCategoriesPage: FC = () => {
         <Stack gap="md">
           <TextInput label="Category Name" placeholder="e.g., Appetizers" value={formData.categoryName} onChange={(e) => setFormData({ ...formData, categoryName: e.currentTarget.value })} required />
           <TextInput label="Alternative Name (Optional)" placeholder="e.g., 前菜" value={formData.categoryNameAlt || ''} onChange={(e) => setFormData({ ...formData, categoryNameAlt: e.currentTarget.value })} />
+          <Select
+            label="Category Type"
+            value={String(formData.categoryTypeId ?? 1)}
+            onChange={(value) => {
+              const typeId = value ? parseInt(value) : 1;
+              setFormData({ ...formData, categoryTypeId: typeId, isModifier: typeId === 2 });
+            }}
+            data={[
+              { value: '1', label: 'Sellable (Basic)' },
+              { value: '2', label: 'Modifier' },
+            ]}
+          />
           <Select
             label="Parent Category (Optional)"
             description={selectedCategory ? "Cannot select this category or its children" : "Leave empty to create a root-level category"}

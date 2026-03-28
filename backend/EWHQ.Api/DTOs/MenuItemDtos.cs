@@ -18,6 +18,9 @@ public class MenuItemSummaryDto
     public bool IsPriceShow { get; set; }
     public bool HasModifier { get; set; }
     public bool IsModifier { get; set; }
+    public bool IsFollowSet { get; set; }
+    public bool IsFollowSetDynamic { get; set; }
+    public bool IsFollowSetStandard { get; set; }
     public bool IsPromoItem { get; set; }
     public bool IsManualPrice { get; set; }
     public bool IsManualName { get; set; }
@@ -50,9 +53,6 @@ public class MenuItemDetailDto : MenuItemSummaryDto
     public string? ImageFileName2 { get; set; }
     public string? TableOrderingImageFileName { get; set; }
     public bool? IsStandaloneAndSetItem { get; set; }
-    public bool IsFollowSet { get; set; }
-    public bool IsFollowSetDynamic { get; set; }
-    public bool IsFollowSetStandard { get; set; }
     public bool IsModifierConcatToParent { get; set; }
     public bool IsGroupRightItem { get; set; }
     public bool IsPrintLabel { get; set; }
@@ -160,6 +160,7 @@ public class MenuItemListQuery
     public bool IncludeDisabled { get; set; } = false;
     public bool? HasModifier { get; set; }
     public bool? IsPromoItem { get; set; }
+    public string? ItemType { get; set; }
     public string SortBy { get; set; } = "displayIndex";
     public string SortDirection { get; set; } = "asc";
     public int Page { get; set; } = 1;

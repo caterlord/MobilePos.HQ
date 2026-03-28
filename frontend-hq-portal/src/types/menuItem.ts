@@ -18,6 +18,9 @@ export interface MenuItemSummary {
   isPriceShow: boolean;
   hasModifier: boolean;
   isModifier: boolean;
+  isFollowSet: boolean;
+  isFollowSetDynamic: boolean;
+  isFollowSetStandard: boolean;
   isPromoItem: boolean;
   isManualPrice: boolean;
   isManualName: boolean;
@@ -151,6 +154,7 @@ export interface MenuItemListQuery {
   includeDisabled?: boolean;
   hasModifier?: boolean;
   isPromoItem?: boolean;
+  itemType?: 'sellable' | 'modifier' | 'setItem';
   sortBy?: 'displayIndex' | 'itemId' | 'itemCode' | 'name';
   sortDirection?: 'asc' | 'desc';
   page?: number;

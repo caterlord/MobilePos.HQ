@@ -27,14 +27,21 @@ public class ItemCategoriesController : ControllerBase
 
     [HttpGet("brand/{brandId}")]
     [RequireBrandView] // Viewer role or higher can view categories
-    public async Task<ActionResult<IEnumerable<ItemCategoryDto>>> GetItemCategories(int brandId)
+    public async Task<ActionResult<IEnumerable<ItemCategoryDto>>> GetItemCategories(int brandId, [FromQuery] int? categoryTypeId = null)
     {
         try
         {
             var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
 
-            var categories = await context.ItemCategories
-                .Where(c => c.AccountId == accountId)
+            var query = context.ItemCategories
+                .Where(c => c.AccountId == accountId);
+
+            if (categoryTypeId.HasValue)
+            {
+                query = query.Where(c => c.CategoryTypeId == categoryTypeId.Value);
+            }
+
+            var categories = await query
                 .OrderBy(c => c.DisplayIndex)
                 .AsNoTracking()
                 .Select(c => new ItemCategoryDto
