@@ -543,6 +543,88 @@ public class PosMenuController : ControllerBase
             return StatusCode(500, new { message = "An error occurred." });
         }
     }
+    // ── Reorder Categories (updates source DisplayIndex on ItemCategory/SmartCategory) ──
+
+    [HttpPut("brand/{brandId:int}/{menuId:int}/reorder-categories")]
+    [RequireBrandModify]
+    public async Task<IActionResult> ReorderCategories(int brandId, int menuId, [FromBody] List<MenuCategoryReorderEntry> entries)
+    {
+        try
+        {
+            var (context, accountId) = await _posContextService.GetContextAndAccountIdForBrandAsync(brandId);
+            var now = DateTime.UtcNow;
+            var actor = GetCurrentUserIdentifier();
+
+            // Verify this is the built-in menu
+            var menu = await context.MenuHeaders.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.AccountId == accountId && x.MenuId == menuId && x.IsBuiltIn, HttpContext.RequestAborted);
+            if (menu == null)
+                return BadRequest(new { message = "Reordering is only supported for the built-in menu." });
+
+            // Separate into categories and smart categories
+            var catEntries = entries.Where(e => !e.IsSmartCategory).ToList();
+            var smartEntries = entries.Where(e => e.IsSmartCategory).ToList();
+
+            // Update ItemCategory DisplayIndex
+            if (catEntries.Count > 0)
+            {
+                var catIds = catEntries.Select(e => e.CategoryId).ToList();
+                var cats = await context.ItemCategories
+                    .Where(x => x.AccountId == accountId && catIds.Contains(x.CategoryId))
+                    .ToListAsync(HttpContext.RequestAborted);
+                var catMap = cats.ToDictionary(x => x.CategoryId);
+                foreach (var entry in catEntries)
+                {
+                    if (catMap.TryGetValue(entry.CategoryId, out var cat))
+                    {
+                        cat.DisplayIndex = entry.DisplayIndex;
+                        cat.ModifiedDate = now;
+                        cat.ModifiedBy = actor;
+                    }
+                }
+            }
+
+            // Update SmartCategory DisplayIndex
+            if (smartEntries.Count > 0)
+            {
+                var smartIds = smartEntries.Select(e => e.CategoryId).ToList();
+                var smarts = await context.SmartCategories
+                    .Where(x => x.AccountId == accountId && smartIds.Contains(x.SmartCategoryId))
+                    .ToListAsync(HttpContext.RequestAborted);
+                var smartMap = smarts.ToDictionary(x => x.SmartCategoryId);
+                foreach (var entry in smartEntries)
+                {
+                    if (smartMap.TryGetValue(entry.CategoryId, out var sc))
+                    {
+                        sc.DisplayIndex = entry.DisplayIndex;
+                        sc.ModifiedDate = now;
+                        sc.ModifiedBy = actor;
+                    }
+                }
+            }
+
+            // Also update the MenuDetail order to match
+            var existingDetails = await context.MenuDetails
+                .Where(x => x.AccountId == accountId && x.MenuId == menuId)
+                .ToListAsync(HttpContext.RequestAborted);
+            context.MenuDetails.RemoveRange(existingDetails);
+            foreach (var entry in entries)
+            {
+                context.MenuDetails.Add(new MenuDetail
+                {
+                    AccountId = accountId, MenuId = menuId,
+                    CategoryId = entry.CategoryId, IsSmartCategory = entry.IsSmartCategory,
+                    CreatedDate = now, CreatedBy = actor, ModifiedDate = now, ModifiedBy = actor,
+                });
+            }
+
+            await context.SaveChangesAsync(HttpContext.RequestAborted);
+            return Ok(new { message = $"Reordered {entries.Count} categories." });
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { message = ex.Message }); }
+        catch (Exception ex) { _logger.LogError(ex, "Error reordering"); return StatusCode(500, new { message = "An error occurred." }); }
+    }
+
     // ── Get Single Menu Detail ──
 
     [HttpGet("brand/{brandId:int}/{menuId:int}")]
@@ -686,6 +768,13 @@ public class MenuCategoryEntry
 {
     public int CategoryId { get; set; }
     public bool IsSmartCategory { get; set; }
+}
+
+public class MenuCategoryReorderEntry
+{
+    public int CategoryId { get; set; }
+    public bool IsSmartCategory { get; set; }
+    public int DisplayIndex { get; set; }
 }
 
 public class MenuShopScheduleEntry

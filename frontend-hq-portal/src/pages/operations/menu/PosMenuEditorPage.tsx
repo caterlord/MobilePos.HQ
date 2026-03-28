@@ -32,6 +32,8 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBrands } from '../../../contexts/BrandContext';
 import api from '../../../services/api';
+import { SmartCategoryItemsReorderModal } from './smart-categories/SmartCategoryItemsReorderModal';
+import type { SmartCategoryItemAssignment } from '../../../types/smartCategory';
 
 // ── Types ──
 
@@ -67,6 +69,8 @@ const svc = {
     (await api.get(`/pos-menus/brand/${brandId}/${menuId}/categories`)).data,
   updateCategories: async (brandId: number, menuId: number, entries: { categoryId: number; isSmartCategory: boolean }[]) =>
     api.put(`/pos-menus/brand/${brandId}/${menuId}/categories`, entries),
+  reorderCategories: async (brandId: number, menuId: number, entries: { categoryId: number; isSmartCategory: boolean; displayIndex: number }[]) =>
+    api.put(`/pos-menus/brand/${brandId}/${menuId}/reorder-categories`, entries),
   getAvailable: async (brandId: number): Promise<AvailableCategory[]> =>
     (await api.get(`/pos-menus/brand/${brandId}/available-categories`)).data,
   getShopSchedule: async (brandId: number, menuId: number): Promise<ShopSchedule[]> =>
@@ -119,9 +123,9 @@ export function PosMenuEditorPage() {
   const [shopModalOpened, setShopModalOpened] = useState(false);
   const [shopSaving, setShopSaving] = useState(false);
 
-  // Reorder modal
+  // Reorder modal (drag-and-drop, reuses SmartCategoryItemsReorderModal)
   const [reorderModalOpened, setReorderModalOpened] = useState(false);
-  const [reorderItems, setReorderItems] = useState<MenuCategory[]>([]);
+  const [reorderSaving, setReorderSaving] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!brandId || !menuId) return;
@@ -186,30 +190,49 @@ export function PosMenuEditorPage() {
     }
   };
 
-  // ── Reorder ──
-  const openReorder = () => {
-    setReorderItems([...categories]);
-    setReorderModalOpened(true);
-  };
+  // ── Reorder (drag-and-drop via SmartCategoryItemsReorderModal) ──
+  const openReorder = () => setReorderModalOpened(true);
 
-  const moveReorderItem = (idx: number, dir: 'up' | 'down') => {
-    const items = [...reorderItems];
-    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= items.length) return;
-    [items[idx], items[swapIdx]] = [items[swapIdx], items[idx]];
-    setReorderItems(items);
-  };
+  // Map categories to the reorder modal's expected format
+  const reorderAsItems: SmartCategoryItemAssignment[] = useMemo(() =>
+    categories.map((c) => ({
+      itemId: c.categoryId * (c.isSmartCategory ? -1 : 1), // unique key: negative for smart
+      itemCode: c.isSmartCategory ? 'Smart Category' : 'Category',
+      itemName: c.categoryName || '—',
+      itemNameAlt: c.categoryNameAlt,
+      displayIndex: c.displayIndex,
+      enabled: true,
+      modifiedDate: '',
+      modifiedBy: '',
+    })),
+  [categories]);
 
-  const saveReorder = async () => {
-    if (!brandId || !menuId) return;
+  // Map back from reorder modal format and save
+  const handleReorderSave = async (orderedItems: SmartCategoryItemAssignment[]) => {
+    if (!brandId || !menuId || !menu) return;
     try {
-      await svc.updateCategories(brandId, menuId, reorderItems.map(c => ({ categoryId: c.categoryId, isSmartCategory: c.isSmartCategory })));
+      setReorderSaving(true);
+      const entries = orderedItems.map((item, idx) => {
+        const isSmartCategory = item.itemId < 0;
+        return {
+          categoryId: Math.abs(item.itemId),
+          isSmartCategory,
+          displayIndex: idx * 10,
+        };
+      });
+      if (menu.isBuiltIn) {
+        await svc.reorderCategories(brandId, menuId, entries);
+      } else {
+        await svc.updateCategories(brandId, menuId, entries.map(e => ({ categoryId: e.categoryId, isSmartCategory: e.isSmartCategory })));
+      }
       notifications.show({ color: 'green', message: 'Order saved' });
       setReorderModalOpened(false);
       const cats = await svc.getCategories(brandId, menuId);
       setCategories(cats);
     } catch {
       notifications.show({ color: 'red', message: 'Failed to save order' });
+    } finally {
+      setReorderSaving(false);
     }
   };
 
@@ -270,7 +293,14 @@ export function PosMenuEditorPage() {
               </Text>
             </div>
           </Group>
-          <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadAll()} loading={loading}>Refresh</Button>
+          <Group gap="xs">
+            {menu.isBuiltIn && (
+              <Button variant="light" leftSection={<IconArrowsSort size={16} />} onClick={openReorder} disabled={categories.length < 2}>
+                Reorder Categories
+              </Button>
+            )}
+            <Button variant="subtle" leftSection={<IconRefresh size={16} />} onClick={() => void loadAll()} loading={loading}>Refresh</Button>
+          </Group>
         </Group>
 
         <Tabs defaultValue="categories">
@@ -283,9 +313,6 @@ export function PosMenuEditorPage() {
           {/* ══════════ Categories Tab ══════════ */}
           <Tabs.Panel value="categories" pt="md">
             <Group justify="flex-end" mb="sm" gap="xs">
-              <Button size="sm" variant="light" leftSection={<IconArrowsSort size={14} />} onClick={openReorder} disabled={categories.length < 2}>
-                Reorder
-              </Button>
               <Button size="sm" leftSection={<IconPlus size={14} />} onClick={() => void openAddModal()}>
                 Add Categories
               </Button>
@@ -409,38 +436,16 @@ export function PosMenuEditorPage() {
         </Stack>
       </Modal>
 
-      {/* ── Reorder Modal ── */}
-      <Modal opened={reorderModalOpened} onClose={() => setReorderModalOpened(false)} title="Reorder Categories" size="lg">
-        <Stack gap="md">
-          <Stack gap={0} style={{ maxHeight: 450, overflow: 'auto' }}>
-            {reorderItems.map((cat, idx) => (
-              <Group key={`${cat.categoryId}-${cat.isSmartCategory}`} gap="sm" py={6} px="xs"
-                style={{ borderBottom: '1px solid #eee' }}>
-                <Text size="sm" fw={500} style={{ flex: 1 }}>
-                  {cat.categoryName || '—'}
-                </Text>
-                <Badge size="xs" variant="light" color={cat.isSmartCategory ? 'violet' : 'blue'}>{cat.type}</Badge>
-                <Group gap={4}>
-                  <Tooltip label="Move up" withArrow>
-                    <ActionIcon size="xs" variant="subtle" onClick={() => moveReorderItem(idx, 'up')} disabled={idx === 0}>
-                      <IconArrowLeft size={12} style={{ transform: 'rotate(90deg)' }} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Move down" withArrow>
-                    <ActionIcon size="xs" variant="subtle" onClick={() => moveReorderItem(idx, 'down')} disabled={idx === reorderItems.length - 1}>
-                      <IconArrowLeft size={12} style={{ transform: 'rotate(-90deg)' }} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-              </Group>
-            ))}
-          </Stack>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setReorderModalOpened(false)}>Cancel</Button>
-            <Button onClick={() => void saveReorder()}>Save Order</Button>
-          </Group>
-        </Stack>
-      </Modal>
+      {/* ── Reorder Modal (drag-and-drop) ── */}
+      <SmartCategoryItemsReorderModal
+        opened={reorderModalOpened}
+        onClose={() => setReorderModalOpened(false)}
+        categoryName={menu?.menuName ?? 'Menu'}
+        items={reorderAsItems}
+        loading={false}
+        saving={reorderSaving}
+        onSave={handleReorderSave}
+      />
 
       {/* ── Shop Schedule Edit Modal ── */}
       {shopEditIdx !== null && shopSchedule[shopEditIdx] && (
