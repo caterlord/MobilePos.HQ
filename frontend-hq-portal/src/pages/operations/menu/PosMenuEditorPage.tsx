@@ -233,7 +233,6 @@ export function PosMenuEditorPage() {
   };
 
   // Map categories to the reorder modal's expected format
-  // When reorderParentId is null, show menu categories. When set, show children from source trees.
   const reorderAsItems: SmartCategoryItemAssignment[] = useMemo(() => {
     if (reorderParentId === null) {
       // Root level: show menu categories
@@ -317,33 +316,44 @@ export function PosMenuEditorPage() {
     setReorderParentId(target.parentId);
   };
 
-  // Map back from reorder modal format and save
-  const handleReorderSave = async (orderedItems: SmartCategoryItemAssignment[]) => {
+  // Save reorder — shared logic for save + save-level
+  const saveReorderEntries = async (orderedItems: SmartCategoryItemAssignment[]) => {
     if (!brandId || !menuId || !menu) return;
+    const entries = orderedItems.map((item, idx) => {
+      const isSmartCategory = item.itemId < 0;
+      return {
+        categoryId: Math.abs(item.itemId),
+        isSmartCategory,
+        displayIndex: idx * 10,
+      };
+    });
+    if (menu.isBuiltIn) {
+      await svc.reorderCategories(brandId, menuId, entries);
+    } else {
+      await svc.updateCategories(brandId, menuId, entries.map(e => ({ categoryId: e.categoryId, isSmartCategory: e.isSmartCategory })));
+    }
+    const cats = await svc.getCategories(brandId, menuId);
+    setCategories(cats);
+  };
+
+  // Map back from reorder modal format and save (closes modal)
+  const handleReorderSave = async (orderedItems: SmartCategoryItemAssignment[]) => {
     try {
       setReorderSaving(true);
-      const entries = orderedItems.map((item, idx) => {
-        const isSmartCategory = item.itemId < 0;
-        return {
-          categoryId: Math.abs(item.itemId),
-          isSmartCategory,
-          displayIndex: idx * 10,
-        };
-      });
-      if (menu.isBuiltIn) {
-        await svc.reorderCategories(brandId, menuId, entries);
-      } else {
-        await svc.updateCategories(brandId, menuId, entries.map(e => ({ categoryId: e.categoryId, isSmartCategory: e.isSmartCategory })));
-      }
+      await saveReorderEntries(orderedItems);
       notifications.show({ color: 'green', message: 'Order saved' });
       setReorderModalOpened(false);
-      const cats = await svc.getCategories(brandId, menuId);
-      setCategories(cats);
     } catch {
       notifications.show({ color: 'red', message: 'Failed to save order' });
     } finally {
       setReorderSaving(false);
     }
+  };
+
+  // Save current level without closing (for drill-down confirm)
+  const handleReorderSaveLevel = async (orderedItems: SmartCategoryItemAssignment[]) => {
+    await saveReorderEntries(orderedItems);
+    notifications.show({ color: 'green', message: 'Order saved' });
   };
 
   // ── Details ──
@@ -555,6 +565,7 @@ export function PosMenuEditorPage() {
         loading={false}
         saving={reorderSaving}
         onSave={handleReorderSave}
+        onSaveLevel={handleReorderSaveLevel}
         expandableIds={expandableIds}
         onDrillDown={handleReorderDrillDown}
         breadcrumb={reorderBreadcrumb}

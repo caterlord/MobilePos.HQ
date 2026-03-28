@@ -44,6 +44,8 @@ interface MenuCategoriesReorderModalProps {
   onDrillDown?: (categoryId: number) => void;
   breadcrumb?: { id: number; name: string }[];
   onBreadcrumbClick?: (index: number) => void;
+  /** Save current level without closing modal (enables "Save" in drill-down confirm) */
+  onSaveLevel?: (orderedCategories: CategoryItem[]) => Promise<void>;
 }
 
 interface SortableRowProps {
@@ -170,8 +172,11 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
   onDrillDown,
   breadcrumb,
   onBreadcrumbClick,
+  onSaveLevel,
 }) => {
   const [orderedCategories, setOrderedCategories] = useState<CategoryItem[]>([]);
+  const [pendingDrillDownId, setPendingDrillDownId] = useState<number | null>(null);
+  const [savingLevel, setSavingLevel] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [focusedCategoryId, setFocusedCategoryId] = useState<string | null>(null);
   const [cardPositions, setCardPositions] = useState<Array<{ top: number; left: number }>>([]);
@@ -526,6 +531,35 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
     await onSave(orderedCategories);
   };
 
+  const handleDrillDown = (categoryId: number) => {
+    if (isDirty) {
+      setPendingDrillDownId(categoryId);
+      return;
+    }
+    onDrillDown?.(categoryId);
+  };
+
+  const handleConfirmSave = async () => {
+    if (pendingDrillDownId === null) return;
+    const id = pendingDrillDownId;
+    try {
+      setSavingLevel(true);
+      if (onSaveLevel) {
+        await onSaveLevel(orderedCategories);
+      }
+    } finally {
+      setSavingLevel(false);
+      setPendingDrillDownId(null);
+    }
+    onDrillDown?.(id);
+  };
+
+  const handleConfirmDiscard = () => {
+    const id = pendingDrillDownId;
+    setPendingDrillDownId(null);
+    if (id !== null) onDrillDown?.(id);
+  };
+
   return (
     <Modal
       opened={opened}
@@ -663,7 +697,7 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
                       focused={cat.uniqueId === focusedCategoryId}
                       onSelect={handleSelect}
                       expandable={expandableIds?.has(cat.categoryId)}
-                      onExpand={onDrillDown}
+                      onExpand={handleDrillDown}
                     />
                   ))}
                 </Box>
@@ -685,6 +719,36 @@ export const MenuCategoriesReorderModal: FC<MenuCategoriesReorderModalProps> = (
           </Button>
         </Group>
       </Stack>
+
+      {/* Unsaved changes confirm when drilling down */}
+      <Modal
+        opened={pendingDrillDownId !== null}
+        onClose={() => setPendingDrillDownId(null)}
+        title="Unsaved Changes"
+        size="md"
+        centered
+        withinPortal
+        zIndex={301}
+      >
+        <Text size="sm" mb="lg">
+          You have unsaved changes at this level. Would you like to save before continuing?
+        </Text>
+        <Group justify="space-between" wrap="nowrap">
+          <Button variant="subtle" color="red" onClick={handleConfirmDiscard} disabled={savingLevel}>
+            Don't Save
+          </Button>
+          <Group gap="sm" wrap="nowrap">
+            <Button variant="default" onClick={() => setPendingDrillDownId(null)} disabled={savingLevel}>
+              Cancel
+            </Button>
+            {onSaveLevel && (
+              <Button onClick={handleConfirmSave} loading={savingLevel}>
+                Save & Continue
+              </Button>
+            )}
+          </Group>
+        </Group>
+      </Modal>
     </Modal>
   );
 };

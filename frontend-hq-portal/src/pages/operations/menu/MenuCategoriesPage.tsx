@@ -450,24 +450,25 @@ const MenuCategoriesPage: FC = () => {
 
 
 
-  const handleSaveReorder = async (orderedCategories: CategoryItem[]) => {
+  // Shared save logic
+  const saveReorderEntries = async (orderedCategories: CategoryItem[]) => {
     if (!selectedBrandId) return;
+    const payload = orderedCategories.map((c, i) => ({
+      ...c,
+      displayIndex: i * 10
+    }));
+    await Promise.all(
+      payload.map(category =>
+        itemCategoryService.updateItemCategory(selectedBrandId, category.categoryId, category)
+      )
+    );
+    await fetchCategories();
+  };
+
+  const handleSaveReorder = async (orderedCategories: CategoryItem[]) => {
     setSavingOrder(true);
     try {
-      const payload = orderedCategories.map((c, i) => ({
-         ...c,
-         displayIndex: i * 10
-      }));
-      
-      await Promise.all(
-        payload.map(category =>
-          itemCategoryService.updateItemCategory(selectedBrandId, category.categoryId, category)
-        )
-      );
-
-      // We should fully fetch to refresh tree cleanly given complex state
-      await fetchCategories();
-
+      await saveReorderEntries(orderedCategories);
       notifications.show({ title: 'Success', message: 'Display order updated!', color: 'green' });
       setReorderModalOpen(false);
     } catch (e) {
@@ -476,6 +477,12 @@ const MenuCategoriesPage: FC = () => {
     } finally {
       setSavingOrder(false);
     }
+  };
+
+  // Save current level without closing (for drill-down confirm)
+  const handleSaveReorderLevel = async (orderedCategories: CategoryItem[]) => {
+    await saveReorderEntries(orderedCategories);
+    notifications.show({ color: 'green', message: 'Order saved' });
   };
 
   const maxLevel = useMemo(() => Math.max(0, ...flattenedTree.map(cat => cat.level)), [flattenedTree]);
@@ -851,6 +858,7 @@ const MenuCategoriesPage: FC = () => {
         loading={false}
         saving={savingOrder}
         onSave={handleSaveReorder}
+        onSaveLevel={handleSaveReorderLevel}
         expandableIds={reorderExpandableIds}
         onDrillDown={handleReorderDrillDown}
         breadcrumb={reorderBreadcrumb}

@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Checkbox,
   Container,
@@ -38,13 +39,14 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useBrands } from '../../../../contexts/BrandContext';
+import buttonStyleService from '../../../../services/buttonStyleService';
 import itemCategoryService from '../../../../services/itemCategoryService';
 import menuItemService from '../../../../services/menuItemService';
 import smartCategoryService from '../../../../services/smartCategoryService';
+import type { ButtonStyle } from '../../../../types/buttonStyle';
 import { SmartCategoryItemsReorderModal } from './SmartCategoryItemsReorderModal';
 import type {
   SmartCategoryDetail,
-  SmartCategoryItemAssignment,
   SmartCategoryTreeNode,
   SmartCategoryUpsertPayload,
 } from '../../../../types/smartCategory';
@@ -702,6 +704,8 @@ function CategoryGrid({
   onReorderChildren,
   onReload,
   allNodes,
+  getButtonStyleById,
+  getButtonStyleColor,
 }: {
   brandId: number;
   nodes: FlatNode[];
@@ -715,6 +719,8 @@ function CategoryGrid({
   onReorderChildren: (parentId: number) => void;
   onReload: () => void;
   allNodes: FlatNode[];
+  getButtonStyleById: (id?: number) => ButtonStyle | undefined;
+  getButtonStyleColor: (style: ButtonStyle) => string;
 }) {
   const emptyMsg = isOdo
     ? 'No online smart categories. Create one or flag existing categories for ODO display.'
@@ -762,7 +768,11 @@ function CategoryGrid({
                   <Table.Td><Text size="sm" c={node.nameAlt ? undefined : 'dimmed'}>{node.nameAlt || '—'}</Text></Table.Td>
                   <Table.Td><Badge size="sm" variant="light">{node.itemCount}</Badge></Table.Td>
                   <Table.Td><Text size="sm">{node.displayIndex}</Text></Table.Td>
-                  <Table.Td><Text size="sm" c={node.buttonStyleId ? undefined : 'dimmed'}>#{node.buttonStyleId || '—'}</Text></Table.Td>
+                  <Table.Td>{(() => {
+                    const style = getButtonStyleById(node.buttonStyleId);
+                    if (!style) return <Box style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: '#E0E0E0', border: '1px dashed #999' }} />;
+                    return <Tooltip label={style.styleName} withArrow><Box style={{ width: 24, height: 24, borderRadius: 4, backgroundColor: getButtonStyleColor(style), border: '1px solid rgba(0,0,0,0.1)' }} /></Tooltip>;
+                  })()}</Table.Td>
                   <Table.Td><Badge size="sm" color={node.enabled ? 'green' : 'gray'}>{node.enabled ? 'Yes' : 'No'}</Badge></Table.Td>
                   <Table.Td onClick={(e) => e.stopPropagation()}>
                     <Group gap={4}>
@@ -819,7 +829,10 @@ export function SmartCategoriesPage() {
   const [catReorderOpened, setCatReorderOpened] = useState(false);
   const [catReorderSaving, setCatReorderSaving] = useState(false);
   const [catReorderParentId, setCatReorderParentId] = useState<number | null>(null);
-  const [catReorderStack, setCatReorderStack] = useState<{ parentId: number | null; items: SmartCategoryItemAssignment[]; name: string }[]>([]);
+  const [catReorderStack, setCatReorderStack] = useState<{ parentId: number | null; name: string }[]>([]);
+
+  // Button styles for color box
+  const [buttonStyles, setButtonStyles] = useState<ButtonStyle[]>([]);
 
   // Copy from existing modal
   const [copyModalOpened, setCopyModalOpened] = useState(false);
@@ -833,12 +846,25 @@ export function SmartCategoriesPage() {
   const onlineNodes = useMemo(() => allFlat.filter((n) => n.isOdoDisplay), [allFlat]);
   const copySourceNodes = useMemo(() => copySourceFilter === 'online' ? onlineNodes : posNodes, [copySourceFilter, posNodes, onlineNodes]);
 
+  const getButtonStyleColor = useCallback((style: ButtonStyle) => {
+    let color = style.backgroundColorTop || style.backgroundColorMiddle || style.backgroundColorBottom || '#E0E0E0';
+    if (color.length === 9 && color.startsWith('#')) color = '#' + color.substring(3);
+    return color;
+  }, []);
+
+  const getButtonStyleById = useCallback((id?: number) => buttonStyles.find(s => s.buttonStyleId === id), [buttonStyles]);
+
   const loadData = useCallback(async () => {
     if (!brandId) { setTree([]); return; }
     try {
       setLoading(true);
       setError(null);
-      setTree(await smartCategoryService.getTree(brandId));
+      const [treeData, styles] = await Promise.all([
+        smartCategoryService.getTree(brandId),
+        buttonStyleService.getButtonStyles(brandId),
+      ]);
+      setTree(treeData);
+      setButtonStyles(styles || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -987,10 +1013,8 @@ export function SmartCategoriesPage() {
 
   // Drill down into children
   const handleDrillDown = (itemId: number) => {
-    // Save current items to stack before navigating
     setCatReorderStack(prev => [...prev, {
       parentId: catReorderParentId,
-      items: catReorderAsItems,
       name: catReorderParentId === null ? 'Root' : (posNodes.find(n => n.smartCategoryId === catReorderParentId)?.name ?? 'Parent'),
     }]);
     setCatReorderParentId(itemId);
@@ -1003,28 +1027,39 @@ export function SmartCategoriesPage() {
     setCatReorderParentId(target.parentId);
   };
 
-  const handleCatReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
+  // Shared save logic
+  const saveCatReorderEntries = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!brandId) return;
+    await smartCategoryService.reorder(brandId, {
+      categories: orderedItems.map((item, idx) => {
+        const node = posNodes.find(n => n.smartCategoryId === item.itemId);
+        return {
+          smartCategoryId: item.itemId,
+          parentSmartCategoryId: node?.parentSmartCategoryId ?? null,
+          displayIndex: idx * 10,
+        };
+      }),
+    });
+    await loadData();
+  };
+
+  const handleCatReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     try {
       setCatReorderSaving(true);
-      await smartCategoryService.reorder(brandId, {
-        categories: orderedItems.map((item, idx) => {
-          const node = posNodes.find(n => n.smartCategoryId === item.itemId);
-          return {
-            smartCategoryId: item.itemId,
-            parentSmartCategoryId: node?.parentSmartCategoryId ?? null,
-            displayIndex: idx * 10,
-          };
-        }),
-      });
+      await saveCatReorderEntries(orderedItems);
       notifications.show({ color: 'green', message: 'Category order saved' });
       setCatReorderOpened(false);
-      await loadData();
     } catch {
       notifications.show({ color: 'red', message: 'Failed to save order' });
     } finally {
       setCatReorderSaving(false);
     }
+  };
+
+  // Save current level without closing (for drill-down confirm)
+  const handleCatReorderSaveLevel = async (orderedItems: SmartCategoryDetail['items']) => {
+    await saveCatReorderEntries(orderedItems);
+    notifications.show({ color: 'green', message: 'Order saved' });
   };
 
   return (
@@ -1059,6 +1094,8 @@ export function SmartCategoriesPage() {
             onReorderChildren={(parentId) => openCatReorder(parentId)}
             onReload={() => void loadData()}
             allNodes={posNodes}
+            getButtonStyleById={getButtonStyleById}
+            getButtonStyleColor={getButtonStyleColor}
           />
         )}
       </Stack>
@@ -1095,6 +1132,7 @@ export function SmartCategoriesPage() {
         loading={false}
         saving={catReorderSaving}
         onSave={handleCatReorderSave}
+        onSaveLevel={handleCatReorderSaveLevel}
         expandableIds={expandableIds}
         onDrillDown={handleDrillDown}
         breadcrumb={catReorderBreadcrumb}
