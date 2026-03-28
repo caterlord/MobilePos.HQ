@@ -112,25 +112,26 @@ const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, on
           width: '100%',
         }}
       >
-        <Stack gap={4} style={{ width: '100%' }}>
-          <Group gap="xs" align="center">
-            <Badge size="sm" variant="light" color="indigo">
-              {index + 1}
-            </Badge>
-          </Group>
-          <Tooltip label={item.itemName || 'Untitled item'} disabled={!item.itemName}>
-            <Text size="sm" fw={600} lineClamp={2} style={{ width: '100%' }}>
-              {item.itemName || 'Untitled item'}
-            </Text>
-          </Tooltip>
-          {item.itemCode ? (
-            item.itemCode === 'Smart Category' || item.itemCode === 'Category' ? (
-              <Badge size="xs" variant="light" color={item.itemCode === 'Smart Category' ? 'violet' : 'blue'}>
-                {item.itemCode}
+        <Stack gap={4} justify="space-between" style={{ width: '100%', height: '100%' }}>
+          <div>
+            <Group gap="xs" align="center" mb={4}>
+              <Badge size="sm" variant="light" color="indigo">
+                {index + 1}
               </Badge>
-            ) : (
+            </Group>
+            <Tooltip label={item.itemName || 'Untitled item'} disabled={!item.itemName}>
+              <Text size="sm" fw={600} lineClamp={2} style={{ width: '100%' }}>
+                {item.itemName || 'Untitled item'}
+              </Text>
+            </Tooltip>
+            {item.itemCode && item.itemCode !== 'Smart Category' && item.itemCode !== 'Category' ? (
               <Text size="xs" c="dimmed">{item.itemCode}</Text>
-            )
+            ) : null}
+          </div>
+          {item.itemCode === 'Smart Category' || item.itemCode === 'Category' ? (
+            <Badge size="xs" variant="light" color={item.itemCode === 'Smart Category' ? 'violet' : 'blue'}>
+              {item.itemCode}
+            </Badge>
           ) : null}
         </Stack>
       </Group>
