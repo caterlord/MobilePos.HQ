@@ -40,6 +40,14 @@ interface SmartCategoryItemsReorderModalProps {
   loading: boolean;
   saving: boolean;
   onSave: (orderedItems: SmartCategoryItemAssignment[]) => Promise<void>;
+  /** Set of itemIds that have children (shows expand icon) */
+  expandableIds?: Set<number>;
+  /** Called when user clicks expand icon on a card */
+  onDrillDown?: (itemId: number) => void;
+  /** Breadcrumb path for nested navigation */
+  breadcrumb?: { id: number; name: string }[];
+  /** Called when user clicks a breadcrumb to go back */
+  onBreadcrumbClick?: (index: number) => void;
 }
 
 interface SortableRowProps {
@@ -48,9 +56,11 @@ interface SortableRowProps {
   selected: boolean;
   focused: boolean;
   onSelect: (itemId: number) => void;
+  expandable?: boolean;
+  onExpand?: (itemId: number) => void;
 }
 
-const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, onSelect }) => {
+const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, onSelect, expandable, onExpand }) => {
   const {
     attributes,
     listeners,
@@ -133,6 +143,19 @@ const SortableCard: FC<SortableRowProps> = ({ item, index, selected, focused, on
           ) : item.itemCode && item.itemCode !== 'Smart Category' && item.itemCode !== 'Category' ? (
             <Text size="xs" c="dimmed">{item.itemCode}</Text>
           ) : null}
+          {expandable && (
+            <Tooltip label="Reorder children" withArrow>
+              <Box
+                component="span"
+                onClick={(e) => { e.stopPropagation(); onExpand?.(item.itemId); }}
+                style={{ cursor: 'pointer', marginTop: 4 }}
+              >
+                <Badge size="xs" variant="outline" color="indigo" rightSection="›" style={{ cursor: 'pointer' }}>
+                  sub-items
+                </Badge>
+              </Box>
+            </Tooltip>
+          )}
         </Stack>
       </Group>
     </Box>
@@ -147,6 +170,10 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
   loading,
   saving,
   onSave,
+  expandableIds,
+  onDrillDown,
+  breadcrumb,
+  onBreadcrumbClick,
 }) => {
   const [orderedItems, setOrderedItems] = useState<SmartCategoryItemAssignment[]>([]);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -547,6 +574,24 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
         style={{ padding: 24, width: '100%', height: '100%' }}
       >
         <Stack gap="xs">
+          {breadcrumb && breadcrumb.length > 0 && (
+            <Group gap={4}>
+              {breadcrumb.map((crumb, i) => (
+                <Group key={crumb.id} gap={4}>
+                  {i > 0 && <Text size="xs" c="dimmed">›</Text>}
+                  <Text
+                    size="xs"
+                    c="blue"
+                    style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => onBreadcrumbClick?.(i)}
+                  >
+                    {crumb.name}
+                  </Text>
+                </Group>
+              ))}
+              <Text size="xs" c="dimmed">› {categoryName}</Text>
+            </Group>
+          )}
           <Text size="sm" c="dimmed">
             Drag items or use the shortcuts below.
           </Text>
@@ -627,6 +672,8 @@ export const SmartCategoryItemsReorderModal: FC<SmartCategoryItemsReorderModalPr
                       selected={item.itemId === selectedItemId}
                       focused={item.itemId === focusedItemId}
                       onSelect={handleSelect}
+                      expandable={expandableIds?.has(item.itemId)}
+                      onExpand={onDrillDown}
                     />
                   ))}
                 </Box>

@@ -44,6 +44,7 @@ import smartCategoryService from '../../../../services/smartCategoryService';
 import { SmartCategoryItemsReorderModal } from './SmartCategoryItemsReorderModal';
 import type {
   SmartCategoryDetail,
+  SmartCategoryItemAssignment,
   SmartCategoryTreeNode,
   SmartCategoryUpsertPayload,
 } from '../../../../types/smartCategory';
@@ -812,10 +813,11 @@ export function SmartCategoriesPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Category reorder modal
+  // Category reorder modal with navigation stack
   const [catReorderOpened, setCatReorderOpened] = useState(false);
   const [catReorderSaving, setCatReorderSaving] = useState(false);
-  const [catReorderParentId, setCatReorderParentId] = useState<number | null>(null); // null = root
+  const [catReorderParentId, setCatReorderParentId] = useState<number | null>(null);
+  const [catReorderStack, setCatReorderStack] = useState<{ parentId: number | null; items: SmartCategoryItemAssignment[]; name: string }[]>([]);
 
   // Copy from existing modal
   const [copyModalOpened, setCopyModalOpened] = useState(false);
@@ -934,11 +936,11 @@ export function SmartCategoriesPage() {
 
   const openCatReorder = (parentId: number | null = null) => {
     setCatReorderParentId(parentId);
+    setCatReorderStack([]);
     setCatReorderOpened(true);
   };
 
   // Map categories to SmartCategoryItemAssignment shape for reuse of the reorder modal
-  // Filter by parent: null = root, number = children of that parent
   const catReorderAsItems = useMemo(() => {
     const filtered = posNodes.filter(n =>
       catReorderParentId === null
@@ -956,6 +958,48 @@ export function SmartCategoriesPage() {
       modifiedBy: '',
     }));
   }, [posNodes, catReorderParentId]);
+
+  // IDs of categories that have children (for expand icon)
+  const expandableIds = useMemo(() => {
+    const ids = new Set<number>();
+    for (const n of posNodes) {
+      if (n.parentSmartCategoryId && posNodes.some(p => p.smartCategoryId === n.parentSmartCategoryId)) {
+        ids.add(n.parentSmartCategoryId);
+      }
+    }
+    return ids;
+  }, [posNodes]);
+
+  // Breadcrumb path
+  const catReorderBreadcrumb = useMemo(() => {
+    return catReorderStack.map(s => ({
+      id: s.parentId ?? 0,
+      name: s.name,
+    }));
+  }, [catReorderStack]);
+
+  const catReorderName = useMemo(() => {
+    if (catReorderParentId === null) return 'Root Smart Categories';
+    return posNodes.find(n => n.smartCategoryId === catReorderParentId)?.name ?? 'Children';
+  }, [catReorderParentId, posNodes]);
+
+  // Drill down into children
+  const handleDrillDown = (itemId: number) => {
+    // Save current items to stack before navigating
+    setCatReorderStack(prev => [...prev, {
+      parentId: catReorderParentId,
+      items: catReorderAsItems,
+      name: catReorderParentId === null ? 'Root' : (posNodes.find(n => n.smartCategoryId === catReorderParentId)?.name ?? 'Parent'),
+    }]);
+    setCatReorderParentId(itemId);
+  };
+
+  // Navigate back via breadcrumb
+  const handleBreadcrumbClick = (index: number) => {
+    const target = catReorderStack[index];
+    setCatReorderStack(prev => prev.slice(0, index));
+    setCatReorderParentId(target.parentId);
+  };
 
   const handleCatReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!brandId) return;
@@ -1044,11 +1088,15 @@ export function SmartCategoriesPage() {
       <SmartCategoryItemsReorderModal
         opened={catReorderOpened}
         onClose={() => setCatReorderOpened(false)}
-        categoryName={catReorderParentId ? posNodes.find(n => n.smartCategoryId === catReorderParentId)?.name ?? 'Children' : 'Root Smart Categories'}
+        categoryName={catReorderName}
         items={catReorderAsItems}
         loading={false}
         saving={catReorderSaving}
         onSave={handleCatReorderSave}
+        expandableIds={expandableIds}
+        onDrillDown={handleDrillDown}
+        breadcrumb={catReorderBreadcrumb}
+        onBreadcrumbClick={handleBreadcrumbClick}
       />
 
       {/* Copy from Existing Modal */}
