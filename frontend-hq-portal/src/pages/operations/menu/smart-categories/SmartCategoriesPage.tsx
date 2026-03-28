@@ -26,8 +26,6 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
-  IconArrowDown,
-  IconArrowUp,
   IconArrowsSort,
   IconChevronDown,
   IconChevronRight,
@@ -809,7 +807,6 @@ export function SmartCategoriesPage() {
 
   // Category reorder modal
   const [catReorderOpened, setCatReorderOpened] = useState(false);
-  const [catReorderItems, setCatReorderItems] = useState<FlatNode[]>([]);
   const [catReorderSaving, setCatReorderSaving] = useState(false);
 
   // Copy from existing modal
@@ -928,28 +925,36 @@ export function SmartCategoriesPage() {
   };
 
   const openCatReorder = () => {
-    setCatReorderItems([...posNodes]);
     setCatReorderOpened(true);
   };
 
-  const moveCatReorderItem = (idx: number, dir: 'up' | 'down') => {
-    const items = [...catReorderItems];
-    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= items.length) return;
-    [items[idx], items[swapIdx]] = [items[swapIdx], items[idx]];
-    setCatReorderItems(items);
-  };
+  // Map categories to SmartCategoryItemAssignment shape for reuse of the reorder modal
+  const catReorderAsItems = useMemo(() =>
+    posNodes.map((n) => ({
+      itemId: n.smartCategoryId,
+      itemCode: `#${n.displayIndex}`,
+      itemName: n.name,
+      itemNameAlt: n.nameAlt,
+      displayIndex: n.displayIndex,
+      enabled: n.enabled,
+      modifiedDate: '',
+      modifiedBy: '',
+    })),
+  [posNodes]);
 
-  const saveCatReorder = async () => {
+  const handleCatReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!brandId) return;
     try {
       setCatReorderSaving(true);
       await smartCategoryService.reorder(brandId, {
-        categories: catReorderItems.map((n, idx) => ({
-          smartCategoryId: n.smartCategoryId,
-          parentSmartCategoryId: n.parentSmartCategoryId,
-          displayIndex: idx * 10,
-        })),
+        categories: orderedItems.map((item, idx) => {
+          const node = posNodes.find(n => n.smartCategoryId === item.itemId);
+          return {
+            smartCategoryId: item.itemId,
+            parentSmartCategoryId: node?.parentSmartCategoryId ?? null,
+            displayIndex: idx * 10,
+          };
+        }),
       });
       notifications.show({ color: 'green', message: 'Category order saved' });
       setCatReorderOpened(false);
@@ -1017,38 +1022,16 @@ export function SmartCategoriesPage() {
         </Stack>
       </Modal>
 
-      {/* Category Reorder Modal */}
-      <Modal opened={catReorderOpened} onClose={() => setCatReorderOpened(false)} title="Reorder Smart Categories" size="lg">
-        <Stack gap="md">
-          <Stack gap={0} style={{ maxHeight: 450, overflow: 'auto' }}>
-            {catReorderItems.map((cat, idx) => (
-              <Group key={cat.smartCategoryId} gap="sm" py={6} px="xs" style={{ borderBottom: '1px solid #eee' }}>
-                <Text size="sm" fw={500} style={{ flex: 1, paddingLeft: cat.depth * 16 }}>
-                  {cat.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
-                  {cat.name}
-                </Text>
-                <Badge size="xs" variant="light">{cat.itemCount} items</Badge>
-                <Group gap={4}>
-                  <Tooltip label="Move up" withArrow>
-                    <ActionIcon size="xs" variant="subtle" onClick={() => moveCatReorderItem(idx, 'up')} disabled={idx === 0}>
-                      <IconArrowUp size={12} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Move down" withArrow>
-                    <ActionIcon size="xs" variant="subtle" onClick={() => moveCatReorderItem(idx, 'down')} disabled={idx === catReorderItems.length - 1}>
-                      <IconArrowDown size={12} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-              </Group>
-            ))}
-          </Stack>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setCatReorderOpened(false)}>Cancel</Button>
-            <Button onClick={() => void saveCatReorder()} loading={catReorderSaving}>Save Order</Button>
-          </Group>
-        </Stack>
-      </Modal>
+      {/* Category Reorder Modal (reuses the drag-and-drop items reorder modal) */}
+      <SmartCategoryItemsReorderModal
+        opened={catReorderOpened}
+        onClose={() => setCatReorderOpened(false)}
+        categoryName="Smart Categories"
+        items={catReorderAsItems}
+        loading={false}
+        saving={catReorderSaving}
+        onSave={handleCatReorderSave}
+      />
 
       {/* Copy from Existing Modal */}
       <Modal opened={copyModalOpened} onClose={() => setCopyModalOpened(false)} title="Copy from Existing Smart Category" size="lg">
