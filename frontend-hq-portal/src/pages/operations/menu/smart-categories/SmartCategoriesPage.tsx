@@ -698,7 +698,9 @@ function CategoryGrid({
   onEdit,
   onCreate,
   onDelete,
+  onReorderChildren,
   onReload,
+  allNodes,
 }: {
   brandId: number;
   nodes: FlatNode[];
@@ -709,7 +711,9 @@ function CategoryGrid({
   onEdit: (node: FlatNode) => void;
   onCreate: (parentId?: number | null) => void;
   onDelete: (node: FlatNode) => void;
+  onReorderChildren: (parentId: number) => void;
   onReload: () => void;
+  allNodes: FlatNode[];
 }) {
   const emptyMsg = isOdo
     ? 'No online smart categories. Create one or flag existing categories for ODO display.'
@@ -761,6 +765,9 @@ function CategoryGrid({
                     <Group gap={4}>
                       <Tooltip label="Edit" withArrow><ActionIcon size="sm" variant="subtle" color="blue" onClick={() => onEdit(node)}><IconEdit size={14} /></ActionIcon></Tooltip>
                       <Tooltip label="Add child" withArrow><ActionIcon size="sm" variant="subtle" onClick={() => onCreate(node.smartCategoryId)}><IconPlus size={14} /></ActionIcon></Tooltip>
+                      {allNodes.some(n => n.parentSmartCategoryId === node.smartCategoryId) && (
+                        <Tooltip label="Reorder children" withArrow><ActionIcon size="sm" variant="subtle" color="indigo" onClick={() => onReorderChildren(node.smartCategoryId)}><IconArrowsSort size={14} /></ActionIcon></Tooltip>
+                      )}
                       <Tooltip label="Delete" withArrow><ActionIcon size="sm" variant="subtle" color="red" onClick={() => onDelete(node)}><IconTrash size={14} /></ActionIcon></Tooltip>
                     </Group>
                   </Table.Td>
@@ -808,6 +815,7 @@ export function SmartCategoriesPage() {
   // Category reorder modal
   const [catReorderOpened, setCatReorderOpened] = useState(false);
   const [catReorderSaving, setCatReorderSaving] = useState(false);
+  const [catReorderParentId, setCatReorderParentId] = useState<number | null>(null); // null = root
 
   // Copy from existing modal
   const [copyModalOpened, setCopyModalOpened] = useState(false);
@@ -924,13 +932,20 @@ export function SmartCategoriesPage() {
     }
   };
 
-  const openCatReorder = () => {
+  const openCatReorder = (parentId: number | null = null) => {
+    setCatReorderParentId(parentId);
     setCatReorderOpened(true);
   };
 
   // Map categories to SmartCategoryItemAssignment shape for reuse of the reorder modal
-  const catReorderAsItems = useMemo(() =>
-    posNodes.map((n) => ({
+  // Filter by parent: null = root, number = children of that parent
+  const catReorderAsItems = useMemo(() => {
+    const filtered = posNodes.filter(n =>
+      catReorderParentId === null
+        ? !n.parentSmartCategoryId
+        : n.parentSmartCategoryId === catReorderParentId
+    );
+    return filtered.map((n) => ({
       itemId: n.smartCategoryId,
       itemCode: n.nameAlt ?? '',
       itemName: n.name,
@@ -939,8 +954,8 @@ export function SmartCategoriesPage() {
       enabled: n.enabled,
       modifiedDate: '',
       modifiedBy: '',
-    })),
-  [posNodes]);
+    }));
+  }, [posNodes, catReorderParentId]);
 
   const handleCatReorderSave = async (orderedItems: SmartCategoryDetail['items']) => {
     if (!brandId) return;
@@ -978,7 +993,7 @@ export function SmartCategoriesPage() {
         {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
 
         <Group justify="flex-end">
-          <Button variant="light" leftSection={<IconArrowsSort size={16} />} onClick={openCatReorder} disabled={!brandId || posNodes.length < 2}>
+          <Button variant="light" leftSection={<IconArrowsSort size={16} />} onClick={() => openCatReorder(null)} disabled={!brandId || posNodes.length < 2}>
             Reorder Categories
           </Button>
           <Button variant="light" leftSection={<IconCopy size={16} />} onClick={openCopyModal} disabled={!brandId}>
@@ -994,7 +1009,10 @@ export function SmartCategoriesPage() {
             brandId={brandId} nodes={posNodes} loading={loading} isOdo={false}
             expandedId={expandedId} setExpandedId={setExpandedId}
             onEdit={openEdit} onCreate={(parentId) => openCreate(parentId)}
-            onDelete={(n) => void handleDelete(n)} onReload={() => void loadData()}
+            onDelete={(n) => void handleDelete(n)}
+            onReorderChildren={(parentId) => openCatReorder(parentId)}
+            onReload={() => void loadData()}
+            allNodes={posNodes}
           />
         )}
       </Stack>
@@ -1026,7 +1044,7 @@ export function SmartCategoriesPage() {
       <SmartCategoryItemsReorderModal
         opened={catReorderOpened}
         onClose={() => setCatReorderOpened(false)}
-        categoryName="Smart Categories"
+        categoryName={catReorderParentId ? posNodes.find(n => n.smartCategoryId === catReorderParentId)?.name ?? 'Children' : 'Root Smart Categories'}
         items={catReorderAsItems}
         loading={false}
         saving={catReorderSaving}
