@@ -26,6 +26,8 @@ import {
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
+  IconArrowDown,
+  IconArrowUp,
   IconArrowsSort,
   IconChevronDown,
   IconChevronRight,
@@ -805,6 +807,11 @@ export function SmartCategoriesPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Category reorder modal
+  const [catReorderOpened, setCatReorderOpened] = useState(false);
+  const [catReorderItems, setCatReorderItems] = useState<FlatNode[]>([]);
+  const [catReorderSaving, setCatReorderSaving] = useState(false);
+
   // Copy from existing modal
   const [copyModalOpened, setCopyModalOpened] = useState(false);
   const [copySourceFilter, setCopySourceFilter] = useState<'pos' | 'online'>('pos');
@@ -920,6 +927,40 @@ export function SmartCategoriesPage() {
     }
   };
 
+  const openCatReorder = () => {
+    setCatReorderItems([...posNodes]);
+    setCatReorderOpened(true);
+  };
+
+  const moveCatReorderItem = (idx: number, dir: 'up' | 'down') => {
+    const items = [...catReorderItems];
+    const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+    [items[idx], items[swapIdx]] = [items[swapIdx], items[idx]];
+    setCatReorderItems(items);
+  };
+
+  const saveCatReorder = async () => {
+    if (!brandId) return;
+    try {
+      setCatReorderSaving(true);
+      await smartCategoryService.reorder(brandId, {
+        categories: catReorderItems.map((n, idx) => ({
+          smartCategoryId: n.smartCategoryId,
+          parentSmartCategoryId: n.parentSmartCategoryId,
+          displayIndex: idx * 10,
+        })),
+      });
+      notifications.show({ color: 'green', message: 'Category order saved' });
+      setCatReorderOpened(false);
+      await loadData();
+    } catch {
+      notifications.show({ color: 'red', message: 'Failed to save order' });
+    } finally {
+      setCatReorderSaving(false);
+    }
+  };
+
   return (
     <Container size="xl" py="xl">
       <Stack gap="lg">
@@ -932,6 +973,9 @@ export function SmartCategoriesPage() {
         {error && <Alert icon={<IconAlertCircle size={16} />} color="red">{error}</Alert>}
 
         <Group justify="flex-end">
+          <Button variant="light" leftSection={<IconArrowsSort size={16} />} onClick={openCatReorder} disabled={!brandId || posNodes.length < 2}>
+            Reorder Categories
+          </Button>
           <Button variant="light" leftSection={<IconCopy size={16} />} onClick={openCopyModal} disabled={!brandId}>
             Copy from Existing
           </Button>
@@ -969,6 +1013,39 @@ export function SmartCategoriesPage() {
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalOpened(false)}>Cancel</Button>
             <Button onClick={() => void handleSave()} loading={submitting}>{editTarget ? 'Update' : 'Create'}</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Category Reorder Modal */}
+      <Modal opened={catReorderOpened} onClose={() => setCatReorderOpened(false)} title="Reorder Smart Categories" size="lg">
+        <Stack gap="md">
+          <Stack gap={0} style={{ maxHeight: 450, overflow: 'auto' }}>
+            {catReorderItems.map((cat, idx) => (
+              <Group key={cat.smartCategoryId} gap="sm" py={6} px="xs" style={{ borderBottom: '1px solid #eee' }}>
+                <Text size="sm" fw={500} style={{ flex: 1, paddingLeft: cat.depth * 16 }}>
+                  {cat.depth > 0 && <span style={{ color: '#aaa', marginRight: 4 }}>└</span>}
+                  {cat.name}
+                </Text>
+                <Badge size="xs" variant="light">{cat.itemCount} items</Badge>
+                <Group gap={4}>
+                  <Tooltip label="Move up" withArrow>
+                    <ActionIcon size="xs" variant="subtle" onClick={() => moveCatReorderItem(idx, 'up')} disabled={idx === 0}>
+                      <IconArrowUp size={12} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Move down" withArrow>
+                    <ActionIcon size="xs" variant="subtle" onClick={() => moveCatReorderItem(idx, 'down')} disabled={idx === catReorderItems.length - 1}>
+                      <IconArrowDown size={12} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              </Group>
+            ))}
+          </Stack>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setCatReorderOpened(false)}>Cancel</Button>
+            <Button onClick={() => void saveCatReorder()} loading={catReorderSaving}>Save Order</Button>
           </Group>
         </Stack>
       </Modal>
